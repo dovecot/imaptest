@@ -1,0 +1,44 @@
+AC_INIT(dovecot-sieve, 1.0.0, [dovecot@dovecot.org])
+AC_CONFIG_SRCDIR([src])
+
+AC_CONFIG_HEADERS([imaptest-config.h])
+AM_INIT_AUTOMAKE
+
+AM_MAINTAINER_MODE
+
+AC_PROG_CC
+AC_PROG_CPP
+AM_PROG_LIBTOOL
+
+AC_ARG_WITH(dovecot,
+[  --with-dovecot[=DIR]    Dovecot base directory (../dovecot)],
+	dovecotdir="$withval",
+	dovecotdir=../dovecot
+)
+old=`pwd`
+cd $dovecotdir
+dovecotdir=`pwd`
+cd $old
+AC_SUBST(dovecotdir)
+
+if ! test -f "$dovecotdir/dovecot-config"; then
+  echo
+  echo "dovecot-config not found from $dovecotdir, use --with-dovecot=PATH"
+  echo "to give path to compiled Dovecot sources."
+  AC_MSG_ERROR([dovecot-config not found])
+fi
+
+dnl replace relative ../ paths in the file with full paths
+eval `cat $dovecotdir/dovecot-config|sed 's,\$(top_builddir)/,$dovecotdir/,g'`
+dovecot_incdir="$dovecotdir"
+
+AC_SUBST(LIBICONV)
+AC_SUBST(RAND_LIBS)
+AC_SUBST(dovecot_incdir)
+
+AC_CONFIG_FILES([
+Makefile
+src/Makefile
+stamp.h])
+
+AC_OUTPUT
