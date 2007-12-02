@@ -7,7 +7,26 @@ AM_CPPFLAGS = \
 	-I$(dovecot_incdir)/src/lib-imap
 
 imaptest_SOURCES = \
-	imaptest.c
+	checkpoint.c \
+	client.c \
+	client-state.c \
+	commands.c \
+	imaptest.c \
+	imap-args.c \
+	mailbox.c \
+	mailbox-source.c \
+	mailbox-state.c
+
+noinst_HEADERS = \
+	checkpoint.h \
+	client.h \
+	client-state.h \
+	commands.h \
+	imap-args.h \
+	mailbox.h \
+	mailbox-source.h \
+	mailbox-state.h \
+	settings.h
 
 imaptest_LDADD = \
 	$(LIBICONV) \

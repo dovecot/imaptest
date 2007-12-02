@@ -1,0 +1,14 @@
+#ifndef MAILBOX_STATE_H
+#define MAILBOX_STATE_H
+
+struct client;
+
+void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
+				const struct imap_arg *args);
+
+int mailbox_state_set_flags(struct mailbox_view *view,
+			     const struct imap_arg *args);
+int mailbox_state_set_permanent_flags(struct mailbox_view *view,
+				      const struct imap_arg *args);
+
+#endif
