@@ -151,6 +151,11 @@ void checkpoint_neg(struct mailbox_storage *storage)
 			(void)client_send_next_cmd(c[i]);
 			storage->checkpoint->clients_left++;
 		}
+		if (storage->checkpoint->clients_left == 0) {
+			/* there are no clients to checkpoint anymore */
+			i_free_and_null(storage->checkpoint);
+			return;
+		}
 		storage->checkpoint->check_sent = TRUE;
 		return;
 	}
