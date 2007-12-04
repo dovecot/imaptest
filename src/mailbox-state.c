@@ -471,13 +471,11 @@ int mailbox_state_set_flags(struct mailbox_view *view,
 			/* system flag */
 			if (mail_flag_parse(atom + 1) == 0)
 				return -1;
-		} else {
-			if (!mailbox_view_keyword_find(view, atom, &idx))
-				mailbox_view_keyword_add(view, atom);
-			else {
-				kw = mailbox_view_keyword_get(view, idx);
-				kw->flags_counter = view->flags_counter;
-			}
+		} else if (!mailbox_view_keyword_find(view, atom, &idx))
+			mailbox_view_keyword_add(view, atom);
+		else {
+			kw = mailbox_view_keyword_get(view, idx);
+			kw->flags_counter = view->flags_counter;
 		}
 
 		args++;
@@ -502,6 +500,8 @@ int mailbox_state_set_permanent_flags(struct mailbox_view *view,
 				      const struct imap_arg *args)
 {
 	const ARRAY_TYPE(imap_arg_list) *list;
+	struct mailbox_keyword *keywords, *kw;
+	unsigned int idx, i, count;
 	const char *atom;
 
 	if (args->type != IMAP_ARG_LIST)
@@ -509,15 +509,38 @@ int mailbox_state_set_permanent_flags(struct mailbox_view *view,
 	list = IMAP_ARG_LIST(args);
 	args = array_idx(list, 0);
 
+	keywords = array_get_modifiable(&view->keywords, &count);
+	for (i = 0; i < count; i++)
+		keywords[i].permanent = FALSE;
+
 	view->keywords_can_create_more = FALSE;
 	while (args->type != IMAP_ARG_EOL) {
 		if (args->type != IMAP_ARG_ATOM)
 			return -1;
 
 		atom = IMAP_ARG_STR(args);
-		if (strcmp(atom, "\\*") == 0)
-			view->keywords_can_create_more = TRUE;
+		if (*atom == '\\') {
+			if (strcmp(atom, "\\*") == 0)
+				view->keywords_can_create_more = TRUE;
+			else if (mail_flag_parse(atom + 1) == 0)
+				return -1;
+		} else if (!mailbox_view_keyword_find(view, atom, &idx)) {
+			i_error("Keyword in PERMANENTFLAGS not introduced "
+				"with FLAGS: %s", atom);
+		} else {
+			kw = mailbox_view_keyword_get(view, idx);
+			kw->permanent = TRUE;
+		}
 		args++;
+	}
+
+	keywords = array_get_modifiable(&view->keywords, &count);
+	for (i = 0; i < count; i++) {
+		if (!keywords[i].permanent && !keywords[i].seen_nonpermanent) {
+			i_warning("Keyword not in PERMANENTFLAGS found: %s",
+				  keywords[i].name);
+			keywords[i].seen_nonpermanent = TRUE;
+		}
 	}
 	return 0;
 }

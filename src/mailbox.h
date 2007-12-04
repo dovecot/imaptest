@@ -42,6 +42,9 @@ struct mailbox_keyword {
 	/* number of messages containing this keyword (that we know of) */
 	unsigned int refcount;
 	unsigned int flags_counter; /* should match view->flags_counter */
+
+	unsigned int permanent:1;
+	unsigned int seen_nonpermanent:1;
 };
 
 struct mailbox_storage {
