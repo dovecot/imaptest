@@ -494,6 +494,12 @@ int client_send_next_cmd(struct client *client)
 		return 0;
 	}
 
+	if (client->append_unfinished && state != STATE_APPEND) {
+		i_assert(state == STATE_LOGOUT);
+		client_unref(client);
+		return -1;
+	}
+
 	client->state = state;
 	switch (state) {
 	case STATE_AUTHENTICATE:
