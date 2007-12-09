@@ -15,11 +15,60 @@ struct mailbox_checkpoint_context {
 
 struct checkpoint_context {
 	struct message_metadata_dynamic *messages;
+	ARRAY_DEFINE(all_keywords, const char *);
+	ARRAY_DEFINE(cur_keywords_map, unsigned int);
 	uint32_t *uids;
 	unsigned int *flag_counts;
 	unsigned int count;
-	bool errors;
+
+	unsigned int first:1;
+	unsigned int errors:1;
 };
+
+static void
+keyword_map_update(struct checkpoint_context *ctx, struct client *client)
+{
+	const struct mailbox_keyword *kw_my;
+	const char *const *kw_all, *name;
+	unsigned int i, j, my_count, all_count;
+
+	array_clear(&ctx->cur_keywords_map);
+	kw_my = array_get(&client->view->keywords, &my_count);
+	kw_all = array_get(&ctx->all_keywords, &all_count);
+	for (i = 0; i < my_count; i++) {
+		for (j = 0; j < all_count; j++) {
+			if (strcasecmp(kw_all[j], kw_my[i].name) == 0)
+				break;
+		}
+
+		array_append(&ctx->cur_keywords_map, &j, 1);
+		if (j == all_count) {
+			if (!ctx->first) {
+				i_error("Client %u: Missing keyword %s",
+					client->idx, kw_my[i].name);
+			}
+			name = kw_my[i].name;
+			array_append(&ctx->all_keywords, &name, 1);
+			kw_all = array_get(&ctx->all_keywords, &all_count);
+		}
+	}
+}
+
+static void keywords_remap(struct checkpoint_context *ctx,
+			   const uint8_t *src, uint8_t *dest,
+			   unsigned int dest_size)
+{
+	const unsigned int *kw_map;
+	unsigned int i, count;
+
+	memset(dest, 0, dest_size);
+
+	kw_map = array_get(&ctx->cur_keywords_map, &count);
+	for (i = 0; i < count; i++) {
+		if ((src[i/8] & (1 << (i%8))) != 0)
+			dest[kw_map[i]/8] |= 1 << (kw_map[i]%8);
+	}
+}
 
 static void
 checkpoint_update(struct checkpoint_context *ctx, struct client *client)
@@ -27,8 +76,11 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 	struct mailbox_view *view = client->view;
 	const struct message_metadata_dynamic *msgs;
 	const uint32_t *uids;
+	uint8_t *keywords_remapped;
 	enum mail_flags this_flags, other_flags;
-	unsigned int i, count, keywords_size;
+	unsigned int i, count, dest_keywords_size;
+
+	keyword_map_update(ctx, client);
 
 	uids = array_get(&view->uidmap, &count);
 	if (count != ctx->count) {
@@ -38,7 +90,8 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 	}
 
 	msgs = array_get(&view->messages, &count);
-	keywords_size = (array_count(&view->keywords) + 7) / 8;
+	dest_keywords_size = (array_count(&ctx->all_keywords) + 7) / 8;
+	keywords_remapped = t_malloc(dest_keywords_size);
 	for (i = 0; i < count; i++) {
 		if (uids[i] == 0) {
 			/* we don't have this message's metadata */
@@ -56,12 +109,17 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 
 		if ((msgs[i].mail_flags & MAIL_FLAGS_SET) == 0)
 			continue;
+
+		keywords_remap(ctx, msgs[i].keyword_bitmask,
+			       keywords_remapped, dest_keywords_size);
 		ctx->flag_counts[i]++;
 		if ((ctx->messages[i].mail_flags & MAIL_FLAGS_SET) == 0) {
 			/* first one to set flags */
 			ctx->messages[i].mail_flags = msgs[i].mail_flags;
 			ctx->messages[i].keyword_bitmask =
-				msgs[i].keyword_bitmask;
+				i_malloc(dest_keywords_size);
+			memcpy(ctx->messages[i].keyword_bitmask,
+			       keywords_remapped, dest_keywords_size);
 			continue;
 		}
 
@@ -87,9 +145,8 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 				mail_flags_to_str(this_flags),
 				mail_flags_to_str(other_flags));
 		}
-		if (memcmp(msgs[i].keyword_bitmask,
-			   ctx->messages[i].keyword_bitmask,
-			   keywords_size) != 0) {
+		if (memcmp(keywords_remapped, ctx->messages[i].keyword_bitmask,
+			   dest_keywords_size) != 0) {
 			ctx->errors = TRUE;
 			i_error("Client %u: Message seq=%u UID=%u "
 				"keywords differ: (%s) vs (%s)",
@@ -185,13 +242,19 @@ void checkpoint_neg(struct mailbox_storage *storage)
 				     ctx.count);
 		ctx.uids = i_new(uint32_t, ctx.count);
 		ctx.flag_counts = i_new(uint32_t, ctx.count);
+		ctx.first = TRUE;
+		i_array_init(&ctx.all_keywords, 32);
+		i_array_init(&ctx.cur_keywords_map, 32);
 		for (i = 0; i < count; i++) {
 			if (c[i] == NULL || c[i]->checkpointing != storage)
 				continue;
 
 			check_count++;
 			checkpoint_update(&ctx, c[i]);
+			ctx.first = FALSE;
 		}
+		for (i = 0; i < ctx.count; i++)
+			i_free(ctx.messages[i].keyword_bitmask);
 		if (!storage->seen_all_recent || storage->dont_track_recent) {
 			/* can't handle this */
 		} else if (recent_total > ctx.count) {
@@ -209,6 +272,8 @@ void checkpoint_neg(struct mailbox_storage *storage)
 			/* this only works if no clients have disconnected */
 			checkpoint_check_missing_recent(&ctx, min_uidnext);
 		}
+		array_free(&ctx.all_keywords);
+		array_free(&ctx.cur_keywords_map);
 		i_free(ctx.flag_counts);
 		i_free(ctx.uids);
 		i_free(ctx.messages);
