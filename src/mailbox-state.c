@@ -8,6 +8,7 @@
 #include "message-size.h"
 #include "message-header-parser.h"
 
+#include "settings.h"
 #include "imap-args.h"
 #include "client.h"
 #include "mailbox.h"
@@ -455,6 +456,7 @@ int mailbox_state_set_flags(struct mailbox_view *view,
 	struct mailbox_keyword *kw;
 	unsigned int idx, i, count;
 	const char *atom;
+	bool errors = FALSE;
 
 	if (args->type != IMAP_ARG_LIST)
 		return -1;
@@ -488,9 +490,12 @@ int mailbox_state_set_flags(struct mailbox_view *view,
 			i_error("Keyword '%s' dropped, but it still had "
 				"%d references", keywords[i].name,
 				keywords[i].refcount);
+			errors = TRUE;
 		}
 	}
 
+	if (errors && conf.error_quit)
+		exit(2);
 	if ((count+7)/8 > view->keyword_bitmask_alloc_size)
 		mailbox_view_keywords_realloc(view, (count+7) / 8 * 4);
 	return 0;
@@ -503,6 +508,7 @@ int mailbox_state_set_permanent_flags(struct mailbox_view *view,
 	struct mailbox_keyword *keywords, *kw;
 	unsigned int idx, i, count;
 	const char *atom;
+	bool errors = FALSE;
 
 	if (args->type != IMAP_ARG_LIST)
 		return -1;
@@ -527,6 +533,7 @@ int mailbox_state_set_permanent_flags(struct mailbox_view *view,
 		} else if (!mailbox_view_keyword_find(view, atom, &idx)) {
 			i_error("Keyword in PERMANENTFLAGS not introduced "
 				"with FLAGS: %s", atom);
+			errors = TRUE;
 		} else {
 			kw = mailbox_view_keyword_get(view, idx);
 			kw->permanent = TRUE;
@@ -542,5 +549,7 @@ int mailbox_state_set_permanent_flags(struct mailbox_view *view,
 			keywords[i].seen_nonpermanent = TRUE;
 		}
 	}
+	if (errors && conf.error_quit)
+		exit(2);
 	return 0;
 }

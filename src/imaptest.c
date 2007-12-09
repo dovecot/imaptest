@@ -303,6 +303,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			conf.disconnect_quit = TRUE;
 			continue;
 		}
+		if (strcmp(*argv, "error_quit") == 0) {
+			conf.error_quit = TRUE;
+			continue;
+		}
 		if (strcmp(*argv, "rawlog") == 0) {
 			conf.rawlog = TRUE;
 			continue;

@@ -42,7 +42,7 @@ struct settings {
 	unsigned int checkpoint_interval;
 
 	bool random_states, no_pipelining, disconnect_quit;
-	bool no_tracking, rawlog;
+	bool no_tracking, rawlog, error_quit;
 
 	struct ip_addr ip;
 };

@@ -40,6 +40,8 @@ int client_input_error(struct client *client, const char *fmt, ...)
 
 	i_stream_close(client->input);
 	o_stream_close(client->output);
+	if (conf.error_quit)
+		exit(2);
 	return -1;
 }
 

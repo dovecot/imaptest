@@ -4,9 +4,12 @@
 #include "array.h"
 #include "mail-types.h"
 
+#include "settings.h"
 #include "mailbox.h"
 #include "client.h"
 #include "checkpoint.h"
+
+#include <stdlib.h>
 
 struct mailbox_checkpoint_context {
 	unsigned int clients_left;
@@ -280,6 +283,8 @@ void checkpoint_neg(struct mailbox_storage *storage)
 	}
 	if (!ctx.errors)
 		counters[STATE_CHECKPOINT] += check_count;
+	else if (conf.error_quit)
+		exit(2);
 
 	for (i = 0; i < count; i++) {
 		if (c[i] == NULL)
