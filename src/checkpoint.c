@@ -47,7 +47,8 @@ keyword_map_update(struct checkpoint_context *ctx, struct client *client)
 		array_append(&ctx->cur_keywords_map, &j, 1);
 		if (j == all_count) {
 			if (!ctx->first) {
-				i_error("Client %u: Missing keyword %s",
+				i_error("Checkpoint: client %u: "
+					"Missing keyword %s",
 					client->idx, kw_my[i].name);
 			}
 			name = kw_my[i].name;
@@ -88,7 +89,8 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 	uids = array_get(&view->uidmap, &count);
 	if (count != ctx->count) {
 		ctx->errors = TRUE;
-		i_error("Client %u: Mailbox has only %u of %u messages",
+		i_error("Checkpoint: client %u: "
+			"Mailbox has only %u of %u messages",
 			client->global_id, count, ctx->count);
 	}
 
@@ -104,7 +106,8 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 			ctx->uids[i] = uids[i];
 		if (uids[i] != ctx->uids[i]) {
 			ctx->errors = TRUE;
-			i_error("Client %u: Message seq=%u UID %u != %u",
+			i_error("Checkpoint: client %u: "
+				"Message seq=%u UID %u != %u",
 				client->global_id, i + 1,
 				uids[i], ctx->uids[i]);
 			break;
@@ -131,7 +134,8 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 			if ((ctx->messages[i].mail_flags & MAIL_RECENT) == 0)
 				ctx->messages[i].mail_flags |= MAIL_RECENT;
 			else {
-				i_error("Client %u: Message seq=%u UID=%u "
+				i_error("Checkpoint: client %u: "
+					"Message seq=%u UID=%u "
 					"has \\Recent flag in multiple sessions",
 					client->global_id, i + 1, uids[i]);
 				view->storage->dont_track_recent = TRUE;
@@ -142,7 +146,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 		other_flags = ctx->messages[i].mail_flags & ~MAIL_RECENT;
 		if (this_flags != other_flags) {
 			ctx->errors = TRUE;
-			i_error("Client %u: Message seq=%u UID=%u "
+			i_error("Checkpoint: client %u: Message seq=%u UID=%u "
 				"flags differ: (%s) vs (%s)",
 				client->global_id, i + 1, uids[i],
 				mail_flags_to_str(this_flags),
@@ -151,7 +155,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 		if (memcmp(keywords_remapped, ctx->messages[i].keyword_bitmask,
 			   dest_keywords_size) != 0) {
 			ctx->errors = TRUE;
-			i_error("Client %u: Message seq=%u UID=%u "
+			i_error("Checkpoint: client %u: Message seq=%u UID=%u "
 				"keywords differ: (%s) vs (%s)",
 				client->global_id, i + 1, uids[i],
 				mailbox_view_keywords_to_str(view, msgs[i].keyword_bitmask),
@@ -177,8 +181,8 @@ static void checkpoint_check_missing_recent(struct checkpoint_context *ctx,
 		    (ctx->messages[i].mail_flags & MAIL_FLAGS_SET) == 0)
 			continue;
 		if ((ctx->messages[i].mail_flags & MAIL_RECENT) == 0) {
-			i_error("Message seq=%u UID=%u isn't \\Recent anywhere",
-				i + 1, ctx->uids[i]);
+			i_error("Checkpoint: Message seq=%u UID=%u "
+				"isn't \\Recent anywhere", i + 1, ctx->uids[i]);
 		}
 	}
 }
@@ -261,12 +265,13 @@ void checkpoint_neg(struct mailbox_storage *storage)
 		if (!storage->seen_all_recent || storage->dont_track_recent) {
 			/* can't handle this */
 		} else if (recent_total > ctx.count) {
-			i_error("Total RECENT count %u larger than current "
-				"message count %u", recent_total, ctx.count);
+			i_error("Checkpoint: Total RECENT count %u "
+				"larger than current message count %u",
+				recent_total, ctx.count);
 			storage->dont_track_recent = TRUE;
 		} else if (total_disconnects == 0 &&
 			   recent_total != ctx.count) {
-			i_error("Total RECENT count %u != %u",
+			i_error("Checkpoint: Total RECENT count %u != %u",
 				recent_total, ctx.count);
 			storage->dont_track_recent = TRUE;
 		}
