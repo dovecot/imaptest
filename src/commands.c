@@ -25,12 +25,8 @@ void command_send(struct client *client, const char *cmdline,
 	cmd_str = t_strdup_printf("%u.%u %s\r\n", client->global_id,
 				  tag, cmdline);
 	o_stream_send_str(client->output, cmd_str);
-	if (client->rawlog_output != NULL) {
-		if (!client->rawlog_last_lf)
-			o_stream_send_str(client->rawlog_output, "<<<\n");
-		o_stream_send_str(client->rawlog_output, cmd_str);
-		client->rawlog_last_lf = TRUE;
-	}
+	if (client->rawlog_output != NULL)
+		client_rawlog_output(client, cmd_str);
 
 	array_append(&client->commands, &cmd, 1);
 	client->last_cmd = cmd;

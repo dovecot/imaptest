@@ -29,6 +29,10 @@ bool stalled = FALSE, disconnect_clients = FALSE;
 
 static unsigned int global_id_counter = 0;
 
+static void
+client_rawlog_input(struct client *client, const unsigned char *data,
+		    size_t size);
+
 int client_input_error(struct client *client, const char *fmt, ...)
 {
 	va_list va;
@@ -290,10 +294,9 @@ static void client_input(struct client *client)
 		data = i_stream_get_data(client->input, &size);
 		i_assert(client->prev_size <= size);
 		if (client->prev_size != size) {
-			o_stream_send(client->rawlog_output,
-				      data + client->prev_size,
-				      size - client->prev_size);
-			client->rawlog_last_lf = data[size-1] == '\n';
+			client_rawlog_input(client,
+					    data + client->prev_size,
+					    size - client->prev_size);
 		}
 	}
 
@@ -556,6 +559,55 @@ bool client_unref(struct client *client)
 	if (checkpoint)
 		checkpoint_neg(storage);
 	return FALSE;
+}
+
+static void
+client_rawlog_line(struct client *client, const void *data, size_t size)
+{
+	struct const_iovec iov[2];
+	char timestamp[256];
+	struct timeval tv;
+
+	if (gettimeofday(&tv, NULL) < 0)
+		timestamp[0] = '\0';
+	else {
+		i_snprintf(timestamp, sizeof(timestamp), "%lu.%06u ",
+			   (unsigned long)tv.tv_sec, (unsigned int)tv.tv_usec);
+	}
+
+	iov[0].iov_base = timestamp;
+	iov[0].iov_len = strlen(timestamp);
+	iov[1].iov_base = data;
+	iov[1].iov_len = size;
+	o_stream_sendv(client->rawlog_output, iov, 2);
+}
+
+static void
+client_rawlog_input(struct client *client, const unsigned char *data,
+		    size_t size)
+{
+	size_t i, start = 0;
+
+	for (i = 0; i < size; i++) {
+		if (data[i] == '\n') {
+			client_rawlog_line(client, data + start, i - start + 1);
+			start = i + 1;
+		}
+	}
+	if (start == size)
+		client->rawlog_last_lf = TRUE;
+	else {
+		client->rawlog_last_lf = FALSE;
+		client_rawlog_line(client, data + start, size - start);
+	}
+}
+
+void client_rawlog_output(struct client *client, const char *line)
+{
+	if (!client->rawlog_last_lf)
+		o_stream_send_str(client->rawlog_output, "<<<\n");
+	client_rawlog_line(client, line, strlen(line));
+	client->rawlog_last_lf = TRUE;
 }
 
 void clients_init(void)
