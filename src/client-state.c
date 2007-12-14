@@ -540,7 +540,7 @@ int client_send_next_cmd(struct client *client)
 	case STATE_FETCH: {
 		static const char *fields[] = {
 			"UID", "FLAGS", "ENVELOPE", "INTERNALDATE",
-			"BODY", "BODYSTRUCTURE"
+			"BODY", "BODYSTRUCTURE", "RFC822.SIZE"
 		};
 		static const char *header_fields[] = {
 			"From", "To", "Cc", "Subject", "References",
@@ -577,11 +577,17 @@ int client_send_next_cmd(struct client *client)
 		command_send(client, str_c(cmd), state_callback);
 		break;
 	}
-	case STATE_FETCH2:
-		str = t_strdup_printf("FETCH %lu (BODY.PEEK[])",
-				      (random() % msgs) + 1);
+	case STATE_FETCH2: {
+		static const char *fields[] = {
+			"BODY.PEEK[HEADER]", "RFC822.HEADER",
+			"BODY.PEEK[]", "BODY.PEEK[1]", "RFC822.TEXT"
+		};
+		str = t_strdup_printf("FETCH %lu %s",
+				      (random() % msgs) + 1,
+				      fields[rand()%N_ELEMENTS(fields)]);
 		command_send(client, str, state_callback);
 		break;
+	}
 	case STATE_SEARCH:
 		command_send(client, "SEARCH BODY hello", state_callback);
 		break;
