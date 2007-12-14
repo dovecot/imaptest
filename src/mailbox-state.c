@@ -422,9 +422,11 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 				    strlen(ENVELOPE_NIL_REPLY)) == 0)
 				continue;
 			p = &metadata->ms->msg->envelope;
-		} else if (strcmp(name, "RFC822.SIZE") == 0)
+		} else if (strcmp(name, "RFC822.SIZE") == 0) {
+			if (metadata->ms->msg->virtual_size == 0)
+				continue;
 			p = &metadata->ms->msg->virtual_size;
-		else if (strcmp(name, "BODY[HEADER.FIELDS") == 0) {
+		} else if (strcmp(name, "BODY[HEADER.FIELDS") == 0) {
 			if (fetch_parse_header_fields(client, args, i+1,
 						      metadata->ms) < 0) {
 				client_input_error(client,
