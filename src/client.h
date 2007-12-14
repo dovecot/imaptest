@@ -61,7 +61,6 @@ struct client {
 	unsigned int delayed:1;
 	unsigned int seen_banner:1;
 	unsigned int append_unfinished:1;
-	unsigned int rawlog_last_lf:1;
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
 

@@ -484,7 +484,6 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 		if (log_fd == -1)
 			i_fatal("creat(%s) failed: %m", rawlog_path);
 		client->rawlog_output = o_stream_create_fd(log_fd, 0, TRUE);
-		client->rawlog_last_lf = TRUE;
 	}
 	client->parser = imap_parser_create(client->input, NULL, (size_t)-1);
 	client->io = io_add(fd, IO_READ, client_wait_connect, client);
@@ -562,9 +561,10 @@ bool client_unref(struct client *client)
 }
 
 static void
-client_rawlog_line(struct client *client, const void *data, size_t size)
+client_rawlog_line(struct client *client, const void *data, size_t size,
+		   bool partial)
 {
-	struct const_iovec iov[2];
+	struct const_iovec iov[3];
 	char timestamp[256];
 	struct timeval tv;
 
@@ -579,7 +579,9 @@ client_rawlog_line(struct client *client, const void *data, size_t size)
 	iov[0].iov_len = strlen(timestamp);
 	iov[1].iov_base = data;
 	iov[1].iov_len = size;
-	o_stream_sendv(client->rawlog_output, iov, 2);
+	iov[2].iov_base = ">>\n";
+	iov[2].iov_len = 3;
+	o_stream_sendv(client->rawlog_output, iov, partial ? 3 : 2);
 }
 
 static void
@@ -590,24 +592,18 @@ client_rawlog_input(struct client *client, const unsigned char *data,
 
 	for (i = 0; i < size; i++) {
 		if (data[i] == '\n') {
-			client_rawlog_line(client, data + start, i - start + 1);
+			client_rawlog_line(client, data + start,
+					   i - start + 1, FALSE);
 			start = i + 1;
 		}
 	}
-	if (start == size)
-		client->rawlog_last_lf = TRUE;
-	else {
-		client->rawlog_last_lf = FALSE;
-		client_rawlog_line(client, data + start, size - start);
-	}
+	if (start != size)
+		client_rawlog_line(client, data + start, size - start, TRUE);
 }
 
 void client_rawlog_output(struct client *client, const char *line)
 {
-	if (!client->rawlog_last_lf)
-		o_stream_send_str(client->rawlog_output, "<<<\n");
-	client_rawlog_line(client, line, strlen(line));
-	client->rawlog_last_lf = TRUE;
+	client_rawlog_line(client, line, strlen(line), FALSE);
 }
 
 void clients_init(void)
