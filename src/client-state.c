@@ -582,7 +582,8 @@ int client_send_next_cmd(struct client *client)
 	case STATE_FETCH2: {
 		static const char *fields[] = {
 			"BODY.PEEK[HEADER]", "RFC822.HEADER",
-			"BODY.PEEK[]", "BODY.PEEK[1]", "RFC822.TEXT"
+			"BODY.PEEK[]", "RFC822",
+			"BODY.PEEK[1]", "BODY.PEEK[TEXT]", "RFC822.TEXT"
 		};
 		str = t_strdup_printf("FETCH %lu %s",
 				      (random() % msgs) + 1,
