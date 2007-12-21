@@ -14,7 +14,7 @@ ARRAY_DEFINE_TYPE(message_header, struct message_header);
 struct message_global {
 	char *message_id;
 	const char *body, *bodystructure, *envelope;
-	const char *virtual_size;
+	uoff_t header_size, body_size, full_size, mime1_size;
 
 	ARRAY_TYPE(message_header) headers;
 };

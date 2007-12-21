@@ -22,6 +22,7 @@
 #define ENVELOPE_NIL_REPLY \
 	"NIL NIL NIL NIL NIL NIL NIL NIL NIL NIL"
 #define INTERNALDATE_NIL_TIMESTAMP 0
+#define RFC822_SIZE_NIL_REPLY "0"
 
 static void client_fetch_envelope(struct client *client,
 				  struct message_metadata_dynamic *metadata,
@@ -314,6 +315,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 	const ARRAY_TYPE(imap_arg_list) *list;
 	const struct imap_arg *arg;
 	const char *name, *value, **p;
+	uoff_t value_size, *sizep;
 	uint32_t uid, *uidp;
 	unsigned int i, list_count;
 
@@ -366,6 +368,8 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 		list = NULL;
 		if (IMAP_ARG_TYPE_IS_STRING(args[i+1].type))
 			value = IMAP_ARG_STR(&args[i+1]);
+		else if (args[i+1].type == IMAP_ARG_LITERAL_SIZE)
+			value = dec2str(IMAP_ARG_LITERAL_SIZE(&args[i+1]));
 		else if (args[i+1].type == IMAP_ARG_LIST) {
 			list = IMAP_ARG_LIST(&args[i+1]);
 			value = imap_args_to_str(array_idx(list, 0));
@@ -407,6 +411,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 		if (metadata->ms->msg == NULL)
 			continue;
 
+		p = NULL; sizep = NULL; value_size = (uoff_t)-1;
 		if (strcmp(name, "BODY") == 0) {
 			if (strncmp(value, BODY_NIL_REPLY,
 				    strlen(BODY_NIL_REPLY)) == 0)
@@ -422,21 +427,36 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 				    strlen(ENVELOPE_NIL_REPLY)) == 0)
 				continue;
 			p = &metadata->ms->msg->envelope;
-		} else if (strcmp(name, "RFC822.SIZE") == 0) {
-			if (metadata->ms->msg->virtual_size == 0)
-				continue;
-			p = &metadata->ms->msg->virtual_size;
-		} else if (strcmp(name, "BODY[HEADER.FIELDS") == 0) {
-			if (fetch_parse_header_fields(client, args, i+1,
-						      metadata->ms) < 0) {
-				client_input_error(client,
-						   "Broken HEADER.FIELDS");
-			}
-			continue;
-		} else
-			continue;
+		} else if (strncmp(name, "RFC822", 6) == 0) {
+			if (name[6] == '\0')
+				sizep = &metadata->ms->msg->full_size;
+			else if (strcmp(name + 6, ".SIZE") == 0) {
+				if (strcmp(value, RFC822_SIZE_NIL_REPLY) == 0)
+					continue;
+				sizep = &metadata->ms->msg->full_size;
+				value_size = strtoull(value, NULL, 10);
+			} else if (strcmp(name + 6, "HEADER") == 0)
+				sizep = &metadata->ms->msg->header_size;
+			else if (strcmp(name + 6, "TEXT") == 0)
+				sizep = &metadata->ms->msg->body_size;
+		} else if (strncmp(name, "BODY[", 5) == 0) {
+			if (strcmp(name + 5, "HEADER.FIELDS") == 0) {
+				if (fetch_parse_header_fields(client, args, i+1,
+							metadata->ms) < 0) {
+					client_input_error(client,
+						"Broken HEADER.FIELDS");
+				}
+			} else if (strcmp(name + 5, "]") == 0)
+				sizep = &metadata->ms->msg->full_size;
+			else if (strcmp(name + 5, "HEADER]") == 0)
+				sizep = &metadata->ms->msg->header_size;
+			else if (strcmp(name + 5, "TEXT]") == 0)
+				sizep = &metadata->ms->msg->body_size;
+			else if (strcmp(name + 5, "1]") == 0)
+				sizep = &metadata->ms->msg->mime1_size;
+		}
 
-		if (*p == NULL || strcasecmp(*p, value) != 0) {
+		if (p != NULL && (*p == NULL || strcasecmp(*p, value) != 0)) {
 			if (*p != NULL) {
 				client_input_error(client,
 					"%s: %s changed '%s' -> '%s'",
@@ -445,6 +465,22 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 			}
 			*p = p_strdup(view->storage->source->messages_pool,
 				      value);
+		} else if (sizep != NULL) {
+			if (value_size == (uoff_t)-1) {
+				/* not RFC822.SIZE - get the size */
+				if (args[i+1].type == IMAP_ARG_LITERAL_SIZE)
+					value_size = strtoull(value, NULL, 10);
+				else
+					value_size = strlen(value);
+			}
+			if (*sizep != value_size && *sizep != 0) {
+				client_input_error(client,
+					"%s: %s size changed %"PRIuUOFF_T
+					" -> '%"PRIuUOFF_T"'",
+					metadata->ms->msg->message_id, name,
+					*sizep, value_size);
+			}
+			*sizep = value_size;
 		}
 	}
 	t_pop();
