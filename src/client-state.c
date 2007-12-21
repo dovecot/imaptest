@@ -341,10 +341,12 @@ int client_append(struct client *client, bool continued)
 				      source->input->v_offset,
 				      client->append_size);
 	ret = o_stream_send_istream(client->output, input);
-        i_stream_unref(&input);
+	errno = input->stream_errno;
+	i_stream_unref(&input);
 
 	if (ret < 0) {
-		i_error("APPEND failed: %m");
+		if (errno != 0)
+			i_error("APPEND failed: %m");
 		return -1;
 	}
 	client->append_size -= ret;
