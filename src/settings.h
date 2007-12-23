@@ -28,7 +28,7 @@
 /* Add random keywords with max. length n */
 //#define RAND_KEYWORDS 40
 
-#define DELAY 1000
+#define DELAY_MSECS 1000
 #define MAX_COMMAND_QUEUE_LEN 10
 #define MAX_INLINE_LITERAL_SIZE (1024*32)
 

@@ -286,7 +286,7 @@ int client_send_more_commands(struct client *client)
 
 	if (!client->delayed && do_rand(STATE_DELAY)) {
 		counters[STATE_DELAY]++;
-		client_delay(client, DELAY);
+		client_delay(client, DELAY_MSECS);
 	}
 	return 0;
 }
