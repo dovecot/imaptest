@@ -337,9 +337,7 @@ int client_append(struct client *client, bool continued)
 		i_stream_seek(source->input, client->append_offset);
 	}
 
-	input = i_stream_create_limit(source->input,
-				      source->input->v_offset,
-				      client->append_size);
+	input = i_stream_create_limit(source->input, client->append_size);
 	ret = o_stream_send_istream(client->output, input);
 	errno = input->stream_errno;
 	i_stream_unref(&input);
