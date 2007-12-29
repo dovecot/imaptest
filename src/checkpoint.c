@@ -262,6 +262,13 @@ void checkpoint_neg(struct mailbox_storage *storage)
 		}
 		for (i = 0; i < ctx.count; i++)
 			i_free(ctx.messages[i].keyword_bitmask);
+
+		if (total_disconnects == 0 && min_uidnext != 0 &&
+		    !storage->dont_track_recent) {
+			/* this only works if no clients have disconnected */
+			checkpoint_check_missing_recent(&ctx, min_uidnext);
+		}
+
 		if (!storage->seen_all_recent || storage->dont_track_recent) {
 			/* can't handle this */
 		} else if (recent_total > ctx.count) {
@@ -274,11 +281,6 @@ void checkpoint_neg(struct mailbox_storage *storage)
 			i_error("Checkpoint: Total RECENT count %u != %u",
 				recent_total, ctx.count);
 			storage->dont_track_recent = TRUE;
-		}
-		if (total_disconnects == 0 && min_uidnext != 0 &&
-		    !storage->dont_track_recent) {
-			/* this only works if no clients have disconnected */
-			checkpoint_check_missing_recent(&ctx, min_uidnext);
 		}
 		array_free(&ctx.all_keywords);
 		array_free(&ctx.cur_keywords_map);
