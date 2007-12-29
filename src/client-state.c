@@ -555,6 +555,10 @@ int client_send_next_cmd(struct client *client)
 		}
 		cmd = t_str_new(512);
 		str_printfa(cmd, "FETCH %u:%u (", seq1, seq2);
+		if (conf.checkpoint_interval > 0) {
+			/* knowing UID and FLAGS improves detecting problems */
+			str_append(cmd, "UID FLAGS ");
+		}
 		for (i = (rand() % 4) + 1; i > 0; i--) {
 			if ((rand() % 4) != 0) {
 				str_append(cmd, fields[rand() %
@@ -583,7 +587,9 @@ int client_send_next_cmd(struct client *client)
 			"BODY.PEEK[]", "RFC822",
 			"BODY.PEEK[1]", "BODY.PEEK[TEXT]", "RFC822.TEXT"
 		};
-		str = t_strdup_printf("FETCH %lu %s",
+		/* Fetch also UID so that error logging can show it in
+		   case of problems */
+		str = t_strdup_printf("FETCH %lu (UID %s)",
 				      (random() % msgs) + 1,
 				      fields[rand()%N_ELEMENTS(fields)]);
 		command_send(client, str, state_callback);
