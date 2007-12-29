@@ -459,7 +459,8 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 		if (p != NULL && (*p == NULL || strcasecmp(*p, value) != 0)) {
 			if (*p != NULL) {
 				client_input_error(client,
-					"%s: %s changed '%s' -> '%s'",
+					"uid=%u %s: %s changed '%s' -> '%s'",
+					metadata->ms->uid,
 					metadata->ms->msg->message_id, name,
 					*p, value);
 			}
@@ -475,8 +476,9 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 			}
 			if (*sizep != value_size && *sizep != 0) {
 				client_input_error(client,
-					"%s: %s size changed %"PRIuUOFF_T
+					"uid=%u %s: %s size changed %"PRIuUOFF_T
 					" -> '%"PRIuUOFF_T"'",
+					metadata->ms->uid,
 					metadata->ms->msg->message_id, name,
 					*sizep, value_size);
 			}
