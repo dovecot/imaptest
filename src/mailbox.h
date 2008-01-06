@@ -48,6 +48,7 @@ struct message_metadata_dynamic {
 
 struct mailbox_keyword_name {
 	char *name;
+	unsigned int owner_client_idx1;
 };
 
 struct mailbox_keyword {
@@ -74,7 +75,13 @@ struct mailbox_storage {
 	ARRAY_DEFINE(static_metadata, struct message_metadata_static *);
 	ARRAY_DEFINE(keyword_names, struct mailbox_keyword_name *);
 
-	unsigned int assign_owners:1;
+#define MAIL_FLAGS_OWN_COUNT 5
+#define MAIL_FLAG_DELETED_IDX 2
+	unsigned int flags_owner_client_idx1[MAIL_FLAGS_OWN_COUNT];
+
+	unsigned int assign_msg_owners:1;
+	unsigned int assign_flag_owners:1;
+	unsigned int flag_owner_clients_assigned:1;
 	unsigned int seen_all_recent:1;
 	unsigned int dont_track_recent:1;
 };
@@ -98,6 +105,7 @@ struct mailbox_view {
 };
 
 extern struct mailbox_storage *global_storage;
+extern const char *mail_flag_names[]; /* enum mail_flags names */
 
 struct mailbox_storage *mailbox_storage_get(struct mailbox_source *source);
 void mailbox_storage_free(struct mailbox_storage **storage);
@@ -119,7 +127,8 @@ enum mail_flags mail_flag_parse(const char *str);
 const char *mail_flags_to_str(enum mail_flags flags);
 const char *mailbox_view_keywords_to_str(struct mailbox_view *view,
 					 const uint8_t *bitmask);
-const char *mailbox_view_get_random_flags(struct mailbox_view *view);
+const char *mailbox_view_get_random_flags(struct mailbox_view *view,
+					  unsigned int client_idx);
 
 struct message_metadata_static *
 message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid);

@@ -311,7 +311,8 @@ int client_append(struct client *client, bool continued)
 			str_printfa(cmd, "APPEND \"%s\"", conf.mailbox);
 		if ((rand() % 2) == 0) {
 			str_printfa(cmd, " (%s)",
-				mailbox_view_get_random_flags(client->view));
+				    mailbox_view_get_random_flags(client->view,
+								  client->idx));
 		}
 		if ((rand() % 2) == 0)
 			str_printfa(cmd, " \"%s\"", imap_to_datetime(t));
@@ -498,6 +499,8 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	case STATE_STORE_DEL:
 		i_assert(strncmp(cmd->cmdline, "STORE ", 6) == 0);
 		flagchanges_unref(client, cmd->cmdline + 6);
+		if (strstr(cmd->cmdline, "FLAGS.SILENT") != NULL)
+			flagchanges_unref(client, cmd->cmdline + 6);
 		break;
 	case STATE_COPY:
 		if (reply == REPLY_NO) {
@@ -538,10 +541,16 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	return 0;
 }
 
+enum flag_type {
+	FLAG_TYPE_NONE,
+	FLAG_TYPE_FETCH,
+	FLAG_TYPE_STORE,
+	FLAG_TYPE_STORE_SILENT
+};
+
 static void
 client_get_random_seq_range(struct client *client, string_t *dest,
-			    unsigned int count, bool fetch_flags,
-			    bool dirty_flags)
+			    unsigned int count, enum flag_type flag_type)
 {
 	struct message_metadata_dynamic *metadata;
 	unsigned int i, msgs, seq, owner, tries;
@@ -558,20 +567,29 @@ client_get_random_seq_range(struct client *client, string_t *dest,
 		if (metadata->ms != NULL)
 			owner = metadata->ms->owner_client_idx1;
 		else {
-			if (client->view->storage->assign_owners) {
+			if (client->view->storage->assign_msg_owners) {
 				/* not assigned to anyone yet, wait */
 				continue;
 			}
 			owner = 0;
 		}
 
-		if (dirty_flags && owner != client->idx+1 && owner != 0)
+		if ((flag_type == FLAG_TYPE_STORE ||
+		     flag_type == FLAG_TYPE_STORE_SILENT) &&
+		    owner != client->idx+1 && owner != 0)
 			continue;
 
-		if (fetch_flags)
+		if (flag_type != FLAG_TYPE_NONE)
 			metadata->fetch_refcount++;
-		if (dirty_flags)
+
+		if (flag_type == FLAG_TYPE_STORE ||
+		    flag_type == FLAG_TYPE_STORE_SILENT)
 			metadata->flagchange_dirty = 1;
+		if (flag_type == FLAG_TYPE_STORE_SILENT) {
+			/* flag stays dirty until we can FETCH it after the
+			   STORE has successfully finished. */
+			metadata->fetch_refcount++;
+		}
 		str_printfa(dest, "%u,", seq);
 		i++;
 	}
@@ -584,7 +602,8 @@ int client_send_next_cmd(struct client *client)
 	enum client_state state;
 	string_t *cmd;
 	const char *str;
-	unsigned int i, j, seq1, seq2, count, msgs;
+	enum flag_type flag_type;
+	unsigned int i, j, seq1, seq2, count, msgs, owner;
 
 	state = client_eat_first_plan(client);
 
@@ -648,13 +667,14 @@ int client_send_next_cmd(struct client *client)
 		};
 		count = I_MIN(msgs, 100);
 		cmd = t_str_new(512);
-		client_get_random_seq_range(client, cmd, count, TRUE, FALSE);
+		client_get_random_seq_range(client, cmd, count,
+					    FLAG_TYPE_FETCH);
 		if (str_len(cmd) == 0)
 			break;
 
 		str_insert(cmd, 0, "FETCH ");
 		str_append(cmd, " (");
-		if (conf.checkpoint_interval > 0 || 1) {
+		if (conf.checkpoint_interval > 0) {
 			/* knowing UID and FLAGS improves detecting problems */
 			str_append(cmd, "UID FLAGS ");
 		}
@@ -718,7 +738,9 @@ int client_send_next_cmd(struct client *client)
 	case STATE_STORE:
 		cmd = t_str_new(512);
 		count = rand() % (msgs < 10 ? msgs : I_MIN(msgs/5, 50));
-		client_get_random_seq_range(client, cmd, count, TRUE, TRUE);
+		flag_type = conf.checkpoint_interval == 0 && rand() % 2 == 0 ?
+			FLAG_TYPE_STORE_SILENT : FLAG_TYPE_STORE;
+		client_get_random_seq_range(client, cmd, count, flag_type);
 		if (str_len(cmd) == 0)
 			break;
 
@@ -732,27 +754,42 @@ int client_send_next_cmd(struct client *client)
 			str_append_c(cmd, '-');
 			break;
 		default:
+			if (client->view->storage->assign_flag_owners) {
+				/* we must not reset any flags */
+				str_append_c(cmd, '+');
+			}
 			break;
 		}
 		str_append(cmd, "FLAGS");
-		/*if (conf.checkpoint_interval == 0 && rand() % 2 == 0)
-			str_append(cmd, ".SILENT");*/
+		if (flag_type == FLAG_TYPE_STORE_SILENT)
+			str_append(cmd, ".SILENT");
 		str_printfa(cmd, " (%s)",
-			    mailbox_view_get_random_flags(client->view));
+			    mailbox_view_get_random_flags(client->view,
+							  client->idx));
 
 		command_send(client, str_c(cmd), state_callback);
 		break;
 	case STATE_STORE_DEL:
+		owner = client->view->storage->
+			flags_owner_client_idx1[MAIL_FLAG_DELETED_IDX];
+		if (client->view->storage->assign_flag_owners &&
+		    owner != client->idx + 1) {
+			/* own_msgs - only one client can delete messages */
+			break;
+		}
+
 		cmd = t_str_new(512);
 		if (msgs > conf.message_count_threshold + 5) {
 			count = rand() % (msgs - conf.message_count_threshold);
 		} else {
 			count = rand() % 5;
 		}
-		client_get_random_seq_range(client, cmd, count, TRUE, TRUE);
+		flag_type = conf.checkpoint_interval == 0 && rand() % 2 == 0 ?
+			FLAG_TYPE_STORE_SILENT : FLAG_TYPE_STORE;
+		client_get_random_seq_range(client, cmd, count, flag_type);
 
 		if (!client->view->storage->seen_all_recent &&
-		    !client->view->storage->assign_owners &&
+		    !client->view->storage->assign_msg_owners &&
 		    conf.checkpoint_interval != 0 && msgs > 0) {
 			/* expunge everything so we can start checking RECENT
 			   counts */
@@ -764,8 +801,8 @@ int client_send_next_cmd(struct client *client)
 
 		str_insert(cmd, 0, "STORE ");
 		str_append(cmd, " +FLAGS");
-		/*if (conf.checkpoint_interval == 0 && rand() % 2 == 0)
-			str_append(cmd, ".SILENT");*/
+		if (flag_type == FLAG_TYPE_STORE_SILENT)
+			str_append(cmd, ".SILENT");
 		str_append(cmd, " \\Deleted");
 
 		command_send(client, str_c(cmd), state_callback);

@@ -315,6 +315,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			conf.own_msgs = TRUE;
 			continue;
 		}
+		if (strcmp(*argv, "own_flags") == 0) {
+			conf.own_flags = TRUE;
+			continue;
+		}
 
 		/* pass=password */
 		if (strcmp(key, "pass") == 0) {

@@ -16,6 +16,15 @@
 
 struct mailbox_storage *global_storage = NULL;
 
+const char *mail_flag_names[] = {
+	"\\Answered",
+	"\\Flagged",
+	"\\Deleted",
+	"\\Seen",
+	"\\Draft",
+	"\\Recent"
+};
+
 static int metadata_static_cmp(const void *key, const void *data)
 {
 	const uint32_t *uidp = key;
@@ -62,7 +71,7 @@ message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid)
 	ms = i_new(struct message_metadata_static, 1);
 	ms->uid = uid;
 	ms->refcount = 1;
-	if (storage->assign_owners)
+	if (storage->assign_msg_owners)
 		ms->owner_client_idx1 = clients_get_random_idx() + 1;
 	array_insert(&storage->static_metadata, idx, &ms, 1);
 
@@ -139,6 +148,8 @@ mailbox_keyword_name_get(struct mailbox_storage *storage, const char *name)
 
 	kw = i_new(struct mailbox_keyword_name, 1);
 	kw->name = i_strdup(name);
+	if (storage->assign_flag_owners)
+		kw->owner_client_idx1 = clients_get_random_idx() + 1;
 	array_append(&storage->keyword_names, &kw, 1);
 	return kw;
 }
@@ -246,24 +257,41 @@ const char *mailbox_view_keywords_to_str(struct mailbox_view *view,
 	return str_c(str);
 }
 
-const char *mailbox_view_get_random_flags(struct mailbox_view *view)
+const char *mailbox_view_get_random_flags(struct mailbox_view *view,
+					  unsigned int client_idx)
 {
-	static const char *flags[] = {
-		"\\Seen", "\\Flagged", "\\Draft", "\\Answered"
-	};
+	struct mailbox_storage *storage = view->storage;
 	static const char *keywords[] = {
 		"$Label1", "$Label2", "$Label3", "$Label4", "$Label5"
 	};
+	struct mailbox_keyword *kw;
 	unsigned int i, idx;
 	string_t *str;
 
-	str = t_str_new(128);
-	for (i = 0; i < N_ELEMENTS(flags); i++) {
-		if ((rand() % 4) == 0) {
-			if (str_len(str) != 0)
-				str_append_c(str, ' ');
-			str_append(str, flags[i]);
+	if (!storage->flag_owner_clients_assigned &&
+	    storage->assign_flag_owners) {
+		i = 0;
+		for (; i < N_ELEMENTS(storage->flags_owner_client_idx1); i++) {
+			storage->flags_owner_client_idx1[i] =
+				clients_get_random_idx();
 		}
+		storage->flag_owner_clients_assigned = TRUE;
+	}
+
+	str = t_str_new(128);
+	for (i = 0; i < N_ELEMENTS(storage->flags_owner_client_idx1); i++) {
+		if ((rand() % 4) != 0 || (1 << i) == MAIL_DELETED)
+			continue;
+
+		if (storage->assign_flag_owners &&
+		    storage->flags_owner_client_idx1[i] != client_idx + 1) {
+			/* not our flag, can't set it */
+			continue;
+		}
+
+		if (str_len(str) != 0)
+			str_append_c(str, ' ');
+		str_append(str, mail_flag_names[i]);
 	}
 
 	if (!view->keywords_can_create_more &&
@@ -273,13 +301,26 @@ const char *mailbox_view_get_random_flags(struct mailbox_view *view)
 	}
 
 	for (i = 0; i < N_ELEMENTS(keywords); i++) {
-		if ((rand() % 4) == 0 &&
-		    (view->keywords_can_create_more ||
-		     mailbox_view_keyword_find(view, keywords[i], &idx))) {
-			if (str_len(str) != 0)
-				str_append_c(str, ' ');
-			str_append(str, keywords[i]);
+		if ((rand() % 4) != 0)
+			continue;
+
+		if (!mailbox_view_keyword_find(view, keywords[i], &idx))
+			kw = NULL;
+		else
+			kw = mailbox_view_keyword_get(view, idx);
+		if (kw == NULL && !view->keywords_can_create_more) {
+			/* can't create it */
+			continue;
 		}
+
+		if (storage->assign_flag_owners &&
+		    kw->name->owner_client_idx1 != client_idx + 1) {
+			/* not our keyword, can't set it */
+			continue;
+		}
+		if (str_len(str) != 0)
+			str_append_c(str, ' ');
+		str_append(str, keywords[i]);
 	}
 
 #ifdef RAND_KEYWORDS
@@ -301,7 +342,8 @@ struct mailbox_storage *mailbox_storage_get(struct mailbox_source *source)
 	if (global_storage == NULL) {
 		global_storage = i_new(struct mailbox_storage, 1);
 		global_storage->source = source;
-		global_storage->assign_owners = conf.own_msgs;
+		global_storage->assign_msg_owners = conf.own_msgs;
+		global_storage->assign_flag_owners = conf.own_flags;
 		i_array_init(&global_storage->static_metadata, 128);
 		i_array_init(&global_storage->keyword_names, 64);
 	}

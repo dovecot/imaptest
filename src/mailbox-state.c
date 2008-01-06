@@ -85,22 +85,80 @@ fetch_list_get(const struct imap_arg *list_arg, const char *name)
 	return NULL;
 }
 
+struct msg_old_flags {
+	enum mail_flags flags;
+	uint8_t *keyword_bitmask;
+	unsigned int kw_alloc_size;
+};
+
+static bool
+have_unexpected_changes(struct client *client, const struct msg_old_flags *old,
+			const struct message_metadata_dynamic *metadata)
+{
+	if (metadata->mail_flags != old->flags)
+		return TRUE;
+
+	if (old->kw_alloc_size != client->view->keyword_bitmask_alloc_size)
+		return TRUE;
+	return memcmp(old->keyword_bitmask, metadata->keyword_bitmask,
+		      old->kw_alloc_size) != 0;
+}
+
+static void
+check_unexpected_flag_changes(struct client *client,
+			      const struct msg_old_flags *old,
+			      const struct message_metadata_dynamic *metadata)
+{
+	struct mailbox_storage *storage = client->view->storage;
+	const struct mailbox_keyword *keywords;
+	unsigned int i, min_count, new_count, new_alloc_size;
+	bool old_set, new_set;
+
+	/* check flags */
+	for (i = 0; i < N_ELEMENTS(storage->flags_owner_client_idx1); i++) {
+		old_set = (old->flags & (1 << i)) != 0;
+		new_set = (metadata->mail_flags & (1 << i)) != 0;
+		if (old_set != new_set &&
+		    storage->flags_owner_client_idx1[i] == client->idx + 1) {
+			client_input_error(client, "Owned flag changed: %s",
+					   mail_flag_names[i]);
+		}
+	}
+
+	/* check keywords */
+	new_alloc_size = client->view->keyword_bitmask_alloc_size;
+	keywords = array_get(&client->view->keywords, &new_count);
+	min_count = I_MIN(old->kw_alloc_size, new_alloc_size);
+	for (i = 0; i < new_alloc_size; i++) {
+		old_set = i >= old->kw_alloc_size ? FALSE :
+			(old->keyword_bitmask[i/8] & (1 << (i%8))) != 0;
+		new_set = (metadata->keyword_bitmask[i/8] & (1 << (i%8))) != 0;
+		if (old_set != new_set &&
+		    keywords[i].name->owner_client_idx1 == client->idx + 1) {
+			client_input_error(client, "Owned keyword changed: %s",
+					   keywords[i].name->name);
+		}
+	}
+}
+
 static void
 message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 			   struct message_metadata_dynamic *metadata)
 {
 	struct mailbox_view *view = client->view;
 	struct mailbox_keyword *kw;
-	uint8_t *old_keywords;
+	struct msg_old_flags old_flags;
 	enum mail_flags flag, flags = 0;
-	unsigned int idx, old_size;
+	unsigned int idx;
 	const char *atom;
 
-	old_size = view->keyword_bitmask_alloc_size;
-	old_keywords = old_size == 0 ? NULL : t_malloc0(old_size);
+	old_flags.flags = metadata->mail_flags;
+	old_flags.kw_alloc_size = view->keyword_bitmask_alloc_size;
+	old_flags.keyword_bitmask = old_flags.kw_alloc_size == 0 ? NULL :
+		t_malloc0(old_flags.kw_alloc_size);
 	if (metadata->keyword_bitmask != NULL) {
-		memcpy(old_keywords, metadata->keyword_bitmask,
-		       old_size);
+		memcpy(old_flags.keyword_bitmask, metadata->keyword_bitmask,
+		       old_flags.kw_alloc_size);
 	}
 
 	mailbox_keywords_clear(view, metadata);
@@ -134,24 +192,24 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 
 		args++;
 	}
-	flags |= MAIL_FLAGS_SET;
+	metadata->mail_flags = flags | MAIL_FLAGS_SET;
 
-	if ((metadata->mail_flags & MAIL_FLAGS_SET) == 0 ||
+	if ((old_flags.flags & MAIL_FLAGS_SET) == 0 ||
 	    metadata->flagchange_dirty != 0) {
 		/* we don't know the old flags */
 	} else if (metadata->ms->owner_client_idx1 == client->idx+1) {
-		if ((metadata->mail_flags != flags ||
-		     old_size != view->keyword_bitmask_alloc_size ||
-		     memcmp(old_keywords, metadata->keyword_bitmask,
-			    old_size) != 0)) {
+		if (have_unexpected_changes(client, &old_flags, metadata)) {
 			client_input_error(client,
 				"Flags unexpectedly changed for owned message");
 		}
-	}
+	} else if (client->view->storage->assign_flag_owners)
+		check_unexpected_flag_changes(client, &old_flags, metadata);
 
-	metadata->mail_flags = flags;
-	if (metadata->fetch_refcount <= 1)
+	if (metadata->fetch_refcount <= 1) {
+		/* mark as seen, but don't mark undirty because we may see
+		   more updates for this same message */
 		metadata->flagchange_dirty = -1;
+	}
 }
 
 static void
