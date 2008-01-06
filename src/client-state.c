@@ -507,8 +507,12 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		i_assert(strncmp(cmd->cmdline, "FETCH ", 6) == 0);
 		flagchanges_unref(client, cmd->cmdline + 6);
 		break;
-	case STATE_STORE:
 	case STATE_STORE_DEL:
+		if (strncmp(cmd->cmdline, "STORE 1:* ", 10) == 0) {
+			/* we  */
+			break;
+		}
+	case STATE_STORE:
 		i_assert(strncmp(cmd->cmdline, "STORE ", 6) == 0);
 		flagchanges_unref(client, cmd->cmdline + 6);
 		if (strstr(cmd->cmdline, "FLAGS.SILENT") != NULL)
@@ -608,6 +612,23 @@ client_get_random_seq_range(struct client *client, string_t *dest,
 	}
 	if (i > 0)
 		str_truncate(dest, str_len(dest) - 1);
+}
+
+static void
+client_dirty_all_flags(struct client *client, enum flag_type flag_type)
+{
+	struct message_metadata_dynamic *metadata;
+	unsigned int seq, msgs;
+
+	msgs = array_count(&client->view->uidmap);
+	for (seq = 1; seq <= msgs; seq++) {
+		metadata = array_idx_modifiable(&client->view->messages,
+						seq - 1);
+		metadata->fetch_refcount++;
+		if (flag_type == FLAG_TYPE_STORE_SILENT)
+			metadata->fetch_refcount++;
+		metadata->flagchange_dirty = 1;
+	}
 }
 
 int client_send_next_cmd(struct client *client)
@@ -799,7 +820,6 @@ int client_send_next_cmd(struct client *client)
 		}
 		flag_type = conf.checkpoint_interval == 0 && rand() % 2 == 0 ?
 			FLAG_TYPE_STORE_SILENT : FLAG_TYPE_STORE;
-		client_get_random_seq_range(client, cmd, count, flag_type);
 
 		if (!client->view->storage->seen_all_recent &&
 		    !client->view->storage->assign_msg_owners &&
@@ -807,7 +827,11 @@ int client_send_next_cmd(struct client *client)
 			/* expunge everything so we can start checking RECENT
 			   counts */
 			str_truncate(cmd, 0);
-			str_append(cmd, "1:*,");
+			str_append(cmd, "1:*");
+			client_dirty_all_flags(client, flag_type);
+		} else {
+			client_get_random_seq_range(client, cmd, count,
+						    flag_type);
 		}
 		if (str_len(cmd) == 0)
 			break;
