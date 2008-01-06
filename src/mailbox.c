@@ -280,7 +280,7 @@ const char *mailbox_view_get_random_flags(struct mailbox_view *view,
 
 	str = t_str_new(128);
 	for (i = 0; i < N_ELEMENTS(storage->flags_owner_client_idx1); i++) {
-		if ((rand() % 4) != 0 || (1 << i) == MAIL_DELETED)
+		if ((rand() % 2) != 0 || (1 << i) == MAIL_DELETED)
 			continue;
 
 		if (storage->assign_flag_owners &&
