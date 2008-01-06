@@ -413,6 +413,8 @@ static void flagchanges_unref(struct client *client, const char *seqset)
 							seq1 - 1);
 			i_assert(metadata->fetch_refcount > 0);
 			metadata->fetch_refcount--;
+			if (metadata->flagchange_dirty < 0)
+				metadata->flagchange_dirty = 0;
 		}
 	}
 }
@@ -569,7 +571,7 @@ client_get_random_seq_range(struct client *client, string_t *dest,
 		if (fetch_flags)
 			metadata->fetch_refcount++;
 		if (dirty_flags)
-			metadata->flagchange_dirty = TRUE;
+			metadata->flagchange_dirty = 1;
 		str_printfa(dest, "%u,", seq);
 		i++;
 	}

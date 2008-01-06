@@ -40,7 +40,10 @@ struct message_metadata_dynamic {
 	   this message. STORE +SILENT also increments this so dirtyness gets
 	   handled right. */
 	unsigned int fetch_refcount;
-	unsigned int flagchange_dirty:1;
+	/* 1 = yes, 0 = no, -1 = maybe (seen FETCH FLAGS after STORE, but
+	   haven't seen tagged reply for STORE, so there might be more
+	   changes) */
+	int flagchange_dirty;
 };
 
 struct mailbox_keyword {

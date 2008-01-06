@@ -137,10 +137,9 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 	flags |= MAIL_FLAGS_SET;
 
 	if ((metadata->mail_flags & MAIL_FLAGS_SET) == 0 ||
-	    metadata->flagchange_dirty) {
+	    metadata->flagchange_dirty != 0) {
 		/* we don't know the old flags */
-	} else if (!metadata->flagchange_dirty &&
-		   metadata->ms->owner_client_idx == client->idx+1) {
+	} else if (metadata->ms->owner_client_idx == client->idx+1) {
 		if ((metadata->mail_flags != flags ||
 		     old_size != view->keyword_bitmask_alloc_size ||
 		     memcmp(old_keywords, metadata->keyword_bitmask,
@@ -152,7 +151,7 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 
 	metadata->mail_flags = flags;
 	if (metadata->fetch_refcount <= 1)
-		metadata->flagchange_dirty = FALSE;
+		metadata->flagchange_dirty = -1;
 }
 
 static void
