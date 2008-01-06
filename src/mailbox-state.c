@@ -139,7 +139,7 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 	if ((metadata->mail_flags & MAIL_FLAGS_SET) == 0 ||
 	    metadata->flagchange_dirty != 0) {
 		/* we don't know the old flags */
-	} else if (metadata->ms->owner_client_idx == client->idx+1) {
+	} else if (metadata->ms->owner_client_idx1 == client->idx+1) {
 		if ((metadata->mail_flags != flags ||
 		     old_size != view->keyword_bitmask_alloc_size ||
 		     memcmp(old_keywords, metadata->keyword_bitmask,

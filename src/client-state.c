@@ -556,7 +556,7 @@ client_get_random_seq_range(struct client *client, string_t *dest,
 		metadata = array_idx_modifiable(&client->view->messages,
 						seq - 1);
 		if (metadata->ms != NULL)
-			owner = metadata->ms->owner_client_idx;
+			owner = metadata->ms->owner_client_idx1;
 		else {
 			if (client->view->storage->assign_owners) {
 				/* not assigned to anyone yet, wait */

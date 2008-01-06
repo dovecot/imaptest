@@ -24,7 +24,7 @@ struct message_metadata_static {
 	unsigned int refcount;
 
 	time_t internaldate;
-	unsigned int owner_client_idx;
+	unsigned int owner_client_idx1;
 
 	struct message_global *msg;
 };

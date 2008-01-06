@@ -63,7 +63,7 @@ message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid)
 	ms->uid = uid;
 	ms->refcount = 1;
 	if (storage->assign_owners)
-		ms->owner_client_idx = clients_get_random_idx() + 1;
+		ms->owner_client_idx1 = clients_get_random_idx() + 1;
 	array_insert(&storage->static_metadata, idx, &ms, 1);
 
 	base = array_get_modifiable(&storage->static_metadata, &count);
