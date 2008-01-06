@@ -283,7 +283,7 @@ struct mailbox_storage *mailbox_storage_get(struct mailbox_source *source)
 	if (global_storage == NULL) {
 		global_storage = i_new(struct mailbox_storage, 1);
 		global_storage->source = source;
-		global_storage->assign_owners = conf.own_flags;
+		global_storage->assign_owners = conf.own_msgs;
 		i_array_init(&global_storage->static_metadata, 128);
 	}
 	i_assert(global_storage->source == source);

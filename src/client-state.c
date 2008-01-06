@@ -654,7 +654,7 @@ int client_send_next_cmd(struct client *client)
 
 		str_insert(cmd, 0, "FETCH ");
 		str_append(cmd, " (");
-		if (conf.checkpoint_interval > 0) {
+		if (conf.checkpoint_interval > 0 || 1) {
 			/* knowing UID and FLAGS improves detecting problems */
 			str_append(cmd, "UID FLAGS ");
 		}
@@ -735,8 +735,8 @@ int client_send_next_cmd(struct client *client)
 			break;
 		}
 		str_append(cmd, "FLAGS");
-		if (conf.checkpoint_interval == 0 && rand() % 2 == 0)
-			str_append(cmd, ".SILENT");
+		/*if (conf.checkpoint_interval == 0 && rand() % 2 == 0)
+			str_append(cmd, ".SILENT");*/
 		str_printfa(cmd, " (%s)",
 			    mailbox_view_get_random_flags(client->view));
 
@@ -764,8 +764,8 @@ int client_send_next_cmd(struct client *client)
 
 		str_insert(cmd, 0, "STORE ");
 		str_append(cmd, " +FLAGS");
-		if (conf.checkpoint_interval == 0 && rand() % 2 == 0)
-			str_append(cmd, ".SILENT");
+		/*if (conf.checkpoint_interval == 0 && rand() % 2 == 0)
+			str_append(cmd, ".SILENT");*/
 		str_append(cmd, " \\Deleted");
 
 		command_send(client, str_c(cmd), state_callback);
