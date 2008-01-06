@@ -246,6 +246,7 @@ int client_send_more_commands(struct client *client)
 	enum login_state new_lstate;
 	enum client_state state;
 
+	o_stream_cork(client->output);
 	while (array_count(&client->commands) < MAX_COMMAND_QUEUE_LEN) {
 		state = client_update_plan(client);
 		i_assert(state <= STATE_LOGOUT);
@@ -283,6 +284,7 @@ int client_send_more_commands(struct client *client)
 		if (client_send_next_cmd(client) < 0)
 			return -1;
 	}
+	o_stream_uncork(client->output);
 
 	if (!client->delayed && do_rand(STATE_DELAY)) {
 		counters[STATE_DELAY]++;
