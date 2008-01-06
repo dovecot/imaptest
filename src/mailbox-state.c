@@ -553,7 +553,7 @@ int mailbox_state_set_flags(struct mailbox_view *view,
 		if (keywords[i].flags_counter != view->flags_counter &&
 		    keywords[i].refcount > 0) {
 			i_error("Keyword '%s' dropped, but it still had "
-				"%d references", keywords[i].name,
+				"%d references", keywords[i].name->name,
 				keywords[i].refcount);
 			errors = TRUE;
 		}
@@ -610,7 +610,7 @@ int mailbox_state_set_permanent_flags(struct mailbox_view *view,
 	for (i = 0; i < count; i++) {
 		if (!keywords[i].permanent && !keywords[i].seen_nonpermanent) {
 			i_warning("Keyword not in PERMANENTFLAGS found: %s",
-				  keywords[i].name);
+				  keywords[i].name->name);
 			keywords[i].seen_nonpermanent = TRUE;
 		}
 	}

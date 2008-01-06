@@ -46,8 +46,13 @@ struct message_metadata_dynamic {
 	int flagchange_dirty;
 };
 
-struct mailbox_keyword {
+struct mailbox_keyword_name {
 	char *name;
+};
+
+struct mailbox_keyword {
+	struct mailbox_keyword_name *name;
+
 	/* number of messages containing this keyword (that we know of) */
 	unsigned int refcount;
 	unsigned int flags_counter; /* should match view->flags_counter */
@@ -67,6 +72,7 @@ struct mailbox_storage {
 
 	/* static metadata for this mailbox. sorted by UID. */
 	ARRAY_DEFINE(static_metadata, struct message_metadata_static *);
+	ARRAY_DEFINE(keyword_names, struct mailbox_keyword_name *);
 
 	unsigned int assign_owners:1;
 	unsigned int seen_all_recent:1;

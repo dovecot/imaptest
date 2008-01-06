@@ -40,18 +40,18 @@ keyword_map_update(struct checkpoint_context *ctx, struct client *client)
 	kw_all = array_get(&ctx->all_keywords, &all_count);
 	for (i = 0; i < my_count; i++) {
 		for (j = 0; j < all_count; j++) {
-			if (strcasecmp(kw_all[j], kw_my[i].name) == 0)
+			if (strcasecmp(kw_all[j], kw_my[i].name->name) == 0)
 				break;
 		}
 
 		array_append(&ctx->cur_keywords_map, &j, 1);
 		if (j == all_count) {
+			name = kw_my[i].name->name;
 			if (!ctx->first) {
 				i_error("Checkpoint: client %u: "
 					"Missing keyword %s",
-					client->idx, kw_my[i].name);
+					client->idx, name);
 			}
-			name = kw_my[i].name;
 			array_append(&ctx->all_keywords, &name, 1);
 			kw_all = array_get(&ctx->all_keywords, &all_count);
 		}

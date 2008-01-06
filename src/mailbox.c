@@ -110,7 +110,7 @@ bool mailbox_view_keyword_find(struct mailbox_view *view, const char *name,
 
 	keywords = array_get(&view->keywords, &count);
 	for (i = 0; i < count; i++) {
-		if (strcasecmp(keywords[i].name, name) == 0) {
+		if (strcasecmp(keywords[i].name->name, name) == 0) {
 			*idx_r = i;
 			return TRUE;
 		}
@@ -125,12 +125,30 @@ struct mailbox_keyword *mailbox_view_keyword_get(struct mailbox_view *view,
 	return array_idx_modifiable(&view->keywords, idx);
 }
 
+static struct mailbox_keyword_name *
+mailbox_keyword_name_get(struct mailbox_storage *storage, const char *name)
+{
+	struct mailbox_keyword_name *const *names, *kw;
+	unsigned int i, count;
+
+	names = array_get(&storage->keyword_names, &count);
+	for (i = 0; i < count; i++) {
+		if (strcasecmp(names[i]->name, name) == 0)
+			return names[i];
+	}
+
+	kw = i_new(struct mailbox_keyword_name, 1);
+	kw->name = i_strdup(name);
+	array_append(&storage->keyword_names, &kw, 1);
+	return kw;
+}
+
 void mailbox_view_keyword_add(struct mailbox_view *view, const char *name)
 {
 	struct mailbox_keyword keyword;
 
 	memset(&keyword, 0, sizeof(keyword));
-	keyword.name = i_strdup(name);
+	keyword.name = mailbox_keyword_name_get(view->storage, name);
 	keyword.flags_counter = view->flags_counter;
 	array_append(&view->keywords, &keyword, 1);
 }
@@ -222,7 +240,7 @@ const char *mailbox_view_keywords_to_str(struct mailbox_view *view,
 		if ((bitmask[i/8] & (1 << (i%8))) != 0) {
 			if (str_len(str) > 0)
 				str_append_c(str, ' ');
-			str_append(str, keywords[i].name);
+			str_append(str, keywords[i].name->name);
 		}
 	}
 	return str_c(str);
@@ -285,6 +303,7 @@ struct mailbox_storage *mailbox_storage_get(struct mailbox_source *source)
 		global_storage->source = source;
 		global_storage->assign_owners = conf.own_msgs;
 		i_array_init(&global_storage->static_metadata, 128);
+		i_array_init(&global_storage->keyword_names, 64);
 	}
 	i_assert(global_storage->source == source);
 	return global_storage;
@@ -293,9 +312,19 @@ struct mailbox_storage *mailbox_storage_get(struct mailbox_source *source)
 void mailbox_storage_free(struct mailbox_storage **_storage)
 {
 	struct mailbox_storage *storage = *_storage;
+	struct mailbox_keyword_name **names;
+	unsigned int i, count;
 
 	*_storage = NULL;
+
+	names = array_get_modifiable(&storage->keyword_names, &count);
+	for (i = 0; i < count; i++) {
+		i_free(names[i]->name);
+		i_free(names[i]);
+	}
+
 	array_free(&storage->static_metadata);
+	array_free(&storage->keyword_names);
 	i_free(storage);
 }
 
@@ -314,16 +343,10 @@ struct mailbox_view *mailbox_view_new(struct mailbox_storage *storage)
 void mailbox_view_free(struct mailbox_view **_mailbox)
 {
 	struct mailbox_view *view = *_mailbox;
-	struct mailbox_keyword *keywords;
 	struct message_metadata_dynamic *metadata;
 	unsigned int i, count;
 
 	*_mailbox = NULL;
-
-	keywords = array_get_modifiable(&view->keywords, &count);
-	for (i = 0; i < count; i++)
-		i_free(keywords[i].name);
-	array_free(&view->keywords);
 
 	metadata = array_get_modifiable(&view->messages, &count);
 	for (i = 0; i < count; i++) {
@@ -334,6 +357,7 @@ void mailbox_view_free(struct mailbox_view **_mailbox)
 		}
 	}
 	array_free(&view->messages);
+	array_free(&view->keywords);
 
 	array_free(&view->uidmap);
 	i_free(view);
