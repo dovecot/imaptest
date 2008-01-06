@@ -1,6 +1,7 @@
 #ifndef COMMANDS_H
 #define COMMANDS_H
 
+#include "seq-range-array.h"
 #include "client-state.h"
 
 enum command_reply {
@@ -21,11 +22,13 @@ struct command {
 	char *cmdline;
 	enum client_state state;
 	unsigned int tag;
+	ARRAY_TYPE(seq_range) seq_range;
+
 	command_callback_t *callback;
 };
 
-void command_send(struct client *client, const char *cmdline,
-		  command_callback_t *callback);
+struct command *command_send(struct client *client, const char *cmdline,
+			     command_callback_t *callback);
 
 void command_unlink(struct client *client, struct command *cmd);
 void command_free(struct command *cmd);

@@ -7,8 +7,8 @@
 #include "client.h"
 #include "commands.h"
 
-void command_send(struct client *client, const char *cmdline,
-		  command_callback_t *callback)
+struct command *command_send(struct client *client, const char *cmdline,
+			     command_callback_t *callback)
 {
 	struct command *cmd;
 	const char *cmd_str;
@@ -30,6 +30,7 @@ void command_send(struct client *client, const char *cmdline,
 
 	array_append(&client->commands, &cmd, 1);
 	client->last_cmd = cmd;
+	return cmd;
 }
 
 void command_unlink(struct client *client, struct command *cmd)
@@ -52,6 +53,8 @@ void command_unlink(struct client *client, struct command *cmd)
 
 void command_free(struct command *cmd)
 {
+	if (array_is_created(&cmd->seq_range))
+		array_free(&cmd->seq_range);
 	i_free(cmd->cmdline);
 	i_free(cmd);
 }

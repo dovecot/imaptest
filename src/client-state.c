@@ -372,58 +372,19 @@ int client_append(struct client *client, bool continued)
 	return 0;
 }
 
-static bool
-seqrange_parse_next(struct client *client, const char **_p,
-		    uint32_t *seq1_r, uint32_t *seq2_r)
-{
-	const char *p = *_p;
-
-	if (*p == ' ' || *p == '\0')
-		return FALSE;
-
-	if (*p == '*') {
-		*seq1_r = array_count(&client->view->uidmap);
-		p++;
-	} else {
-		*seq1_r = 0;
-		while (*p >= '0' && *p <= '9') {
-			*seq1_r = *seq1_r * 10 + *p-'0';
-			p++;
-		}
-	}
-
-	if (*p != ':')
-		*seq2_r = *seq1_r;
-	else {
-		p++;
-		if (*p == '*') {
-			*seq2_r = array_count(&client->view->uidmap);
-			p++;
-		} else {
-			*seq2_r = 0;
-			while (*p >= '0' && *p <= '9') {
-				*seq2_r = *seq2_r * 10 + *p-'0';
-				p++;
-			}
-		}
-	}
-	if (*p == ',')
-		p++;
-	else if (*p != ' ' && *p != '\0')
-		i_panic("Broken seqset: %s", *_p);
-	*_p = p;
-	return TRUE;
-}
-
-static void flagchanges_unref(struct client *client, const char *seqset)
+static void
+flagchanges_unref(struct client *client, ARRAY_TYPE(seq_range) *seq_range)
 {
 	struct message_metadata_dynamic *metadata;
-	uint32_t seq1, seq2;
+	const struct seq_range *range;
+	unsigned int i, count;
+	uint32_t seq;
 
-	while (seqrange_parse_next(client, &seqset, &seq1, &seq2)) {
-		for (; seq1 <= seq2; seq1++) {
+	range = array_get(seq_range, &count);
+	for (i = 0; i < count; i++) {
+		for (seq = range[i].seq1; seq <= range[i].seq2; seq++) {
 			metadata = array_idx_modifiable(&client->view->messages,
-							seq1 - 1);
+							seq - 1);
 			i_assert(metadata->fetch_refcount > 0);
 			metadata->fetch_refcount--;
 			if (metadata->flagchange_dirty < 0)
@@ -504,19 +465,12 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		client->login_state = LSTATE_SELECTED;
 		break;
 	case STATE_FETCH:
-		i_assert(strncmp(cmd->cmdline, "FETCH ", 6) == 0);
-		flagchanges_unref(client, cmd->cmdline + 6);
-		break;
-	case STATE_STORE_DEL:
-		if (strncmp(cmd->cmdline, "STORE 1:* ", 10) == 0) {
-			/* we  */
-			break;
-		}
 	case STATE_STORE:
-		i_assert(strncmp(cmd->cmdline, "STORE ", 6) == 0);
-		flagchanges_unref(client, cmd->cmdline + 6);
-		if (strstr(cmd->cmdline, "FLAGS.SILENT") != NULL)
-			flagchanges_unref(client, cmd->cmdline + 6);
+	case STATE_STORE_DEL:
+		flagchanges_unref(client, &cmd->seq_range);
+		if (cmd->state != STATE_FETCH &&
+		    strstr(cmd->cmdline, "FLAGS.SILENT") != NULL)
+			flagchanges_unref(client, &cmd->seq_range);
 		break;
 	case STATE_COPY:
 		if (reply == REPLY_NO) {
@@ -564,8 +518,8 @@ enum flag_type {
 	FLAG_TYPE_STORE_SILENT
 };
 
-static void
-client_get_random_seq_range(struct client *client, string_t *dest,
+static bool
+client_get_random_seq_range(struct client *client, ARRAY_TYPE(seq_range) *range,
 			    unsigned int count, enum flag_type flag_type)
 {
 	struct message_metadata_dynamic *metadata;
@@ -574,7 +528,7 @@ client_get_random_seq_range(struct client *client, string_t *dest,
 
 	msgs = array_count(&client->view->uidmap);
 	if (count == 0 || msgs == 0)
-		return;
+		return FALSE;
 
 	dirty_flags = flag_type == FLAG_TYPE_STORE ||
 		flag_type == FLAG_TYPE_STORE_SILENT;
@@ -607,18 +561,19 @@ client_get_random_seq_range(struct client *client, string_t *dest,
 			   STORE has successfully finished. */
 			metadata->fetch_refcount++;
 		}
-		str_printfa(dest, "%u,", seq);
+		seq_range_array_add(range, 10, seq);
 		i++;
 	}
-	if (i > 0)
-		str_truncate(dest, str_len(dest) - 1);
+	return i > 0;
 }
 
 static void
-client_dirty_all_flags(struct client *client, enum flag_type flag_type)
+client_dirty_all_flags(struct client *client, ARRAY_TYPE(seq_range) *seq_range,
+		       enum flag_type flag_type)
 {
 	struct message_metadata_dynamic *metadata;
 	unsigned int seq, msgs;
+	struct seq_range range;
 
 	msgs = array_count(&client->view->uidmap);
 	for (seq = 1; seq <= msgs; seq++) {
@@ -629,14 +584,37 @@ client_dirty_all_flags(struct client *client, enum flag_type flag_type)
 			metadata->fetch_refcount++;
 		metadata->flagchange_dirty = 1;
 	}
+
+	range.seq1 = 1;
+	range.seq2 = msgs;
+	i_array_init(seq_range, 2);
+	array_append(seq_range, &range, 1);
+}
+
+static void seq_range_to_imap_range(const ARRAY_TYPE(seq_range) *seq_range,
+				    string_t *dest)
+{
+	const struct seq_range *range;
+	unsigned int i, count;
+
+	range = array_get(seq_range, &count);
+	for (i = 0; i < count; i++) {
+		if (i > 0)
+			str_append_c(dest, ',');
+		str_printfa(dest, "%u", range[i].seq1);
+		if (range[i].seq1 != range[i].seq2)
+			str_printfa(dest, ":%u", range[i].seq2);
+	}
 }
 
 int client_send_next_cmd(struct client *client)
 {
 	enum client_state state;
+	struct command *icmd;
 	string_t *cmd;
 	const char *str;
 	enum flag_type flag_type;
+	ARRAY_TYPE(seq_range) seq_range = ARRAY_INIT;
 	unsigned int i, j, seq1, seq2, count, msgs, owner;
 
 	state = client_eat_first_plan(client);
@@ -700,13 +678,13 @@ int client_send_next_cmd(struct client *client)
 			"In-Reply-To", "Message-ID", "Delivered-To"
 		};
 		count = I_MIN(msgs, 100);
-		cmd = t_str_new(512);
-		client_get_random_seq_range(client, cmd, count,
-					    FLAG_TYPE_FETCH);
-		if (str_len(cmd) == 0)
+		if (!client_get_random_seq_range(client, &seq_range, count,
+						 FLAG_TYPE_FETCH))
 			break;
 
-		str_insert(cmd, 0, "FETCH ");
+		cmd = t_str_new(512);
+		str_append(cmd, "FETCH ");
+		seq_range_to_imap_range(&seq_range, cmd);
 		str_append(cmd, " (");
 		if (conf.checkpoint_interval > 0) {
 			/* knowing UID and FLAGS improves detecting problems */
@@ -731,7 +709,8 @@ int client_send_next_cmd(struct client *client)
 				str_append_c(cmd, ' ');
 		}
 		str_append_c(cmd, ')');
-		command_send(client, str_c(cmd), state_callback);
+		icmd = command_send(client, str_c(cmd), state_callback);
+		icmd->seq_range = seq_range;
 		break;
 	}
 	case STATE_FETCH2: {
@@ -770,15 +749,16 @@ int client_send_next_cmd(struct client *client)
 		command_send(client, str, state_callback);
 		break;
 	case STATE_STORE:
-		cmd = t_str_new(512);
 		count = rand() % (msgs < 10 ? msgs : I_MIN(msgs/5, 50));
 		flag_type = conf.checkpoint_interval == 0 && rand() % 2 == 0 ?
 			FLAG_TYPE_STORE_SILENT : FLAG_TYPE_STORE;
-		client_get_random_seq_range(client, cmd, count, flag_type);
-		if (str_len(cmd) == 0)
+		if (!client_get_random_seq_range(client, &seq_range, count,
+						 flag_type))
 			break;
 
-		str_insert(cmd, 0, "STORE ");
+		cmd = t_str_new(512);
+		str_append(cmd, "STORE ");
+		seq_range_to_imap_range(&seq_range, cmd);
 		str_append_c(cmd, ' ');
 		switch (rand() % 3) {
 		case 0:
@@ -801,7 +781,8 @@ int client_send_next_cmd(struct client *client)
 			    mailbox_view_get_random_flags(client->view,
 							  client->idx));
 
-		command_send(client, str_c(cmd), state_callback);
+		icmd = command_send(client, str_c(cmd), state_callback);
+		icmd->seq_range = seq_range;
 		break;
 	case STATE_STORE_DEL:
 		owner = client->view->storage->
@@ -812,7 +793,6 @@ int client_send_next_cmd(struct client *client)
 			break;
 		}
 
-		cmd = t_str_new(512);
 		if (msgs > conf.message_count_threshold + 5) {
 			count = rand() % (msgs - conf.message_count_threshold);
 		} else {
@@ -826,23 +806,23 @@ int client_send_next_cmd(struct client *client)
 		    conf.checkpoint_interval != 0 && msgs > 0) {
 			/* expunge everything so we can start checking RECENT
 			   counts */
-			str_truncate(cmd, 0);
-			str_append(cmd, "1:*");
-			client_dirty_all_flags(client, flag_type);
+			client_dirty_all_flags(client, &seq_range, flag_type);
 		} else {
-			client_get_random_seq_range(client, cmd, count,
-						    flag_type);
+			if (!client_get_random_seq_range(client, &seq_range,
+							 count, flag_type))
+				break;
 		}
-		if (str_len(cmd) == 0)
-			break;
 
-		str_insert(cmd, 0, "STORE ");
+		cmd = t_str_new(512);
+		str_append(cmd, "STORE ");
+		seq_range_to_imap_range(&seq_range, cmd);
 		str_append(cmd, " +FLAGS");
 		if (flag_type == FLAG_TYPE_STORE_SILENT)
 			str_append(cmd, ".SILENT");
 		str_append(cmd, " \\Deleted");
 
-		command_send(client, str_c(cmd), state_callback);
+		icmd = command_send(client, str_c(cmd), state_callback);
+		icmd->seq_range = seq_range;
 		break;
 	case STATE_EXPUNGE:
 		command_send(client, "EXPUNGE", state_callback);
