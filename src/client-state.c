@@ -433,6 +433,15 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				/* Cyrus */
 				break;
 			}
+			if (strstr(line, "have been expunged") != NULL) {
+				/* Archiveopteryx */
+				break;
+			}
+		case STATE_STORE:
+			if (strcmp(line, "NO Cannot store on expunged messages") == 0) {
+				/* Archiveopteryx */
+				break;
+			}
 		default:
 			client_input_error(client, "%s failed",
 					   states[cmd->state].name);
