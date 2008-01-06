@@ -373,26 +373,37 @@ int client_append(struct client *client, bool continued)
 }
 
 static bool
-seqrange_parse_next(const char **_p, uint32_t *seq1_r, uint32_t *seq2_r)
+seqrange_parse_next(struct client *client, const char **_p,
+		    uint32_t *seq1_r, uint32_t *seq2_r)
 {
 	const char *p = *_p;
 
 	if (*p == ' ' || *p == '\0')
 		return FALSE;
 
-	*seq1_r = 0;
-	while (*p >= '0' && *p <= '9') {
-		*seq1_r = *seq1_r * 10 + *p-'0';
+	if (*p == '*') {
+		*seq1_r = array_count(&client->view->uidmap);
 		p++;
+	} else {
+		*seq1_r = 0;
+		while (*p >= '0' && *p <= '9') {
+			*seq1_r = *seq1_r * 10 + *p-'0';
+			p++;
+		}
 	}
 
 	if (*p != '-')
 		*seq2_r = *seq1_r;
 	else {
-		*seq2_r = 0;
-		while (*p >= '0' && *p <= '9') {
-			*seq2_r = *seq2_r * 10 + *p-'0';
+		if (*p == '*') {
+			*seq2_r = array_count(&client->view->uidmap);
 			p++;
+		} else {
+			*seq2_r = 0;
+			while (*p >= '0' && *p <= '9') {
+				*seq2_r = *seq2_r * 10 + *p-'0';
+				p++;
+			}
 		}
 	}
 	if (*p == ',')
@@ -408,7 +419,7 @@ static void flagchanges_unref(struct client *client, const char *seqset)
 	struct message_metadata_dynamic *metadata;
 	uint32_t seq1, seq2;
 
-	while (seqrange_parse_next(&seqset, &seq1, &seq2)) {
+	while (seqrange_parse_next(client, &seqset, &seq1, &seq2)) {
 		for (; seq1 <= seq2; seq1++) {
 			metadata = array_idx_modifiable(&client->view->messages,
 							seq1 - 1);
