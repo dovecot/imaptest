@@ -19,8 +19,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define IMAP_PARSE_FLAG_ATOM_ALLCHARS 0 /* FIXME: remove after beta10 */
-
 int clients_count = 0;
 unsigned int total_disconnects = 0;
 ARRAY_TYPE(client) clients;
