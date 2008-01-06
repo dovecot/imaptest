@@ -373,7 +373,8 @@ int client_append(struct client *client, bool continued)
 }
 
 static void
-flagchanges_unref(struct client *client, ARRAY_TYPE(seq_range) *seq_range)
+seq_range_flags_ref(struct client *client, ARRAY_TYPE(seq_range) *seq_range,
+		    int diff, bool update_dirty)
 {
 	struct message_metadata_dynamic *metadata;
 	const struct seq_range *range;
@@ -385,10 +386,18 @@ flagchanges_unref(struct client *client, ARRAY_TYPE(seq_range) *seq_range)
 		for (seq = range[i].seq1; seq <= range[i].seq2; seq++) {
 			metadata = array_idx_modifiable(&client->view->messages,
 							seq - 1);
-			i_assert(metadata->fetch_refcount > 0);
-			metadata->fetch_refcount--;
-			if (metadata->flagchange_dirty < 0)
-				metadata->flagchange_dirty = 0;
+			if (diff < 0) {
+				i_assert(metadata->fetch_refcount > 0);
+				metadata->fetch_refcount--;
+				if (update_dirty) {
+					if (metadata->flagchange_dirty < 0)
+						metadata->flagchange_dirty = 0;
+				}
+			} else {
+				metadata->fetch_refcount++;
+				if (update_dirty)
+					metadata->flagchange_dirty = 1;
+			}
 		}
 	}
 }
@@ -467,10 +476,10 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	case STATE_FETCH:
 	case STATE_STORE:
 	case STATE_STORE_DEL:
-		flagchanges_unref(client, &cmd->seq_range);
+		seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
 		if (cmd->state != STATE_FETCH &&
 		    strstr(cmd->cmdline, "FLAGS.SILENT") != NULL)
-			flagchanges_unref(client, &cmd->seq_range);
+			seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
 		break;
 	case STATE_COPY:
 		if (reply == REPLY_NO) {
@@ -551,18 +560,16 @@ client_get_random_seq_range(struct client *client, ARRAY_TYPE(seq_range) *range,
 		if (dirty_flags && owner != client->idx+1 && owner != 0)
 			continue;
 
-		if (flag_type != FLAG_TYPE_NONE)
-			metadata->fetch_refcount++;
-
-		if (dirty_flags)
-			metadata->flagchange_dirty = 1;
+		seq_range_array_add(range, 10, seq);
+		i++;
+	}
+	if (flag_type != FLAG_TYPE_NONE &&i > 0) {
+		seq_range_flags_ref(client, range, 1, TRUE);
 		if (flag_type == FLAG_TYPE_STORE_SILENT) {
 			/* flag stays dirty until we can FETCH it after the
 			   STORE has successfully finished. */
-			metadata->fetch_refcount++;
+			seq_range_flags_ref(client, range, 1, TRUE);
 		}
-		seq_range_array_add(range, 10, seq);
-		i++;
 	}
 	return i > 0;
 }
@@ -571,24 +578,16 @@ static void
 client_dirty_all_flags(struct client *client, ARRAY_TYPE(seq_range) *seq_range,
 		       enum flag_type flag_type)
 {
-	struct message_metadata_dynamic *metadata;
-	unsigned int seq, msgs;
 	struct seq_range range;
 
-	msgs = array_count(&client->view->uidmap);
-	for (seq = 1; seq <= msgs; seq++) {
-		metadata = array_idx_modifiable(&client->view->messages,
-						seq - 1);
-		metadata->fetch_refcount++;
-		if (flag_type == FLAG_TYPE_STORE_SILENT)
-			metadata->fetch_refcount++;
-		metadata->flagchange_dirty = 1;
-	}
-
 	range.seq1 = 1;
-	range.seq2 = msgs;
+	range.seq2 = array_count(&client->view->uidmap);
 	i_array_init(seq_range, 2);
 	array_append(seq_range, &range, 1);
+
+	seq_range_flags_ref(client, seq_range, 1, TRUE);
+	if (flag_type == FLAG_TYPE_STORE_SILENT)
+		seq_range_flags_ref(client, seq_range, 1, TRUE);
 }
 
 static void seq_range_to_imap_range(const ARRAY_TYPE(seq_range) *seq_range,

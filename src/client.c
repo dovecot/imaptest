@@ -63,6 +63,21 @@ static void client_exists(struct client *client, unsigned int msgs)
 		(void)array_append_space(&client->view->uidmap);
 }
 
+static int client_expunge(struct client *client, unsigned int seq)
+{
+	struct message_metadata_dynamic *metadata;
+
+	metadata = array_idx_modifiable(&client->view->messages, seq - 1);
+	if (metadata->fetch_refcount > 0) {
+		client_input_error(client,
+			"Referenced message expunged seq=%u uid=%u",
+			seq, metadata->ms == NULL ? 0 : metadata->ms->uid);
+		return -1;
+	}
+	mailbox_view_expunge(client->view, seq);
+	return 0;
+}
+
 static void client_capability_parse(struct client *client, const char *line)
 {
 	const char *const *tmp;
@@ -108,9 +123,10 @@ client_handle_untagged(struct client *client, const struct imap_arg *args)
 				"seq too high (%u > %u, state=%s)",
 				num, array_count(&view->uidmap),
                                 states[client->last_cmd->state].name);
-		} else if (strcmp(str, "EXPUNGE") == 0)
-			mailbox_view_expunge(view, num);
-		else if (strcmp(str, "RECENT") == 0) {
+		} else if (strcmp(str, "EXPUNGE") == 0) {
+			if (client_expunge(client, num) < 0)
+				return -1;
+		} else if (strcmp(str, "RECENT") == 0) {
 			view->recent_count = num;
 			if (view->recent_count ==
 			    array_count(&view->uidmap))
