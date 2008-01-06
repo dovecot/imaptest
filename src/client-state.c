@@ -392,7 +392,7 @@ seqrange_parse_next(struct client *client, const char **_p,
 		}
 	}
 
-	if (*p != '-')
+	if (*p != ':')
 		*seq2_r = *seq1_r;
 	else {
 		if (*p == '*') {
