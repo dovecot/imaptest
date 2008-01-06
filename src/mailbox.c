@@ -273,7 +273,7 @@ const char *mailbox_view_get_random_flags(struct mailbox_view *view,
 		i = 0;
 		for (; i < N_ELEMENTS(storage->flags_owner_client_idx1); i++) {
 			storage->flags_owner_client_idx1[i] =
-				clients_get_random_idx();
+				clients_get_random_idx() + 1;
 		}
 		storage->flag_owner_clients_assigned = TRUE;
 	}
