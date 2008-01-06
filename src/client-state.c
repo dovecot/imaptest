@@ -554,11 +554,14 @@ client_get_random_seq_range(struct client *client, string_t *dest,
 {
 	struct message_metadata_dynamic *metadata;
 	unsigned int i, msgs, seq, owner, tries;
+	bool dirty_flags;
 
 	msgs = array_count(&client->view->uidmap);
 	if (count == 0 || msgs == 0)
 		return;
 
+	dirty_flags = flag_type == FLAG_TYPE_STORE ||
+		flag_type == FLAG_TYPE_STORE_SILENT;
 	msgs = array_count(&client->view->uidmap);
 	for (i = tries = 0; i < count && tries < count*3; tries++) {
 		seq = rand() % msgs + 1;
@@ -567,23 +570,21 @@ client_get_random_seq_range(struct client *client, string_t *dest,
 		if (metadata->ms != NULL)
 			owner = metadata->ms->owner_client_idx1;
 		else {
-			if (client->view->storage->assign_msg_owners) {
+			if (client->view->storage->assign_msg_owners &&
+			    dirty_flags) {
 				/* not assigned to anyone yet, wait */
 				continue;
 			}
 			owner = 0;
 		}
 
-		if ((flag_type == FLAG_TYPE_STORE ||
-		     flag_type == FLAG_TYPE_STORE_SILENT) &&
-		    owner != client->idx+1 && owner != 0)
+		if (dirty_flags && owner != client->idx+1 && owner != 0)
 			continue;
 
 		if (flag_type != FLAG_TYPE_NONE)
 			metadata->fetch_refcount++;
 
-		if (flag_type == FLAG_TYPE_STORE ||
-		    flag_type == FLAG_TYPE_STORE_SILENT)
+		if (dirty_flags)
 			metadata->flagchange_dirty = 1;
 		if (flag_type == FLAG_TYPE_STORE_SILENT) {
 			/* flag stays dirty until we can FETCH it after the
