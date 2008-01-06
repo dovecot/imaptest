@@ -395,6 +395,7 @@ seqrange_parse_next(struct client *client, const char **_p,
 	if (*p != ':')
 		*seq2_r = *seq1_r;
 	else {
+		p++;
 		if (*p == '*') {
 			*seq2_r = array_count(&client->view->uidmap);
 			p++;
