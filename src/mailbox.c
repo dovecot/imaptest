@@ -313,7 +313,7 @@ const char *mailbox_view_get_random_flags(struct mailbox_view *view,
 			continue;
 		}
 
-		if (storage->assign_flag_owners &&
+		if (storage->assign_flag_owners && kw != NULL &&
 		    kw->name->owner_client_idx1 != client_idx + 1) {
 			/* not our keyword, can't set it */
 			continue;
