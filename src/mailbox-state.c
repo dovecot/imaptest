@@ -91,9 +91,17 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 {
 	struct mailbox_view *view = client->view;
 	struct mailbox_keyword *kw;
+	uint8_t *old_keywords;
 	enum mail_flags flag, flags = 0;
-	unsigned int idx;
+	unsigned int idx, old_size;
 	const char *atom;
+
+	old_size = view->keyword_bitmask_alloc_size;
+	old_keywords = old_size == 0 ? NULL : t_malloc0(old_size);
+	if (metadata->keyword_bitmask != NULL) {
+		memcpy(old_keywords, metadata->keyword_bitmask,
+		       old_size);
+	}
 
 	mailbox_keywords_clear(view, metadata);
 	while (args->type != IMAP_ARG_EOL) {
@@ -126,7 +134,25 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 
 		args++;
 	}
-	metadata->mail_flags = flags | MAIL_FLAGS_SET;
+	flags |= MAIL_FLAGS_SET;
+
+	if ((metadata->mail_flags & MAIL_FLAGS_SET) == 0 ||
+	    metadata->flagchange_dirty) {
+		/* we don't know the old flags */
+	} else if (!metadata->flagchange_dirty &&
+		   metadata->ms->owner_client_idx == client->idx+1) {
+		if ((metadata->mail_flags != flags ||
+		     old_size != view->keyword_bitmask_alloc_size ||
+		     memcmp(old_keywords, metadata->keyword_bitmask,
+			    old_size) != 0)) {
+			client_input_error(client,
+				"Flags unexpectedly changed for owned message");
+		}
+	}
+
+	metadata->mail_flags = flags;
+	if (metadata->fetch_refcount <= 1)
+		metadata->flagchange_dirty = FALSE;
 }
 
 static void

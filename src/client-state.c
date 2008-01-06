@@ -371,6 +371,52 @@ int client_append(struct client *client, bool continued)
 	return 0;
 }
 
+static bool
+seqrange_parse_next(const char **_p, uint32_t *seq1_r, uint32_t *seq2_r)
+{
+	const char *p = *_p;
+
+	if (*p == ' ' || *p == '\0')
+		return FALSE;
+
+	*seq1_r = 0;
+	while (*p >= '0' && *p <= '9') {
+		*seq1_r = *seq1_r * 10 + *p-'0';
+		p++;
+	}
+
+	if (*p != '-')
+		*seq2_r = *seq1_r;
+	else {
+		*seq2_r = 0;
+		while (*p >= '0' && *p <= '9') {
+			*seq2_r = *seq2_r * 10 + *p-'0';
+			p++;
+		}
+	}
+	if (*p == ',')
+		p++;
+	else if (*p != ' ' && *p != '\0')
+		i_panic("Broken seqset: %s", *_p);
+	*_p = p;
+	return TRUE;
+}
+
+static void flagchanges_unref(struct client *client, const char *seqset)
+{
+	struct message_metadata_dynamic *metadata;
+	uint32_t seq1, seq2;
+
+	while (seqrange_parse_next(&seqset, &seq1, &seq2)) {
+		for (; seq1 <= seq2; seq1++) {
+			metadata = array_idx_modifiable(&client->view->messages,
+							seq1 - 1);
+			i_assert(metadata->fetch_refcount > 0);
+			metadata->fetch_refcount--;
+		}
+	}
+}
+
 static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				   const struct imap_arg *args,
 				   enum command_reply reply)
@@ -442,6 +488,15 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	case STATE_SELECT:
 		client->login_state = LSTATE_SELECTED;
 		break;
+	case STATE_FETCH:
+		i_assert(strncmp(cmd->cmdline, "FETCH ", 6) == 0);
+		flagchanges_unref(client, cmd->cmdline + 6);
+		break;
+	case STATE_STORE:
+	case STATE_STORE_DEL:
+		i_assert(strncmp(cmd->cmdline, "STORE ", 6) == 0);
+		flagchanges_unref(client, cmd->cmdline + 6);
+		break;
 	case STATE_COPY:
 		if (reply == REPLY_NO) {
 			const char *arg = args->type == IMAP_ARG_ATOM ?
@@ -479,6 +534,47 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	}
 
 	return 0;
+}
+
+static void
+client_get_random_seq_range(struct client *client, string_t *dest,
+			    unsigned int count, bool fetch_flags,
+			    bool dirty_flags)
+{
+	struct message_metadata_dynamic *metadata;
+	unsigned int i, msgs, seq, owner, tries;
+
+	msgs = array_count(&client->view->uidmap);
+	if (count == 0 || msgs == 0)
+		return;
+
+	msgs = array_count(&client->view->uidmap);
+	for (i = tries = 0; i < count && tries < count*3; tries++) {
+		seq = rand() % msgs + 1;
+		metadata = array_idx_modifiable(&client->view->messages,
+						seq - 1);
+		if (metadata->ms != NULL)
+			owner = metadata->ms->owner_client_idx;
+		else {
+			if (client->view->storage->assign_owners) {
+				/* not assigned to anyone yet, wait */
+				continue;
+			}
+			owner = 0;
+		}
+
+		if (dirty_flags && owner != client->idx+1 && owner != 0)
+			continue;
+
+		if (fetch_flags)
+			metadata->fetch_refcount++;
+		if (dirty_flags)
+			metadata->flagchange_dirty = TRUE;
+		str_printfa(dest, "%u,", seq);
+		i++;
+	}
+	if (i > 0)
+		str_truncate(dest, str_len(dest) - 1);
 }
 
 int client_send_next_cmd(struct client *client)
@@ -548,15 +644,14 @@ int client_send_next_cmd(struct client *client)
 			"From", "To", "Cc", "Subject", "References",
 			"In-Reply-To", "Message-ID", "Delivered-To"
 		};
-		if (msgs > 100) {
-			seq1 = (rand() % msgs) + 1;
-			seq2 = I_MIN(seq1 + 100, msgs);
-		} else {
-			seq1 = 1;
-			seq2 = msgs;
-		}
+		count = I_MIN(msgs, 100);
 		cmd = t_str_new(512);
-		str_printfa(cmd, "FETCH %u:%u (", seq1, seq2);
+		client_get_random_seq_range(client, cmd, count, TRUE, FALSE);
+		if (str_len(cmd) == 0)
+			break;
+
+		str_insert(cmd, 0, "FETCH ");
+		str_append(cmd, " (");
 		if (conf.checkpoint_interval > 0) {
 			/* knowing UID and FLAGS improves detecting problems */
 			str_append(cmd, "UID FLAGS ");
@@ -586,8 +681,7 @@ int client_send_next_cmd(struct client *client)
 	case STATE_FETCH2: {
 		static const char *fields[] = {
 			"BODY.PEEK[HEADER]", "RFC822.HEADER",
-			"BODY.PEEK[]", "RFC822",
-			"BODY.PEEK[1]", "BODY.PEEK[TEXT]", "RFC822.TEXT"
+			"BODY.PEEK[]", "BODY.PEEK[1]", "BODY.PEEK[TEXT]"
 		};
 		/* Fetch also UID so that error logging can show it in
 		   case of problems */
@@ -622,13 +716,11 @@ int client_send_next_cmd(struct client *client)
 	case STATE_STORE:
 		cmd = t_str_new(512);
 		count = rand() % (msgs < 10 ? msgs : I_MIN(msgs/5, 50));
-		for (i = 0; i < count; i++)
-			str_printfa(cmd, "%u,", (rand() % msgs) + 1);
+		client_get_random_seq_range(client, cmd, count, TRUE, TRUE);
 		if (str_len(cmd) == 0)
 			break;
 
 		str_insert(cmd, 0, "STORE ");
-		str_truncate(cmd, str_len(cmd) - 1);
 		str_append_c(cmd, ' ');
 		switch (rand() % 3) {
 		case 0:
@@ -641,7 +733,7 @@ int client_send_next_cmd(struct client *client)
 			break;
 		}
 		str_append(cmd, "FLAGS");
-		if (conf.checkpoint_interval == 0)
+		if (conf.checkpoint_interval == 0 && rand() % 2 == 0)
 			str_append(cmd, ".SILENT");
 		str_printfa(cmd, " (%s)",
 			    mailbox_view_get_random_flags(client->view));
@@ -655,11 +747,10 @@ int client_send_next_cmd(struct client *client)
 		} else {
 			count = rand() % 5;
 		}
-
-		for (i = 0; i < count; i++)
-			str_printfa(cmd, "%u,", (rand() % msgs) + 1);
+		client_get_random_seq_range(client, cmd, count, TRUE, TRUE);
 
 		if (!client->view->storage->seen_all_recent &&
+		    !client->view->storage->assign_owners &&
 		    conf.checkpoint_interval != 0 && msgs > 0) {
 			/* expunge everything so we can start checking RECENT
 			   counts */
@@ -670,9 +761,8 @@ int client_send_next_cmd(struct client *client)
 			break;
 
 		str_insert(cmd, 0, "STORE ");
-		str_truncate(cmd, str_len(cmd) - 1);
 		str_append(cmd, " +FLAGS");
-		if (conf.checkpoint_interval == 0)
+		if (conf.checkpoint_interval == 0 && rand() % 2 == 0)
 			str_append(cmd, ".SILENT");
 		str_append(cmd, " \\Deleted");
 

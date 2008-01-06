@@ -606,6 +606,27 @@ void client_rawlog_output(struct client *client, const char *line)
 	client_rawlog_line(client, line, strlen(line), FALSE);
 }
 
+unsigned int clients_get_random_idx(void)
+{
+	struct client *const *c;
+	unsigned int i, idx, count;
+
+	/* first try randomly */
+	c = array_get(&clients, &count);
+	for (i = 0; i < 100; i++) {
+		idx = rand() % count;
+		if (c[idx] != NULL)
+			return idx;
+	}
+	/* then just try anything */
+	for (i = 0; i < count; i++) {
+		if (c[i] != NULL)
+			return i;
+	}
+	i_unreached();
+	return 0;
+}
+
 void clients_init(void)
 {
 	i_array_init(&stalled_clients, CLIENTS_COUNT);

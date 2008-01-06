@@ -7,6 +7,8 @@
 #include "istream.h"
 #include "imap-util.h"
 
+#include "settings.h"
+#include "client.h"
 #include "mailbox.h"
 
 #include <stdlib.h>
@@ -60,6 +62,8 @@ message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid)
 	ms = i_new(struct message_metadata_static, 1);
 	ms->uid = uid;
 	ms->refcount = 1;
+	if (storage->assign_owners)
+		ms->owner_client_idx = clients_get_random_idx() + 1;
 	array_insert(&storage->static_metadata, idx, &ms, 1);
 
 	base = array_get_modifiable(&storage->static_metadata, &count);
@@ -279,6 +283,7 @@ struct mailbox_storage *mailbox_storage_get(struct mailbox_source *source)
 	if (global_storage == NULL) {
 		global_storage = i_new(struct mailbox_storage, 1);
 		global_storage->source = source;
+		global_storage->assign_owners = conf.own_flags;
 		i_array_init(&global_storage->static_metadata, 128);
 	}
 	i_assert(global_storage->source == source);

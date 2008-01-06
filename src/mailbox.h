@@ -24,6 +24,7 @@ struct message_metadata_static {
 	unsigned int refcount;
 
 	time_t internaldate;
+	unsigned int owner_client_idx;
 
 	struct message_global *msg;
 };
@@ -35,6 +36,11 @@ struct message_metadata_dynamic {
 	uint8_t *keyword_bitmask; /* [view->keyword_bitmask_alloc_size] */
 
 	struct message_metadata_static *ms;
+	/* Number of commands currently expected to return FETCH FLAGS for
+	   this message. STORE +SILENT also increments this so dirtyness gets
+	   handled right. */
+	unsigned int fetch_refcount;
+	unsigned int flagchange_dirty:1;
 };
 
 struct mailbox_keyword {
@@ -59,6 +65,7 @@ struct mailbox_storage {
 	/* static metadata for this mailbox. sorted by UID. */
 	ARRAY_DEFINE(static_metadata, struct message_metadata_static *);
 
+	unsigned int assign_owners:1;
 	unsigned int seen_all_recent:1;
 	unsigned int dont_track_recent:1;
 };
