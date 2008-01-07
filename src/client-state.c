@@ -481,7 +481,6 @@ store_verify_seq(struct store_verify_context *ctx, uint32_t seq)
 	}
 
 	if (test_flags != test_flags_result) {
-		abort();
 		client_state_error(ctx->client,
 			"STORE didn't update flags for seq %u (expunged=%s)",
 			seq, expunge_state);
