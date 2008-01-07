@@ -373,6 +373,18 @@ int client_append(struct client *client, bool continued)
 }
 
 static void
+metadata_update_dirty(struct message_metadata_dynamic *metadata, bool set)
+{
+	if (set) {
+		if (metadata->flagchange_dirty_type == FLAGCHANGE_DIRTY_MAYBE)
+			metadata->flagchange_dirty_type = FLAGCHANGE_DIRTY_NO;
+	} else {
+		if (metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_WAITING)
+			metadata->flagchange_dirty_type = FLAGCHANGE_DIRTY_YES;
+	}
+}
+
+static void
 seq_range_flags_ref(struct client *client,
 		    const ARRAY_TYPE(seq_range) *seq_range,
 		    int diff, bool update_dirty)
@@ -387,17 +399,13 @@ seq_range_flags_ref(struct client *client,
 		for (seq = range[i].seq1; seq <= range[i].seq2; seq++) {
 			metadata = array_idx_modifiable(&client->view->messages,
 							seq - 1);
+			if (update_dirty)
+				metadata_update_dirty(metadata, diff < 0);
 			if (diff < 0) {
 				i_assert(metadata->fetch_refcount > 0);
 				metadata->fetch_refcount--;
-				if (update_dirty) {
-					if (metadata->flagchange_dirty < 0)
-						metadata->flagchange_dirty = 0;
-				}
 			} else {
 				metadata->fetch_refcount++;
-				if (update_dirty)
-					metadata->flagchange_dirty = 1;
 			}
 		}
 	}
@@ -459,7 +467,8 @@ store_verify_seq(struct store_verify_context *ctx, uint32_t seq)
 	metadata = array_idx_modifiable(&ctx->client->view->messages, seq - 1);
 	expunge_state = metadata->ms == NULL ? "?" :
 		metadata->ms->expunged ? "yes" : "no";
-	if ((metadata->mail_flags & MAIL_FLAGS_SET) == 0) {
+	if ((metadata->mail_flags & MAIL_FLAGS_SET) == 0 ||
+	    metadata->flagchange_dirty_type == FLAGCHANGE_DIRTY_YES) {
 		client_state_error(ctx->client,
 			"STORE didn't return FETCH FLAGS for seq %u "
 			"(expunged=%s)", seq, expunge_state);
@@ -542,9 +551,8 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				   const struct imap_arg *args,
 				   enum command_reply reply)
 {
-	const char *str, *line, *p;
+	const char *str, *line;
 	unsigned int i;
-	char type;
 
 	line = imap_args_to_str(args);
 	switch (reply) {
@@ -623,23 +631,30 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
 		break;
 	case STATE_STORE:
-	case STATE_STORE_DEL:
+	case STATE_STORE_DEL: {
+		const char *p;
+		char type;
+		bool silent;
+
 		i_assert(strncmp(cmd->cmdline, "STORE ", 6) == 0);
 		p = strchr(cmd->cmdline + 6, ' ');
 		i_assert(p != NULL);
 		p++;
 		type = *p == '+' || *p == '-' ? *p++ : '\0';
+		silent = strncmp(p, "FLAGS.SILENT", 12) == 0;
 
-		seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
-		if (strncmp(p, "FLAGS.SILENT", 12) == 0)
-			seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
-		else if (client->view->storage->assign_flag_owners) {
+		if (!silent && client->view->storage->assign_flag_owners) {
 			i_assert(type != '\0');
 			i_assert(strncmp(p, "FLAGS ", 6) == 0);
 			p += 6;
 			store_verify_result(client, type, p, &cmd->seq_range);
 		}
+
+		seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
+		if (silent)
+			seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
 		break;
+	}
 	case STATE_COPY:
 		if (reply == REPLY_NO) {
 			const char *arg = args->type == IMAP_ARG_ATOM ?

@@ -200,7 +200,7 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 	metadata->mail_flags = flags | MAIL_FLAGS_SET;
 
 	if ((old_flags.flags & MAIL_FLAGS_SET) == 0 ||
-	    metadata->flagchange_dirty != 0) {
+	    metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_NO) {
 		/* we don't know the old flags */
 	} else if (metadata->ms == NULL) {
 		/* UID now known yet, don't do any owning checks */
@@ -215,8 +215,12 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 	if (metadata->fetch_refcount <= 1) {
 		/* mark as seen, but don't mark undirty because we may see
 		   more updates for this same message */
-		metadata->flagchange_dirty = -1;
-	}
+		if (metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_NO) {
+			metadata->flagchange_dirty_type =
+				FLAGCHANGE_DIRTY_MAYBE;
+		}
+	} else if (metadata->flagchange_dirty_type == FLAGCHANGE_DIRTY_YES)
+		metadata->flagchange_dirty_type = FLAGCHANGE_DIRTY_WAITING;
 }
 
 static void

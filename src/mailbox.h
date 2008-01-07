@@ -32,6 +32,22 @@ struct message_metadata_static {
 	unsigned int expunged:1;
 };
 
+enum flagchange_dirty_type {
+	FLAGCHANGE_DIRTY_NO = 0,
+	/* We've sent at least one STORE command but haven't yet received any
+	   FETCH replies for it */
+	FLAGCHANGE_DIRTY_YES,
+	/* We've received a FETCH reply, but there are multiple commands in
+	   progress so we're most likely going to be receiving more FETCH
+	   replies */
+	FLAGCHANGE_DIRTY_WAITING,
+	/* There's only one command in progress and we've received a FETCH
+	   reply from it. However it's possible that it was actually an
+	   unsolicited reply from server, and the actual expected FETCH reply
+	   is still coming. */
+	FLAGCHANGE_DIRTY_MAYBE
+};
+
 struct message_metadata_dynamic {
 #define MAIL_FLAGS_SET 0x40000000
 	/* flags and keywords are set only if MAIL_FLAGS_SET is set */
@@ -43,10 +59,8 @@ struct message_metadata_dynamic {
 	   this message. STORE +SILENT also increments this so dirtyness gets
 	   handled right. */
 	unsigned int fetch_refcount;
-	/* 1 = yes, 0 = no, -1 = maybe (seen FETCH FLAGS after STORE, but
-	   haven't seen tagged reply for STORE, so there might be more
-	   changes) */
-	int flagchange_dirty;
+
+	enum flagchange_dirty_type flagchange_dirty_type;
 };
 
 struct mailbox_keyword_name {
