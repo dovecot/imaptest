@@ -120,9 +120,10 @@ void mailbox_view_expunge(struct mailbox_view *view, unsigned int seq)
 	struct message_metadata_dynamic *metadata;
 
 	metadata = array_idx_modifiable(&view->messages, seq - 1);
-	i_free(metadata->keyword_bitmask);
 	if (metadata->keyword_bitmask != NULL)
 		mailbox_keywords_drop(view, metadata->keyword_bitmask);
+	i_free(metadata->keyword_bitmask);
+
 	if (metadata->ms != NULL) {
 		seq_range_array_add(&view->storage->expunged_uids, 0,
 				    metadata->ms->uid);

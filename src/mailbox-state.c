@@ -192,6 +192,7 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 			i_assert(idx/8 < view->keyword_bitmask_alloc_size);
 			kw = array_idx_modifiable(&view->keywords, idx);
 			kw->refcount++;
+			i_assert(kw->refcount <= array_count(&view->uidmap));
 			metadata->keyword_bitmask[idx/8] |= 1 << (idx % 8);
 		}
 
