@@ -59,7 +59,10 @@ struct message_metadata_static *
 message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid)
 {
 	struct message_metadata_static **base, *ms;
+	const struct seq_range *range;
+	struct seq_range *nrange;
 	unsigned int count, idx;
+	uint32_t first_uid;
 
 	base = array_get_modifiable(&storage->static_metadata, &count);
 	if (bsearch_insert_pos(&uid, base, count, sizeof(*base),
@@ -68,15 +71,33 @@ message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid)
 		return base[idx];
 	}
 
+	/* see if we could compact expunged_uids array */
+	first_uid = idx == 0 ? uid : base[0]->uid;
+	range = array_get(&storage->expunged_uids, &count);
+	if (count > 32 && first_uid > 2 && range[0].seq2 < first_uid-1) {
+		seq_range_array_remove_range(&storage->expunged_uids,
+					     1, first_uid-1);
+		/* FIXME: Use seq_range_array_add_range() once it's
+		   not so slow. */
+		nrange = array_insert_space(&storage->expunged_uids, 0);
+		nrange->seq1 = 2;
+		nrange->seq2 = first_uid - 1;
+		seq_range_array_add(&storage->expunged_uids, 0, 1);
+	}
+
 	ms = i_new(struct message_metadata_static, 1);
 	ms->uid = uid;
 	ms->refcount = 1;
-	if (storage->assign_msg_owners)
+	/* don't assign an owner if the message is already seen as expunged
+	   in another session. it could already have had an owner and we could
+	   still receive flag updates for it. */
+	if (storage->assign_msg_owners &&
+	    !seq_range_exists(&storage->expunged_uids, uid))
 		ms->owner_client_idx1 = clients_get_random_idx() + 1;
 	array_insert(&storage->static_metadata, idx, &ms, 1);
 
-	base = array_get_modifiable(&storage->static_metadata, &count);
-	return base[idx];
+	base = array_idx_modifiable(&storage->static_metadata, idx);
+	return *base;
 }
 
 static void
@@ -103,6 +124,8 @@ void mailbox_view_expunge(struct mailbox_view *view, unsigned int seq)
 	if (metadata->keyword_bitmask != NULL)
 		mailbox_keywords_drop(view, metadata->keyword_bitmask);
 	if (metadata->ms != NULL) {
+		seq_range_array_add(&view->storage->expunged_uids, 0,
+				    metadata->ms->uid);
 		metadata->ms->expunged = TRUE;
 		message_metadata_static_unref(view->storage, &metadata->ms);
 	}
@@ -346,6 +369,7 @@ struct mailbox_storage *mailbox_storage_get(struct mailbox_source *source)
 		global_storage->source = source;
 		global_storage->assign_msg_owners = conf.own_msgs;
 		global_storage->assign_flag_owners = conf.own_flags;
+		i_array_init(&global_storage->expunged_uids, 128);
 		i_array_init(&global_storage->static_metadata, 128);
 		i_array_init(&global_storage->keyword_names, 64);
 	}
@@ -367,6 +391,7 @@ void mailbox_storage_free(struct mailbox_storage **_storage)
 		i_free(names[i]);
 	}
 
+	array_free(&storage->expunged_uids);
 	array_free(&storage->static_metadata);
 	array_free(&storage->keyword_names);
 	i_free(storage);

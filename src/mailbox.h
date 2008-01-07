@@ -1,6 +1,7 @@
 #ifndef MAILBOX_H
 #define MAILBOX_H
 
+#include "seq-range-array.h"
 #include "mail-types.h"
 
 struct message_header {
@@ -76,6 +77,9 @@ struct mailbox_storage {
 	/* static metadata for this mailbox. sorted by UID. */
 	ARRAY_DEFINE(static_metadata, struct message_metadata_static *);
 	ARRAY_DEFINE(keyword_names, struct mailbox_keyword_name *);
+	/* List of UIDs that are definitely expunged. May contain UIDs that
+	   have never even existed. */
+	ARRAY_TYPE(seq_range) expunged_uids;
 
 #define MAIL_FLAGS_OWN_COUNT 5
 #define MAIL_FLAG_DELETED_IDX 2
