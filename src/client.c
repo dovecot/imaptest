@@ -47,6 +47,20 @@ int client_input_error(struct client *client, const char *fmt, ...)
 	return -1;
 }
 
+int client_state_error(struct client *client, const char *fmt, ...)
+{
+	va_list va;
+
+	va_start(va, fmt);
+	i_error("%s[%u]: %s: %s", client->username, client->global_id,
+		t_strdup_vprintf(fmt, va), imap_args_to_str(client->cur_args));
+	va_end(va);
+
+	if (conf.error_quit)
+		exit(2);
+	return -1;
+}
+
 static void client_exists(struct client *client, unsigned int msgs)
 {
 	unsigned int old_count = array_count(&client->view->uidmap);

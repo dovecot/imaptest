@@ -123,7 +123,7 @@ check_unexpected_flag_changes(struct client *client,
 		new_set = (metadata->mail_flags & (1 << i)) != 0;
 		if (old_set != new_set &&
 		    storage->flags_owner_client_idx1[i] == client->idx + 1) {
-			client_input_error(client, "Owned flag changed: %s%s",
+			client_state_error(client, "Owned flag changed: %s%s",
 					   mail_flag_names[i], expunge_state);
 		}
 	}
@@ -138,7 +138,7 @@ check_unexpected_flag_changes(struct client *client,
 		new_set = (metadata->keyword_bitmask[i/8] & (1 << (i%8))) != 0;
 		if (old_set != new_set &&
 		    keywords[i].name->owner_client_idx1 == client->idx + 1) {
-			client_input_error(client,
+			client_state_error(client,
 					   "Owned keyword changed: %s%s",
 					   keywords[i].name->name,
 					   expunge_state);
@@ -185,7 +185,7 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 					"Invalid system flag: %s", atom);
 			}
 		} else if (!mailbox_view_keyword_find(view, atom, &idx)) {
-			client_input_error(client, 
+			client_state_error(client, 
 				"Keyword used without being in FLAGS: %s",
 				atom);
 		} else {
@@ -206,7 +206,7 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 		/* UID now known yet, don't do any owning checks */
 	} else if (metadata->ms->owner_client_idx1 == client->idx+1) {
 		if (have_unexpected_changes(client, &old_flags, metadata)) {
-			client_input_error(client,
+			client_state_error(client,
 				"Flags unexpectedly changed for owned message");
 		}
 	} else if (client->view->storage->assign_flag_owners)
@@ -244,7 +244,7 @@ headers_parse(struct client *client, struct istream *input,
 				break;
 		}
 		if (i == count) {
-			client_input_error(client, 
+			client_state_error(client, 
 				"Unexpected header in reply: %s", hdr->name);
 		} else if (headers[i].value_len == 0) {
 			/* first header */
@@ -313,7 +313,7 @@ headers_match(struct client *client, ARRAY_TYPE(message_header) *headers_arr,
 			   memcmp(fetch_headers[i].value,
 				  orig_headers[j].value,
 				  fetch_headers[i].value_len) != 0) {
-			client_input_error(client, 
+			client_state_error(client, 
 				"%s: Header %s changed '%.*s' -> '%.*s'",
 				msg->message_id, fetch_headers[i].name,
 				(int)orig_headers[j].value_len,
@@ -552,7 +552,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 
 		if (p != NULL && (*p == NULL || strcasecmp(*p, value) != 0)) {
 			if (*p != NULL) {
-				client_input_error(client,
+				client_state_error(client,
 					"uid=%u %s: %s changed '%s' -> '%s'",
 					metadata->ms->uid,
 					metadata->ms->msg->message_id, name,
@@ -569,7 +569,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 					value_size = strlen(value);
 			}
 			if (*sizep != value_size && *sizep != 0) {
-				client_input_error(client,
+				client_state_error(client,
 					"uid=%u %s: %s size changed %"PRIuUOFF_T
 					" -> '%"PRIuUOFF_T"'",
 					metadata->ms->uid,

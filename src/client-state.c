@@ -69,7 +69,7 @@ static void auth_plain_callback(struct client *client, struct command *cmd,
 		return;
 	}
 	if (reply != REPLY_CONT) {
-		client_input_error(client, "AUTHENTICATE failed");
+		client_state_error(client, "AUTHENTICATE failed");
 		client_unref(client);
 		return;
 	}
@@ -435,7 +435,7 @@ store_verify_parse(struct store_verify_context *ctx, struct client *client,
 		if (**tmp == '\\')
 			ctx->flags_mask |= mail_flag_parse(*tmp);
 		else if (!mailbox_view_keyword_find(client->view, *tmp, &idx)) {
-			client_input_error(client,
+			client_state_error(client,
 				"STORE didn't create keyword: %s", *tmp);
 		} else {
 			/* @UNSAFE */
@@ -460,7 +460,7 @@ store_verify_seq(struct store_verify_context *ctx, uint32_t seq)
 	expunge_state = metadata->ms == NULL ? "?" :
 		metadata->ms->expunged ? "yes" : "no";
 	if ((metadata->mail_flags & MAIL_FLAGS_SET) == 0) {
-		client_input_error(ctx->client,
+		client_state_error(ctx->client,
 			"STORE didn't return FETCH FLAGS for seq %u "
 			"(expunged=%s)", seq, expunge_state);
 		return FALSE;
@@ -482,7 +482,7 @@ store_verify_seq(struct store_verify_context *ctx, uint32_t seq)
 
 	if (test_flags != test_flags_result) {
 		abort();
-		client_input_error(ctx->client,
+		client_state_error(ctx->client,
 			"STORE didn't update flags for seq %u (expunged=%s)",
 			seq, expunge_state);
 		return FALSE;
@@ -509,7 +509,7 @@ store_verify_seq(struct store_verify_context *ctx, uint32_t seq)
 			struct mailbox_keyword *kw;
 
 			kw = mailbox_view_keyword_get(ctx->client->view, i);
-			client_input_error(ctx->client,
+			client_state_error(ctx->client,
 				"STORE didn't update keyword %s for seq %u "
 				"(expunged=%s)",
 				kw->name->name, seq, expunge_state);
@@ -581,7 +581,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				break;
 			}
 		default:
-			client_input_error(client, "%s failed",
+			client_state_error(client, "%s failed",
 					   states[cmd->state].name);
 			break;
 		}
@@ -653,7 +653,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				command_send(client, str, state_callback);
 				break;
 			}
-			client_input_error(client, "COPY failed");
+			client_state_error(client, "COPY failed");
 		}
 		break;
 	case STATE_APPEND:
@@ -668,7 +668,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		if (client->login_state != LSTATE_NONAUTH) {
 			/* untagged BYE sets state to DISCONNECT, so we
 			   shouldn't get here. */
-			client_input_error(client, "Server didn't send BYE");
+			client_state_error(client, "Server didn't send BYE");
 		}
 		return -1;
 	case STATE_DISCONNECT:

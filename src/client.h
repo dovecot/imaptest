@@ -76,6 +76,8 @@ void client_delay(struct client *client, unsigned int msecs);
 
 int client_input_error(struct client *client, const char *fmt, ...)
 	ATTR_FORMAT(2, 3);
+int client_state_error(struct client *client, const char *fmt, ...)
+	ATTR_FORMAT(2, 3);
 void client_rawlog_output(struct client *client, const char *line);
 
 unsigned int clients_get_random_idx(void);
