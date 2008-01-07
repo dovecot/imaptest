@@ -27,6 +27,8 @@ struct message_metadata_static {
 	unsigned int owner_client_idx1;
 
 	struct message_global *msg;
+
+	unsigned int expunged:1;
 };
 
 struct message_metadata_dynamic {

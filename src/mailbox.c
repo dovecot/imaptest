@@ -102,8 +102,10 @@ void mailbox_view_expunge(struct mailbox_view *view, unsigned int seq)
 	i_free(metadata->keyword_bitmask);
 	if (metadata->keyword_bitmask != NULL)
 		mailbox_keywords_drop(view, metadata->keyword_bitmask);
-	if (metadata->ms != NULL)
+	if (metadata->ms != NULL) {
+		metadata->ms->expunged = TRUE;
 		message_metadata_static_unref(view->storage, &metadata->ms);
+	}
 	array_delete(&view->uidmap, seq - 1, 1);
 	array_delete(&view->messages, seq - 1, 1);
 

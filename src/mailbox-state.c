@@ -112,7 +112,10 @@ check_unexpected_flag_changes(struct client *client,
 	struct mailbox_storage *storage = client->view->storage;
 	const struct mailbox_keyword *keywords;
 	unsigned int i, min_count, new_count, new_alloc_size;
+	const char *expunge_state;
 	bool old_set, new_set;
+
+	expunge_state = metadata->ms->expunged ? " (expunged)" : "";
 
 	/* check flags */
 	for (i = 0; i < N_ELEMENTS(storage->flags_owner_client_idx1); i++) {
@@ -120,8 +123,8 @@ check_unexpected_flag_changes(struct client *client,
 		new_set = (metadata->mail_flags & (1 << i)) != 0;
 		if (old_set != new_set &&
 		    storage->flags_owner_client_idx1[i] == client->idx + 1) {
-			client_input_error(client, "Owned flag changed: %s",
-					   mail_flag_names[i]);
+			client_input_error(client, "Owned flag changed: %s%s",
+					   mail_flag_names[i], expunge_state);
 		}
 	}
 
@@ -135,8 +138,10 @@ check_unexpected_flag_changes(struct client *client,
 		new_set = (metadata->keyword_bitmask[i/8] & (1 << (i%8))) != 0;
 		if (old_set != new_set &&
 		    keywords[i].name->owner_client_idx1 == client->idx + 1) {
-			client_input_error(client, "Owned keyword changed: %s",
-					   keywords[i].name->name);
+			client_input_error(client,
+					   "Owned keyword changed: %s%s",
+					   keywords[i].name->name,
+					   expunge_state);
 		}
 	}
 }
@@ -197,6 +202,8 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 	if ((old_flags.flags & MAIL_FLAGS_SET) == 0 ||
 	    metadata->flagchange_dirty != 0) {
 		/* we don't know the old flags */
+	} else if (metadata->ms == NULL) {
+		/* UID now known yet, don't do any owning checks */
 	} else if (metadata->ms->owner_client_idx1 == client->idx+1) {
 		if (have_unexpected_changes(client, &old_flags, metadata)) {
 			client_input_error(client,
@@ -422,21 +429,20 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 			*uidp = uid;
 		}
 	}
-	if (*uidp == 0)
-		return;
 	uid = *uidp;
 
 	metadata = array_idx_modifiable(&view->messages, seq - 1);
-	if (metadata->ms == NULL) {
+	if (metadata->ms == NULL && uid != 0) {
 		metadata->ms =
 			message_metadata_static_get(client->view->storage, uid);
 	}
-	i_assert(metadata->ms->uid == uid);
-
-	/* Get Message-ID from envelope if it exists. */
-	arg = fetch_list_get(args, "ENVELOPE");
-	if (arg != NULL && arg->type == IMAP_ARG_LIST)
-		client_fetch_envelope(client, metadata, arg, uid);
+	if (metadata->ms != NULL) {
+		i_assert(metadata->ms->uid == uid);
+		/* Get Message-ID from envelope if it exists. */
+		arg = fetch_list_get(args, "ENVELOPE");
+		if (arg != NULL && arg->type == IMAP_ARG_LIST)
+			client_fetch_envelope(client, metadata, arg, uid);
+	}
 
 	/* the message is known, verify that everything looks ok */
 	list = IMAP_ARG_LIST(args);
@@ -469,6 +475,11 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 						   metadata);
 			continue;
 		}
+
+		/* next follows metadata that require the UID to be known */
+		if (metadata->ms == NULL)
+			continue;
+
 		if (strcmp(name, "INTERNALDATE") == 0) {
 			time_t t;
 			int tz_offset;

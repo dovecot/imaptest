@@ -373,7 +373,8 @@ int client_append(struct client *client, bool continued)
 }
 
 static void
-seq_range_flags_ref(struct client *client, ARRAY_TYPE(seq_range) *seq_range,
+seq_range_flags_ref(struct client *client,
+		    const ARRAY_TYPE(seq_range) *seq_range,
 		    int diff, bool update_dirty)
 {
 	struct message_metadata_dynamic *metadata;
@@ -402,12 +403,149 @@ seq_range_flags_ref(struct client *client, ARRAY_TYPE(seq_range) *seq_range,
 	}
 }
 
+struct store_verify_context {
+	struct client *client;
+	enum mail_flags flags_mask;
+	uint8_t *keywords_bitmask;
+	unsigned int max_keyword_bit;
+	char type;
+};
+
+static bool
+store_verify_parse(struct store_verify_context *ctx, struct client *client,
+		   char type, const char *flags)
+{
+	const char *const *tmp;
+	unsigned int max_size, idx;
+
+	memset(ctx, 0, sizeof(*ctx));
+	ctx->client = client;
+	ctx->type = type;
+
+	max_size = I_MAX(client->view->keyword_bitmask_alloc_size,
+			 (array_count(&client->view->keywords) + 7) / 8);
+	ctx->max_keyword_bit = 0;
+	ctx->keywords_bitmask = max_size == 0 ? NULL : t_malloc0(max_size);
+	if (*flags == '(')
+		flags = t_strcut(flags + 1, ')');
+	if (*flags == '\0')
+		return FALSE;
+
+	for (tmp = t_strsplit(flags, " "); *tmp != NULL; tmp++) {
+		if (**tmp == '\\')
+			ctx->flags_mask |= mail_flag_parse(*tmp);
+		else if (!mailbox_view_keyword_find(client->view, *tmp, &idx)) {
+			client_input_error(client,
+				"STORE didn't create keyword: %s", *tmp);
+		} else {
+			/* @UNSAFE */
+			i_assert(idx/8 < max_size);
+			ctx->keywords_bitmask[idx/8] |= 1 << (idx%8);
+			ctx->max_keyword_bit = I_MAX(ctx->max_keyword_bit, idx);
+		}
+	}
+	return TRUE;
+}
+
+static bool
+store_verify_seq(struct store_verify_context *ctx, uint32_t seq)
+{
+	struct message_metadata_dynamic *metadata;
+	enum mail_flags test_flags, test_flags_result;
+	const char *expunge_state;
+	unsigned int i;
+	bool ret, set, fail, mask;
+
+	metadata = array_idx_modifiable(&ctx->client->view->messages, seq - 1);
+	expunge_state = metadata->ms == NULL ? "?" :
+		metadata->ms->expunged ? "yes" : "no";
+	if ((metadata->mail_flags & MAIL_FLAGS_SET) == 0) {
+		client_input_error(ctx->client,
+			"STORE didn't return FETCH FLAGS for seq %u "
+			"(expunged=%s)", seq, expunge_state);
+		return FALSE;
+	}
+
+	test_flags = metadata->mail_flags;
+	test_flags_result = ctx->flags_mask;
+	switch (ctx->type) {
+	case '+':
+		test_flags &= ctx->flags_mask;
+		break;
+	case '-':
+		test_flags &= ctx->flags_mask;
+		test_flags_result = 0;
+		break;
+	case '\0':
+		break;
+	}
+
+	if (test_flags != test_flags_result) {
+		abort();
+		client_input_error(ctx->client,
+			"STORE didn't update flags for seq %u (expunged=%s)",
+			seq, expunge_state);
+		return FALSE;
+	}
+
+	ret = TRUE;
+	for (i = 0; i < ctx->max_keyword_bit; i++) {
+		set = i/8 < ctx->client->view->keyword_bitmask_alloc_size ?
+			(metadata->keyword_bitmask[i/8] & (1 << (i%8))) != 0 :
+			FALSE;
+		mask = (ctx->keywords_bitmask[i/8] & (1 << (i%8))) != 0;
+		switch (ctx->type) {
+		case '+':
+			fail = mask && !set;
+			break;
+		case '-':
+			fail = mask && set;
+			break;
+		default:
+			fail = mask != set;
+			break;
+		}
+		if (fail) {
+			struct mailbox_keyword *kw;
+
+			kw = mailbox_view_keyword_get(ctx->client->view, i);
+			client_input_error(ctx->client,
+				"STORE didn't update keyword %s for seq %u "
+				"(expunged=%s)",
+				kw->name->name, seq, expunge_state);
+			ret = FALSE;
+		}
+	}
+	return ret;
+}
+
+static void
+store_verify_result(struct client *client, char type, const char *flags,
+		    const ARRAY_TYPE(seq_range) *seq_range)
+{
+	const struct seq_range *range;
+	unsigned int i, count;
+	struct store_verify_context ctx;
+	uint32_t seq;
+
+	if (!store_verify_parse(&ctx, client, type, flags))
+		return;
+
+	/* make sure all the referenced messages have the changes */
+	range = array_get(seq_range, &count);
+	for (i = 0; i < count; i++) {
+		for (seq = range[i].seq1; seq <= range[i].seq2; seq++)
+			store_verify_seq(&ctx, seq);
+	}
+}
+
 static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				   const struct imap_arg *args,
 				   enum command_reply reply)
 {
-	const char *str, *line;
+	const char *str, *line, *p;
 	unsigned int i;
+	char type;
 
 	line = imap_args_to_str(args);
 	switch (reply) {
@@ -483,12 +621,25 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		client->login_state = LSTATE_SELECTED;
 		break;
 	case STATE_FETCH:
+		seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
+		break;
 	case STATE_STORE:
 	case STATE_STORE_DEL:
+		i_assert(strncmp(cmd->cmdline, "STORE ", 6) == 0);
+		p = strchr(cmd->cmdline + 6, ' ');
+		i_assert(p != NULL);
+		p++;
+		type = *p == '+' || *p == '-' ? *p++ : '\0';
+
 		seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
-		if (cmd->state != STATE_FETCH &&
-		    strstr(cmd->cmdline, "FLAGS.SILENT") != NULL)
+		if (strncmp(p, "FLAGS.SILENT", 12) == 0)
 			seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
+		else if (client->view->storage->assign_flag_owners) {
+			i_assert(type != '\0');
+			i_assert(strncmp(p, "FLAGS ", 6) == 0);
+			p += 6;
+			store_verify_result(client, type, p, &cmd->seq_range);
+		}
 		break;
 	case STATE_COPY:
 		if (reply == REPLY_NO) {
