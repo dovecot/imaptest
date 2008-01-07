@@ -402,6 +402,8 @@ static void client_input(struct client *client)
 	}
 
 	(void)i_stream_get_data(client->input, &client->prev_size);
+	if (client->input->closed)
+		client_unref(client);
 }
 
 static void client_delay_timeout(void *context)
