@@ -4,6 +4,7 @@
 #include "lib-signals.h"
 #include "ioloop.h"
 #include "array.h"
+#include "str.h"
 #include "home-expand.h"
 
 #include "settings.h"
@@ -61,8 +62,9 @@ static void print_header(void)
 static void print_timeout(void *context ATTR_UNUSED)
 {
 	struct client *const *c;
+	string_t *str;
         static int rowcount = 0;
-        unsigned int i, count, banner_waits, stall_count;
+	unsigned int i, count, banner_waits, stall_count;
 
         if ((rowcount++ % 10) == 0)
                 print_header();
@@ -100,14 +102,30 @@ static void print_timeout(void *context ATTR_UNUSED)
 		       conf.clients_count);
 	}
 
+#define STALL_PRINT_SECS 15
 	printf("\n");
+	str = t_str_new(256);
 	for (i = 0; i < count; i++) {
 		if (c[i] != NULL && c[i]->state != STATE_BANNER &&
-		    c[i]->to == NULL && c[i]->last_io < ioloop_time - 15) {
+		    c[i]->to == NULL &&
+		    c[i]->last_io < ioloop_time - STALL_PRINT_SECS) {
+			struct command *const *cmds;
+			unsigned int cmdcount;
+
+			str_truncate(str, 0);
+			str_printfa(str, " - %d stalled for %u secs in ",
+				    c[i]->global_id,
+				    (unsigned)(ioloop_time - c[i]->last_io));
+			cmds = array_get(&c[i]->commands, &cmdcount);
+			if (cmdcount == 0)
+				str_append(str, states[c[i]->state].name);
+			else {
+				str_printfa(str, "command: %u %s",
+					    cmds[0]->tag, cmds[0]->cmdline);
+			}
+
 			stalled = TRUE;
-                        printf(" - %d. stalled for %u secs in %s\n", i,
-                               (unsigned)(ioloop_time - c[i]->last_io),
-                               states[c[i]->state].name);
+                        printf("%s\n", str_c(str));
                 }
 	}
 
