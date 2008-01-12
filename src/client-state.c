@@ -583,6 +583,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				break;
 			}
 		case STATE_STORE:
+		case STATE_STORE_DEL:
 			if (strcmp(line, "NO Cannot store on expunged messages") == 0) {
 				/* Archiveopteryx */
 				break;
@@ -643,7 +644,8 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		type = *p == '+' || *p == '-' ? *p++ : '\0';
 		silent = strncmp(p, "FLAGS.SILENT", 12) == 0;
 
-		if (!silent && client->view->storage->assign_flag_owners) {
+		if (!silent && client->view->storage->assign_flag_owners &&
+		    reply == REPLY_OK) {
 			i_assert(type != '\0');
 			i_assert(strncmp(p, "FLAGS ", 6) == 0);
 			p += 6;
