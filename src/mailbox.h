@@ -66,6 +66,8 @@ struct message_metadata_dynamic {
 struct mailbox_keyword_name {
 	char *name;
 	unsigned int owner_client_idx1;
+
+	unsigned int seen_nonpermanent:1;
 };
 
 struct mailbox_keyword {
@@ -76,7 +78,6 @@ struct mailbox_keyword {
 	unsigned int flags_counter; /* should match view->flags_counter */
 
 	unsigned int permanent:1;
-	unsigned int seen_nonpermanent:1;
 };
 
 struct mailbox_storage {
