@@ -4,6 +4,7 @@
 #include "array.h"
 #include "bsearch-insert-pos.h"
 #include "str.h"
+#include "hash.h"
 #include "istream.h"
 #include "imap-util.h"
 
@@ -14,7 +15,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-struct mailbox_storage *global_storage = NULL;
+struct hash_table *storages = NULL;
 
 const char *mail_flag_names[] = {
 	"\\Answered",
@@ -362,29 +363,42 @@ const char *mailbox_view_get_random_flags(struct mailbox_view *view,
 	return str_c(str);
 }
 
-struct mailbox_storage *mailbox_storage_get(struct mailbox_source *source)
+struct mailbox_storage *
+mailbox_storage_get(struct mailbox_source *source, const char *name)
 {
-	/* FIXME: for now we support only a single mailbox */
-	if (global_storage == NULL) {
-		global_storage = i_new(struct mailbox_storage, 1);
-		global_storage->source = source;
-		global_storage->assign_msg_owners = conf.own_msgs;
-		global_storage->assign_flag_owners = conf.own_flags;
-		i_array_init(&global_storage->expunged_uids, 128);
-		i_array_init(&global_storage->static_metadata, 128);
-		i_array_init(&global_storage->keyword_names, 64);
+	struct mailbox_storage *storage;
+
+	storage = hash_lookup(storages, name);
+	if (storage == NULL) {
+		storage = i_new(struct mailbox_storage, 1);
+		storage->name = i_strdup(name);
+		storage->refcount = 1;
+		storage->source = source;
+		storage->assign_msg_owners = conf.own_msgs;
+		storage->assign_flag_owners = conf.own_flags;
+		i_array_init(&storage->expunged_uids, 128);
+		i_array_init(&storage->static_metadata, 128);
+		i_array_init(&storage->keyword_names, 64);
+		hash_insert(storages, storage->name, storage);
+	} else {
+		i_assert(storage->source == source);
+		storage->refcount++;
 	}
-	i_assert(global_storage->source == source);
-	return global_storage;
+	return storage;
 }
 
-void mailbox_storage_free(struct mailbox_storage **_storage)
+void mailbox_storage_unref(struct mailbox_storage **_storage)
 {
 	struct mailbox_storage *storage = *_storage;
 	struct mailbox_keyword_name **names;
 	unsigned int i, count;
 
 	*_storage = NULL;
+
+	if (--storage->refcount > 0)
+		return;
+
+	hash_remove(storages, storage->name);
 
 	names = array_get_modifiable(&storage->keyword_names, &count);
 	for (i = 0; i < count; i++) {
@@ -395,6 +409,7 @@ void mailbox_storage_free(struct mailbox_storage **_storage)
 	array_free(&storage->expunged_uids);
 	array_free(&storage->static_metadata);
 	array_free(&storage->keyword_names);
+	i_free(storage->name);
 	i_free(storage);
 }
 
@@ -431,4 +446,15 @@ void mailbox_view_free(struct mailbox_view **_mailbox)
 
 	array_free(&view->uidmap);
 	i_free(view);
+}
+
+void mailboxes_init(void)
+{
+	storages = hash_create(default_pool, default_pool, 0, str_hash,
+			       (hash_cmp_callback_t *)strcmp);
+}
+
+void mailboxes_deinit(void)
+{
+	hash_destroy(&storages);
 }

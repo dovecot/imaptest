@@ -5,6 +5,7 @@
 #include "ioloop.h"
 #include "array.h"
 #include "str.h"
+#include "hash.h"
 #include "home-expand.h"
 
 #include "settings.h"
@@ -131,7 +132,16 @@ static void print_timeout(void *context ATTR_UNUSED)
 
 	if (ioloop_time >= next_checkpoint_time &&
 	    conf.checkpoint_interval > 0) {
-		clients_checkpoint(global_storage);
+		struct hash_iterate_context *iter;
+		void *key, *value;
+
+		iter = hash_iterate_init(storages);
+		while (hash_iterate(iter, &key, &value)) {
+			struct mailbox_storage *storage = value;
+
+			clients_checkpoint(storage);
+		}
+		hash_iterate_deinit(&iter);
 		next_checkpoint_time = ioloop_time + conf.checkpoint_interval;
 	}
 }
@@ -405,6 +415,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	conf.ip = ips[0];
 
 	fix_probabilities();
+	mailboxes_init();
 	clients_init();
 
 	mailbox_source = mailbox_source_new(conf.mbox_path);
@@ -424,8 +435,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 
 	print_total();
 	mailbox_source_free(&mailbox_source);
-	mailbox_storage_free(&global_storage);
 	clients_deinit();
+	mailboxes_deinit();
 
 	timeout_remove(&to);
 	if (to_stop != NULL)

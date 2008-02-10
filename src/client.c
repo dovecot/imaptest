@@ -481,6 +481,7 @@ static void client_wait_connect(void *context)
 struct client *client_new(unsigned int idx, struct mailbox_source *source)
 {
 	struct client *client;
+	const char *mailbox;
 	int fd;
 
 	i_assert(idx >= array_count(&clients) ||
@@ -501,7 +502,10 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 	client->tag_counter = 1;
 	client->idx = idx;
 	client->global_id = ++global_id_counter;
-	client->view = mailbox_view_new(mailbox_storage_get(source));
+	mailbox = t_strdup_printf(conf.mailbox, idx);
+	client->view = mailbox_view_new(mailbox_storage_get(source, mailbox));
+	if (strchr(conf.mailbox, '%') != NULL)
+		client->try_create_mailbox = TRUE;
 	client->fd = fd;
 	client->input = i_stream_create_fd(fd, 1024*64, FALSE);
 	client->output = o_stream_create_fd(fd, (size_t)-1, FALSE);
@@ -587,6 +591,7 @@ bool client_unref(struct client *client)
 
 	if (checkpoint)
 		checkpoint_neg(storage);
+	mailbox_storage_unref(&storage);
 	return FALSE;
 }
 

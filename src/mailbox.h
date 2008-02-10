@@ -82,6 +82,8 @@ struct mailbox_keyword {
 
 struct mailbox_storage {
 	struct mailbox_source *source;
+	int refcount;
+	char *name;
 
 	struct mailbox_checkpoint_context *checkpoint;
 
@@ -125,11 +127,12 @@ struct mailbox_view {
 	unsigned int keywords_can_create_more:1;
 };
 
-extern struct mailbox_storage *global_storage;
+extern struct hash_table *storages;
 extern const char *mail_flag_names[]; /* enum mail_flags names */
 
-struct mailbox_storage *mailbox_storage_get(struct mailbox_source *source);
-void mailbox_storage_free(struct mailbox_storage **storage);
+struct mailbox_storage *
+mailbox_storage_get(struct mailbox_source *source, const char *name);
+void mailbox_storage_unref(struct mailbox_storage **storage);
 
 struct mailbox_view *mailbox_view_new(struct mailbox_storage *storage);
 void mailbox_view_free(struct mailbox_view **_mailbox);
@@ -154,5 +157,8 @@ const char *mailbox_view_get_random_flags(struct mailbox_view *view,
 struct message_metadata_static *
 message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid);
 void mailbox_view_expunge(struct mailbox_view *view, unsigned int seq);
+
+void mailboxes_init(void);
+void mailboxes_deinit(void);
 
 #endif

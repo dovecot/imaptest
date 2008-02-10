@@ -61,6 +61,7 @@ struct client {
 	unsigned int delayed:1;
 	unsigned int seen_banner:1;
 	unsigned int append_unfinished:1;
+	unsigned int try_create_mailbox:1;
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
 

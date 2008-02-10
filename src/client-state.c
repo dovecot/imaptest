@@ -323,8 +323,10 @@ int client_append(struct client *client, bool continued)
 		client->append_offset = source->input->v_offset;
 
 		cmd = t_str_new(128);
-		if (!client->append_unfinished)
-			str_printfa(cmd, "APPEND \"%s\"", conf.mailbox);
+		if (!client->append_unfinished) {
+			str_printfa(cmd, "APPEND \"%s\"",
+				    client->view->storage->name);
+		}
 		if ((rand() % 2) == 0) {
 			str_printfa(cmd, " (%s)",
 				    mailbox_view_get_random_flags(client->view,
@@ -563,6 +565,19 @@ store_verify_result(struct client *client, char type, const char *flags,
 	}
 }
 
+static void
+client_try_create_mailbox(struct client *client, struct command *cmd)
+{
+	const char *str;
+
+	if (!client->try_create_mailbox)
+		return;
+
+	str = t_strdup_printf("CREATE \"%s\"", client->view->storage->name);
+	client->state = STATE_MCREATE;
+	command_send(client, str, state_callback);
+}
+
 static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				   const struct imap_arg *args,
 				   enum command_reply reply)
@@ -642,7 +657,14 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		}
 		break;
 	case STATE_SELECT:
-		client->login_state = LSTATE_SELECTED;
+		if (reply == REPLY_OK)
+			client->login_state = LSTATE_SELECTED;
+		else if (reply == REPLY_NO)
+			client_try_create_mailbox(client, cmd);
+		break;
+	case STATE_STATUS:
+		if (reply == REPLY_NO)
+			client_try_create_mailbox(client, cmd);
 		break;
 	case STATE_FETCH:
 		seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
@@ -679,7 +701,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				IMAP_ARG_STR(args) : NULL;
 			if (arg != NULL &&
 			    strcasecmp(arg, "[TRYCREATE]") == 0) {
-				str = t_strdup_printf("CREATE %s",
+				str = t_strdup_printf("CREATE \"%s\"",
 						      conf.copy_dest);
 				client->state = STATE_COPY;
 				command_send(client, str, state_callback);
@@ -693,7 +715,8 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 			/* finish appending */
 			if (client_append(client, TRUE) < 0)
 				return -1;
-			break;
+		} else if (reply == REPLY_NO) {
+			client_try_create_mailbox(client, cmd);
 		}
 		break;
 	case STATE_LOGOUT:
@@ -856,7 +879,8 @@ int client_send_next_cmd(struct client *client)
 			/* already selected, don't do it agai */
 			break;
 		}
-		str = t_strdup_printf("SELECT \"%s\"", conf.mailbox);
+		str = t_strdup_printf("SELECT \"%s\"",
+				      client->view->storage->name);
 		command_send(client, str, state_callback);
 		break;
 	case STATE_FETCH: {
@@ -1027,7 +1051,7 @@ int client_send_next_cmd(struct client *client)
 		break;
 	case STATE_STATUS:
 		str = t_strdup_printf("STATUS \"%s\" (MESSAGES UNSEEN RECENT)",
-				      conf.mailbox);
+				      client->view->storage->name);
 		command_send(client, str, state_callback);
 		break;
 	case STATE_NOOP:
