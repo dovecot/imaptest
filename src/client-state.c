@@ -182,6 +182,21 @@ enum client_state client_update_plan(struct client *client)
 	if (state == STATE_LOGOUT)
 		return state;
 
+#if 0
+	switch (client->login_state) {
+	case LSTATE_NONAUTH:
+		client->plan[client->plan_size++] = STATE_LOGIN;
+		break;
+	case LSTATE_AUTH:
+		client->plan[client->plan_size++] = STATE_SELECT;
+		break;
+	default:
+		client->plan[client->plan_size++] = STATE_APPEND;
+		client->plan[client->plan_size++] = STATE_NOOP;
+		client->plan[client->plan_size++] = STATE_LOGOUT;
+		break;
+	}
+#else
 	while (client->plan_size <
 	       sizeof(client->plan)/sizeof(client->plan[0])) {
 		switch (client->login_state) {
@@ -210,6 +225,7 @@ enum client_state client_update_plan(struct client *client)
 		if ((states[state].flags & FLAG_STATECHANGE) != 0)
 			break;
 	}
+#endif
 
 	i_assert(client->plan_size > 0);
 	state = client->plan[0];
