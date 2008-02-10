@@ -19,6 +19,7 @@
 
 #define BODY_NIL_REPLY \
 	"\"text\" \"plain\" NIL NIL NIL \"7bit\" 0 0 NIL NIL NIL"
+
 #define ENVELOPE_NIL_REPLY \
 	"NIL NIL NIL NIL NIL NIL NIL NIL NIL NIL"
 #define INTERNALDATE_NIL_TIMESTAMP 0
@@ -185,7 +186,7 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 					"Invalid system flag: %s", atom);
 			}
 		} else if (!mailbox_view_keyword_find(view, atom, &idx)) {
-			client_state_error(client, 
+			client_state_error(client,
 				"Keyword used without being in FLAGS: %s",
 				atom);
 		} else {
@@ -512,18 +513,18 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 
 		p = NULL; sizep = NULL; value_size = (uoff_t)-1;
 		if (strcmp(name, "BODY") == 0) {
-			if (strncmp(value, BODY_NIL_REPLY,
-				    strlen(BODY_NIL_REPLY)) == 0)
+			if (strncasecmp(value, BODY_NIL_REPLY,
+					strlen(BODY_NIL_REPLY)) == 0)
 				continue;
 			p = &metadata->ms->msg->body;
 		} else if (strcmp(name, "BODYSTRUCTURE") == 0) {
-			if (strncmp(value, BODY_NIL_REPLY,
-				    strlen(BODY_NIL_REPLY)) == 0)
+			if (strncasecmp(value, BODY_NIL_REPLY,
+					strlen(BODY_NIL_REPLY)) == 0)
 				continue;
 			p = &metadata->ms->msg->bodystructure;
 		} else if (strcmp(name, "ENVELOPE") == 0) {
-			if (strncmp(value, ENVELOPE_NIL_REPLY,
-				    strlen(ENVELOPE_NIL_REPLY)) == 0)
+			if (strncasecmp(value, ENVELOPE_NIL_REPLY,
+					strlen(ENVELOPE_NIL_REPLY)) == 0)
 				continue;
 			p = &metadata->ms->msg->envelope;
 		} else if (strncmp(name, "RFC822", 6) == 0) {
