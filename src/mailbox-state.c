@@ -414,6 +414,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 	uoff_t value_size, *sizep;
 	uint32_t uid, *uidp;
 	unsigned int i, list_count;
+	bool uid_changed = FALSE;
 
 	uidp = array_idx_modifiable(&view->uidmap, seq-1);
 
@@ -432,6 +433,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 			client_input_error(client,
 				"UID changed for sequence %u: %u -> %u",
 				seq, *uidp, uid);
+			uid_changed = TRUE;
 			*uidp = uid;
 		}
 	}
@@ -441,7 +443,13 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 	if (metadata->ms == NULL && uid != 0) {
 		metadata->ms =
 			message_metadata_static_get(client->view->storage, uid);
+	} else if (uid_changed && metadata->ms != NULL) {
+		/* who knows what it contains now, just get rid of it */
+		message_metadata_static_unref(client->view->storage,
+					      &metadata->ms);
+		metadata->ms = NULL;
 	}
+
 	if (metadata->ms != NULL) {
 		i_assert(metadata->ms->uid == uid);
 		/* Get Message-ID from envelope if it exists. */

@@ -35,8 +35,8 @@ static int metadata_static_cmp(const void *key, const void *data)
 		(*uidp > (*ms)->uid ? 1 : 0);
 }
 
-static void message_metadata_static_unref(struct mailbox_storage *storage,
-					  struct message_metadata_static **_ms)
+void message_metadata_static_unref(struct mailbox_storage *storage,
+				   struct message_metadata_static **_ms)
 {
 	struct message_metadata_static *ms = *_ms;
 	struct message_metadata_static **base;
