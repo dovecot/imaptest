@@ -613,10 +613,15 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				/* Archiveopteryx */
 				break;
 			}
+			/* fall through */
 		case STATE_STORE:
 		case STATE_STORE_DEL:
 			if (strcmp(line, "NO Cannot store on expunged messages") == 0) {
 				/* Archiveopteryx */
+				break;
+			}
+			if (strstr(line, "have been deleted") != NULL) {
+				/* Communigate Pro (FETCH/STORE) */
 				break;
 			}
 		default:
