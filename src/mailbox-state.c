@@ -185,11 +185,16 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 				client_input_error(client,
 					"Invalid system flag: %s", atom);
 			}
-		} else if (!mailbox_view_keyword_find(view, atom, &idx)) {
-			client_state_error(client,
-				"Keyword used without being in FLAGS: %s",
-				atom);
 		} else {
+			if (!mailbox_view_keyword_find(view, atom, &idx)) {
+				client_state_error(client,
+					"Keyword used without being in FLAGS: "
+					"%s", atom);
+				mailbox_view_keyword_add(view, atom);
+				if (!mailbox_view_keyword_find(view, atom,
+							       &idx))
+					i_unreached();
+			}
 			i_assert(idx/8 < view->keyword_bitmask_alloc_size);
 			kw = array_idx_modifiable(&view->keywords, idx);
 			kw->refcount++;
