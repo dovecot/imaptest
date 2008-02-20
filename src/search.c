@@ -55,10 +55,12 @@ static int
 search_node_verify_msg(struct search_node *node,
 		       const struct message_metadata_static *ms)
 {
+	time_t t;
+
 	switch (node->type) {
 	case SEARCH_SMALLER:
 	case SEARCH_LARGER:
-		if (ms->msg->full_size == 0)
+		if (ms->msg == NULL || ms->msg->full_size == 0)
 			break;
 		if (node->type == SEARCH_SMALLER)
 			return ms->msg->full_size < node->size;
@@ -66,18 +68,21 @@ search_node_verify_msg(struct search_node *node,
 			return ms->msg->full_size > node->size;
 		break;
 	case SEARCH_BEFORE:
-		if (ms->internaldate == 0)
-			break;
-		return ms->internaldate < node->date;
 	case SEARCH_ON:
-		if (ms->internaldate == 0)
-			break;
-		return ms->internaldate >= node->date &&
-			ms->internaldate < node->date + 3600*24;
 	case SEARCH_SINCE:
 		if (ms->internaldate == 0)
 			break;
-		return ms->internaldate > node->date;
+		t = ms->internaldate + ms->internaldate_tz*60;
+		switch (node->type) {
+		case SEARCH_BEFORE:
+			return t < node->date;
+		case SEARCH_ON:
+			return t >= node->date && t < node->date + 3600*24;
+		case SEARCH_SINCE:
+			return t >= node->date;
+		default:
+			i_unreached();
+		}
 	case SEARCH_OR:
 	case SEARCH_SUB:
 	case SEARCH_ALL:
@@ -109,7 +114,7 @@ search_node_verify(struct client *client, struct search_node *node,
 		break;
 	default:
 		ms = message_metadata_static_lookup_seq(client->view, seq);
-		if (ms != NULL && ms->msg != NULL)
+		if (ms != NULL)
 			ret = search_node_verify_msg(node, ms);
 		break;
 	}
@@ -135,20 +140,23 @@ search_node_verify(struct client *client, struct search_node *node,
 static void search_verify_result(struct client *client)
 {
 	struct search_context *ctx = client->search_ctx;
+	const uint32_t *uids;
 	uint32_t seq, msgs;
 	int ret;
 	bool found;
 
-	msgs = array_count(&client->view->uidmap);
+	uids = array_get(&client->view->uidmap, &msgs);
 	for (seq = 1; seq <= msgs; seq++) {
 		ret = search_node_verify(client, &ctx->root, seq, FALSE);
 		found = seq_range_exists(&ctx->result, seq);
 		if (ret > 0 && !found) {
 			client_input_error(client,
-				"SEARCH result missing seq %u", seq);
+				"SEARCH result missing seq %u (uid %u)",
+				seq, uids[seq-1]);
 		} else if (ret == 0 && found) {
 			client_input_error(client,
-				"SEARCH result has extra seq %u", seq);
+				"SEARCH result has extra seq %u (uid %u)",
+				seq, uids[seq-1]);
 		}
 	}
 }

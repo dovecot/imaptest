@@ -508,14 +508,17 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 						   "Broken INTERNALDATE");
 			} else if (t == INTERNALDATE_NIL_TIMESTAMP) {
 				/* ignore */
-			} else if (metadata->ms->internaldate == 0)
+			} else if (metadata->ms->internaldate == 0) {
 				metadata->ms->internaldate = t;
-			else if (metadata->ms->internaldate != t) {
+				metadata->ms->internaldate_tz = tz_offset;
+			} else if (metadata->ms->internaldate != t ||
+				   metadata->ms->internaldate_tz != tz_offset) {
 				client_input_error(client,
-					"UID=%u INTERNALDATE changed %s -> %s",
-					uid,
+					"UID=%u INTERNALDATE changed "
+					"%s+%d -> %s+%d", uid,
 					dec2str(metadata->ms->internaldate),
-					dec2str(t));
+					metadata->ms->internaldate_tz,
+					dec2str(t), tz_offset);
 			}
 			continue;
 		}
