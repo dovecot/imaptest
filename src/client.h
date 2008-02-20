@@ -49,6 +49,8 @@ struct client {
 	uoff_t append_offset, append_size;
 	uoff_t literal_left;
 
+	struct search_context *search_ctx;
+
 	struct mailbox_view *view;
 	struct mailbox_storage *checkpointing;
 	ARRAY_DEFINE(commands, struct command *);

@@ -13,6 +13,7 @@
 #include "mailbox-state.h"
 #include "commands.h"
 #include "checkpoint.h"
+#include "search.h"
 #include "client.h"
 
 #include <stdlib.h>
@@ -159,6 +160,8 @@ client_handle_untagged(struct client *client, const struct imap_arg *args)
 			client_input_error(client, "Broken FLAGS");
 	} else if (strcmp(str, "CAPABILITY") == 0)
 		client_capability_parse(client, imap_args_to_str(args));
+	else if (strcmp(str, "SEARCH") == 0)
+		search_result(client, args);
 	else if (strcmp(str, "OK") == 0) {
 		if (args->type != IMAP_ARG_ATOM)
 			return -1;
@@ -267,6 +270,7 @@ client_input_args(struct client *client, const struct imap_arg *args)
 
 	o_stream_cork(client->output);
 	cmd->callback(client, cmd, args, reply);
+	client_cmd_reply_finish(client);
 	o_stream_uncork(client->output);
 	command_free(cmd);
 	return 0;

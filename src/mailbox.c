@@ -35,6 +35,16 @@ static int metadata_static_cmp(const void *key, const void *data)
 		(*uidp > (*ms)->uid ? 1 : 0);
 }
 
+struct message_metadata_static *
+message_metadata_static_lookup_seq(struct mailbox_view *view, uint32_t seq)
+{
+	const struct message_metadata_dynamic *metadata;
+	unsigned int count;
+
+	metadata = array_get(&view->messages, &count);
+	return seq > count ? NULL : metadata[seq-1].ms;
+}
+
 void message_metadata_static_unref(struct mailbox_storage *storage,
 				   struct message_metadata_static **_ms)
 {

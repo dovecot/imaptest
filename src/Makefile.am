@@ -15,7 +15,8 @@ imaptest_SOURCES = \
 	imap-args.c \
 	mailbox.c \
 	mailbox-source.c \
-	mailbox-state.c
+	mailbox-state.c \
+	search.c
 
 noinst_HEADERS = \
 	checkpoint.h \
@@ -26,6 +27,7 @@ noinst_HEADERS = \
 	mailbox.h \
 	mailbox-source.h \
 	mailbox-state.h \
+	search.h \
 	settings.h
 
 imaptest_LDADD = \

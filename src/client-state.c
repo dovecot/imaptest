@@ -14,6 +14,7 @@
 #include "mailbox-source.h"
 #include "checkpoint.h"
 #include "commands.h"
+#include "search.h"
 #include "client.h"
 #include "client-state.h"
 
@@ -30,9 +31,9 @@ struct state states[STATE_COUNT] = {
 	{ "SELECT",	  "Sele", LSTATE_AUTH,     100, 0,  FLAG_STATECHANGE | FLAG_STATECHANGE_SELECTED },
 	{ "FETCH",	  "Fetc", LSTATE_SELECTED, 100, 0,  FLAG_MSGSET },
 	{ "FETCH2",	  "Fet2", LSTATE_SELECTED, 100, 30, FLAG_MSGSET },
-	{ "SEARCH",	  "Sear", LSTATE_SELECTED, 0,   0,  0 },
-	{ "SORT",	  "Sort", LSTATE_SELECTED, 0,   0,  0 },
-	{ "THREAD",	  "Thre", LSTATE_SELECTED, 0,   0,  0 },
+	{ "SEARCH",	  "Sear", LSTATE_SELECTED, 0,   0,  FLAG_MSGSET },
+	{ "SORT",	  "Sort", LSTATE_SELECTED, 0,   0,  FLAG_MSGSET },
+	{ "THREAD",	  "Thre", LSTATE_SELECTED, 0,   0,  FLAG_MSGSET },
 	{ "COPY",	  "Copy", LSTATE_SELECTED, 33,  5,  FLAG_MSGSET | FLAG_EXPUNGES },
 	{ "STORE",	  "Stor", LSTATE_SELECTED, 50,  0,  FLAG_MSGSET },
 	{ "DELETE",	  "Dele", LSTATE_SELECTED, 100, 0,  FLAG_MSGSET },
@@ -295,6 +296,10 @@ int client_send_more_commands(struct client *client)
 		    (pending_flags & (FLAG_EXPUNGES | FLAG_STATECHANGE)) != 0) {
 			/* msgset may become invalid if we send it now */
 			break;
+		}
+		if (state == STATE_SEARCH && client->search_ctx != NULL) {
+			/* there can be only one search running at a time */
+			continue;
 		}
 
 		if (client_send_next_cmd(client) < 0)
@@ -740,16 +745,10 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	return 0;
 }
 
-enum flag_type {
-	FLAG_TYPE_NONE,
-	FLAG_TYPE_FETCH,
-	FLAG_TYPE_STORE,
-	FLAG_TYPE_STORE_SILENT
-};
-
-static bool
-client_get_random_seq_range(struct client *client, ARRAY_TYPE(seq_range) *range,
-			    unsigned int count, enum flag_type flag_type)
+bool client_get_random_seq_range(struct client *client,
+				 ARRAY_TYPE(seq_range) *range,
+				 unsigned int count,
+				 enum client_random_flag_type flag_type)
 {
 	struct message_metadata_dynamic *metadata;
 	unsigned int i, msgs, seq, owner, tries;
@@ -759,8 +758,8 @@ client_get_random_seq_range(struct client *client, ARRAY_TYPE(seq_range) *range,
 	if (count == 0 || msgs == 0)
 		return FALSE;
 
-	dirty_flags = flag_type == FLAG_TYPE_STORE ||
-		flag_type == FLAG_TYPE_STORE_SILENT;
+	dirty_flags = flag_type == CLIENT_RANDOM_FLAG_TYPE_STORE ||
+		flag_type == CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT;
 	msgs = array_count(&client->view->uidmap);
 	for (i = tries = 0; i < count && tries < count*3; tries++) {
 		seq = rand() % msgs + 1;
@@ -783,9 +782,9 @@ client_get_random_seq_range(struct client *client, ARRAY_TYPE(seq_range) *range,
 		seq_range_array_add(range, 10, seq);
 		i++;
 	}
-	if (flag_type != FLAG_TYPE_NONE &&i > 0) {
+	if (flag_type != CLIENT_RANDOM_FLAG_TYPE_NONE &&i > 0) {
 		seq_range_flags_ref(client, range, 1, TRUE);
-		if (flag_type == FLAG_TYPE_STORE_SILENT) {
+		if (flag_type == CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT) {
 			/* flag stays dirty until we can FETCH it after the
 			   STORE has successfully finished. */
 			seq_range_flags_ref(client, range, 1, TRUE);
@@ -796,7 +795,7 @@ client_get_random_seq_range(struct client *client, ARRAY_TYPE(seq_range) *range,
 
 static void
 client_dirty_all_flags(struct client *client, ARRAY_TYPE(seq_range) *seq_range,
-		       enum flag_type flag_type)
+		       enum client_random_flag_type flag_type)
 {
 	struct seq_range range;
 
@@ -806,7 +805,7 @@ client_dirty_all_flags(struct client *client, ARRAY_TYPE(seq_range) *seq_range,
 	array_append(seq_range, &range, 1);
 
 	seq_range_flags_ref(client, seq_range, 1, TRUE);
-	if (flag_type == FLAG_TYPE_STORE_SILENT)
+	if (flag_type == CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT)
 		seq_range_flags_ref(client, seq_range, 1, TRUE);
 }
 
@@ -832,7 +831,7 @@ int client_send_next_cmd(struct client *client)
 	struct command *icmd;
 	string_t *cmd;
 	const char *str;
-	enum flag_type flag_type;
+	enum client_random_flag_type flag_type;
 	ARRAY_TYPE(seq_range) seq_range = ARRAY_INIT;
 	unsigned int i, j, seq1, seq2, count, msgs, owner;
 
@@ -899,7 +898,7 @@ int client_send_next_cmd(struct client *client)
 		};
 		count = I_MIN(msgs, 100);
 		if (!client_get_random_seq_range(client, &seq_range, count,
-						 FLAG_TYPE_FETCH))
+						 CLIENT_RANDOM_FLAG_TYPE_FETCH))
 			break;
 
 		cmd = t_str_new(512);
@@ -947,7 +946,7 @@ int client_send_next_cmd(struct client *client)
 		break;
 	}
 	case STATE_SEARCH:
-		command_send(client, "SEARCH BODY hello", state_callback);
+		search_command_send(client);
 		break;
 	case STATE_SORT:
 		if ((rand() % 2) == 0)
@@ -971,7 +970,8 @@ int client_send_next_cmd(struct client *client)
 	case STATE_STORE:
 		count = rand() % (msgs < 10 ? msgs : I_MIN(msgs/5, 50));
 		flag_type = conf.checkpoint_interval == 0 && rand() % 2 == 0 ?
-			FLAG_TYPE_STORE_SILENT : FLAG_TYPE_STORE;
+			CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT :
+			CLIENT_RANDOM_FLAG_TYPE_STORE;
 		if (!client_get_random_seq_range(client, &seq_range, count,
 						 flag_type))
 			break;
@@ -995,7 +995,7 @@ int client_send_next_cmd(struct client *client)
 			break;
 		}
 		str_append(cmd, "FLAGS");
-		if (flag_type == FLAG_TYPE_STORE_SILENT)
+		if (flag_type == CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT)
 			str_append(cmd, ".SILENT");
 		str_printfa(cmd, " (%s)",
 			    mailbox_view_get_random_flags(client->view,
@@ -1019,7 +1019,8 @@ int client_send_next_cmd(struct client *client)
 			count = rand() % 5;
 		}
 		flag_type = conf.checkpoint_interval == 0 && rand() % 2 == 0 ?
-			FLAG_TYPE_STORE_SILENT : FLAG_TYPE_STORE;
+			CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT :
+			CLIENT_RANDOM_FLAG_TYPE_STORE;
 
 		if (!client->view->storage->seen_all_recent &&
 		    !client->view->storage->assign_msg_owners &&
@@ -1037,7 +1038,7 @@ int client_send_next_cmd(struct client *client)
 		str_append(cmd, "STORE ");
 		seq_range_to_imap_range(&seq_range, cmd);
 		str_append(cmd, " +FLAGS");
-		if (flag_type == FLAG_TYPE_STORE_SILENT)
+		if (flag_type == CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT)
 			str_append(cmd, ".SILENT");
 		str_append(cmd, " \\Deleted");
 
@@ -1082,11 +1083,12 @@ int client_send_next_cmd(struct client *client)
 void state_callback(struct client *client, struct command *cmd,
 		    const struct imap_arg *args, enum command_reply reply)
 {
-	if (client_handle_cmd_reply(client, cmd, args, reply) < 0) {
+	if (client_handle_cmd_reply(client, cmd, args, reply) < 0)
 		client_unref(client);
-		return;
-	}
+}
 
+void client_cmd_reply_finish(struct client *client)
+{
 	if (client->checkpointing != NULL) {
 		/* we're checkpointing */
 		if (array_count(&client->commands) > 0)

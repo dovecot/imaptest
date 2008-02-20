@@ -1,6 +1,8 @@
 #ifndef CLIENT_STATE_H
 #define CLIENT_STATE_H
 
+#include "seq-range-array.h"
+
 enum command_reply;
 struct client;
 struct command;
@@ -59,6 +61,13 @@ struct state {
 	enum state_flags flags;
 };
 
+enum client_random_flag_type {
+	CLIENT_RANDOM_FLAG_TYPE_NONE,
+	CLIENT_RANDOM_FLAG_TYPE_FETCH,
+	CLIENT_RANDOM_FLAG_TYPE_STORE,
+	CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT
+};
+
 extern struct state states[STATE_COUNT];
 extern unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
 
@@ -70,7 +79,13 @@ int client_send_next_cmd(struct client *client);
 int client_send_more_commands(struct client *client);
 enum client_state client_update_plan(struct client *client);
 
+bool client_get_random_seq_range(struct client *client,
+				 ARRAY_TYPE(seq_range) *range,
+				 unsigned int count,
+				 enum client_random_flag_type flag_type);
+
 void state_callback(struct client *client, struct command *cmd,
 		    const struct imap_arg *args, enum command_reply reply);
+void client_cmd_reply_finish(struct client *client);
 
 #endif

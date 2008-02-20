@@ -155,6 +155,8 @@ const char *mailbox_view_get_random_flags(struct mailbox_view *view,
 					  unsigned int client_idx);
 
 struct message_metadata_static *
+message_metadata_static_lookup_seq(struct mailbox_view *view, uint32_t seq);
+struct message_metadata_static *
 message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid);
 void message_metadata_static_unref(struct mailbox_storage *storage,
 				   struct message_metadata_static **ms);
