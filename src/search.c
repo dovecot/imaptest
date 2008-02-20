@@ -373,6 +373,11 @@ void search_command_send(struct client *client)
 	cmd = t_str_new(256);
 	str_append(cmd, "SEARCH ");
 	search_command_append(cmd, &client->search_ctx->root);
+	if (rand() % 2 == 0) {
+		/* remove () around the search query */
+		str_delete(cmd, 7, 1);
+		str_truncate(cmd, str_len(cmd)-1);
+	}
 	command_send(client, str_c(cmd), search_callback);
 }
 
