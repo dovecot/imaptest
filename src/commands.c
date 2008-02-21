@@ -12,6 +12,7 @@ struct command *command_send(struct client *client, const char *cmdline,
 {
 	struct command *cmd;
 	const char *cmd_str;
+	char *p;
 	unsigned int tag = client->tag_counter++;
 
 	i_assert(!client->append_unfinished);
@@ -22,8 +23,23 @@ struct command *command_send(struct client *client, const char *cmdline,
 	cmd->tag = tag;
 	cmd->callback = callback;
 
+	cmdline = NULL;
+	p = strchr(cmd->cmdline, '\r');
+	if (p != NULL && p != cmd->cmdline && p[-1] == '}') {
+		/* using a literal */
+		if ((client->capabilities & CAP_LITERALPLUS) == 0 &&
+		    p[-2] == '+') {
+			/* @UNSAFE: using literal+ without server support,
+			   change it to a normal literal */
+			memmove(p-2, p-1, strlen(p) + 2);
+		}
+		if (p[-2] != '+') {
+			i_fatal("FIXME: Add support for sync literals");
+		}
+	}
+
 	cmd_str = t_strdup_printf("%u.%u %s\r\n", client->global_id,
-				  tag, cmdline);
+				  tag, cmd->cmdline);
 	o_stream_send_str(client->output, cmd_str);
 	if (client->rawlog_output != NULL)
 		client_rawlog_output(client, cmd_str);
