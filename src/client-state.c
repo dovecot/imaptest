@@ -570,8 +570,7 @@ store_verify_result(struct client *client, char type, const char *flags,
 	}
 }
 
-static void
-client_try_create_mailbox(struct client *client, struct command *cmd)
+static void client_try_create_mailbox(struct client *client)
 {
 	const char *str;
 
@@ -670,11 +669,11 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		if (reply == REPLY_OK)
 			client->login_state = LSTATE_SELECTED;
 		else if (reply == REPLY_NO)
-			client_try_create_mailbox(client, cmd);
+			client_try_create_mailbox(client);
 		break;
 	case STATE_STATUS:
 		if (reply == REPLY_NO)
-			client_try_create_mailbox(client, cmd);
+			client_try_create_mailbox(client);
 		break;
 	case STATE_FETCH:
 		seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
@@ -726,7 +725,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 			if (client_append(client, TRUE) < 0)
 				return -1;
 		} else if (reply == REPLY_NO) {
-			client_try_create_mailbox(client, cmd);
+			client_try_create_mailbox(client);
 		}
 		break;
 	case STATE_LOGOUT:
