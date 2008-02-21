@@ -3,6 +3,7 @@
 #include "lib.h"
 #include "array.h"
 #include "str.h"
+#include "strescape.h"
 #include "utc-mktime.h"
 #include "imap-date.h"
 #include "imap-parser.h"
@@ -34,6 +35,9 @@ enum search_arg_type {
 	SEARCH_SENTON,
 	SEARCH_SENTSINCE,
 
+	/* string */
+	SEARCH_SUBJECT,
+
 	SEARCH_TYPE_COUNT
 };
 
@@ -55,9 +59,10 @@ struct search_context {
 };
 
 static int
-search_node_verify_msg(struct search_node *node,
+search_node_verify_msg(struct client *client, struct search_node *node,
 		       const struct message_metadata_static *ms)
 {
+	const char *str;
 	time_t t;
 	int tz;
 
@@ -110,6 +115,18 @@ search_node_verify_msg(struct search_node *node,
 			i_unreached();
 		}
 		break;
+	case SEARCH_SUBJECT:
+		if (ms->msg == NULL)
+			break;
+		if (!mailbox_global_get_subject_utf8(
+				client->view->storage->source, ms->msg, &str))
+			break;
+		if (str == NULL) {
+			/* Subject: header doesn't exist */
+			return 0;
+		}
+		return strstr(str, node->str) != NULL;
+
 	case SEARCH_OR:
 	case SEARCH_SUB:
 	case SEARCH_ALL:
@@ -142,7 +159,7 @@ search_node_verify(struct client *client, struct search_node *node,
 	default:
 		ms = message_metadata_static_lookup_seq(client->view, seq);
 		if (ms != NULL)
-			ret = search_node_verify_msg(node, ms);
+			ret = search_node_verify_msg(client, node, ms);
 		break;
 	}
 
@@ -322,6 +339,41 @@ again:
 		node->date = time_truncate_to_day(node->date);
 		break;
 	}
+	case SEARCH_SUBJECT: {
+		struct mailbox_source *source = client->view->storage->source;
+		const char *str = NULL, *const *words;
+		unsigned int len, count, start;
+
+		/* find a random subject */
+		for (i = 0; i < ms_count; i++) {
+			if (ms[i]->msg != NULL &&
+			    mailbox_global_get_subject_utf8(source, ms[i]->msg,
+							    &str) &&
+			    str != NULL && *str != '\0')
+				break;
+		}
+		if (str == NULL) {
+			/* check for existence of subject header */
+			str = "";
+		} else if (rand() % 10 == 0) {
+			/* search for the entire subject */
+		} else {
+			/* get a random word within the subject */
+			words = t_strsplit_spaces(str, " ");
+			count = str_array_length(words);
+			str = count == 0 ? "" : words[rand() % count];
+
+			/* get a random substring from the word */
+			len = strlen(str);
+			if (len > 1) {
+				start = rand() % (len - 1);
+				len = rand() % (len - 1 - start) + 1;
+				str = t_strndup(str + start, len);
+			}
+		}
+		node->str = p_strdup(pool, str);
+		break;
+	}
 	case SEARCH_TYPE_COUNT:
 		i_unreached();
 	}
@@ -424,6 +476,10 @@ static void search_command_append(string_t *cmd, const struct search_node *node)
 		str_append(cmd, imap_to_datetime(node->date));
 		/* truncate to contain only date */
 		str_truncate(cmd, len + 11);
+		break;
+	case SEARCH_SUBJECT:
+		str_printfa(cmd, "SUBJECT {%u+}\r\n%s",
+			    (unsigned int)strlen(node->str), node->str);
 		break;
 	case SEARCH_TYPE_COUNT:
 		i_unreached();

@@ -7,11 +7,13 @@
 #include "hash.h"
 #include "istream.h"
 #include "message-date.h"
+#include "message-header-decode.h"
 #include "imap-envelope.h"
 #include "imap-util.h"
 
 #include "settings.h"
 #include "client.h"
+#include "mailbox-source.h"
 #include "mailbox.h"
 
 #include <stdlib.h>
@@ -486,6 +488,38 @@ bool mailbox_global_get_sent_date(struct message_global *msg,
 
 	*date_r = msg->sent_date;
 	*tz_r = msg->sent_date_tz;
+	return TRUE;
+}
+
+bool mailbox_global_get_subject_utf8(struct mailbox_source *source,
+				     struct message_global *msg,
+				     const char **subject_r)
+{
+	const char *subject;
+	string_t *tmp;
+
+	if (msg->subject_utf8_tcase != NULL) {
+		*subject_r = msg->subject_utf8_tcase;
+		return TRUE;
+	}
+
+	/* get the subject from envelope */
+	if (msg->envelope == NULL)
+		return FALSE;
+
+	if (!imap_envelope_parse(msg->envelope, IMAP_ENVELOPE_SUBJECT,
+				 IMAP_ENVELOPE_RESULT_TYPE_STRING, &subject))
+		return FALSE;
+
+	/* convert to UTF-8 */
+	if (subject != NULL) {
+		tmp = t_str_new(128);
+		message_header_decode_utf8((const unsigned char *)subject,
+					   strlen(subject), tmp, TRUE);
+		subject = str_c(tmp);
+	}
+	*subject_r = msg->subject_utf8_tcase =
+		p_strdup(source->messages_pool, subject);
 	return TRUE;
 }
 

@@ -16,6 +16,9 @@ struct message_global {
 	char *message_id;
 	const char *body, *bodystructure, *envelope;
 	uoff_t header_size, body_size, full_size, mime1_size;
+
+	/* parsed fields: */
+	const char *subject_utf8_tcase;
 	time_t sent_date;
 	int sent_date_tz;
 
@@ -167,6 +170,9 @@ void mailbox_view_expunge(struct mailbox_view *view, unsigned int seq);
 
 bool mailbox_global_get_sent_date(struct message_global *msg,
 				  time_t *date_r, int *tz_r);
+bool mailbox_global_get_subject_utf8(struct mailbox_source *source,
+				     struct message_global *msg,
+				     const char **subject_r);
 
 void mailboxes_init(void);
 void mailboxes_deinit(void);
