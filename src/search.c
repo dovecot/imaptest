@@ -30,6 +30,9 @@ enum search_arg_type {
 	SEARCH_BEFORE,
 	SEARCH_ON,
 	SEARCH_SINCE,
+	SEARCH_SENTBEFORE,
+	SEARCH_SENTON,
+	SEARCH_SENTSINCE,
 
 	SEARCH_TYPE_COUNT
 };
@@ -56,6 +59,7 @@ search_node_verify_msg(struct search_node *node,
 		       const struct message_metadata_static *ms)
 {
 	time_t t;
+	int tz;
 
 	switch (node->type) {
 	case SEARCH_SMALLER:
@@ -83,6 +87,29 @@ search_node_verify_msg(struct search_node *node,
 		default:
 			i_unreached();
 		}
+	case SEARCH_SENTBEFORE:
+	case SEARCH_SENTON:
+	case SEARCH_SENTSINCE:
+		if (ms->msg == NULL)
+			break;
+
+		if (!mailbox_global_get_sent_date(ms->msg, &t, &tz))
+			break;
+		if (t == (time_t)-1)
+			break;
+
+		t += tz * 60;
+		switch (node->type) {
+		case SEARCH_SENTBEFORE:
+			return t < node->date;
+		case SEARCH_SENTON:
+			return t >= node->date && t < node->date + 3600*24;
+		case SEARCH_SENTSINCE:
+			return t >= node->date;
+		default:
+			i_unreached();
+		}
+		break;
 	case SEARCH_OR:
 	case SEARCH_SUB:
 	case SEARCH_ALL:
@@ -262,11 +289,39 @@ again:
 			}
 		}
 		if (m2 != NULL)
-			node->date = (m1->internaldate + m2->internaldate) / 2;
+			node->date = ((long long)m1->internaldate +
+				      (long long)m2->internaldate) / 2;
 		if (node->date == 0)
 			node->date = time(NULL) - (3600*24 * (rand() % 10));
 		node->date = time_truncate_to_day(node->date);
 		break;
+	case SEARCH_SENTBEFORE:
+	case SEARCH_SENTON:
+	case SEARCH_SENTSINCE: {
+		time_t t, t1 = 0, t2 = 0;
+		int tz;
+
+		/* find two messages with known dates and use their average */
+		for (i = 0; i < ms_count; i++) {
+			if (ms[i]->msg != NULL &&
+			    mailbox_global_get_sent_date(ms[i]->msg, &t, &tz) &&
+			    t != 0 && t != (time_t)-1) {
+				t += tz * 60;
+				if (t1 == 0)
+					t1 = t;
+				else {
+					t2 = t;
+					break;
+				}
+			}
+		}
+		if (t2 != 0)
+			node->date = ((long long)t1 + (long long)t2) / 2;
+		if (t2 == 0)
+			node->date = time(NULL) - (3600*24 * (rand() % 10));
+		node->date = time_truncate_to_day(node->date);
+		break;
+	}
 	case SEARCH_TYPE_COUNT:
 		i_unreached();
 	}
@@ -339,12 +394,31 @@ static void search_command_append(string_t *cmd, const struct search_node *node)
 	case SEARCH_BEFORE:
 	case SEARCH_ON:
 	case SEARCH_SINCE:
-		if (node->type == SEARCH_BEFORE)
+	case SEARCH_SENTBEFORE:
+	case SEARCH_SENTON:
+	case SEARCH_SENTSINCE:
+		switch (node->type) {
+		case SEARCH_BEFORE:
 			str_append(cmd, "BEFORE");
-		else if (node->type == SEARCH_ON)
+			break;
+		case SEARCH_ON:
 			str_append(cmd, "ON");
-		else
+			break;
+		case SEARCH_SINCE:
 			str_append(cmd, "SINCE");
+			break;
+		case SEARCH_SENTBEFORE:
+			str_append(cmd, "SENTBEFORE");
+			break;
+		case SEARCH_SENTON:
+			str_append(cmd, "SENTON");
+			break;
+		case SEARCH_SENTSINCE:
+			str_append(cmd, "SENTSINCE");
+			break;
+		default:
+			i_unreached();
+		}
 		str_append_c(cmd, ' ');
 		len = str_len(cmd);
 		str_append(cmd, imap_to_datetime(node->date));

@@ -6,6 +6,8 @@
 #include "str.h"
 #include "hash.h"
 #include "istream.h"
+#include "message-date.h"
+#include "imap-envelope.h"
 #include "imap-util.h"
 
 #include "settings.h"
@@ -456,6 +458,35 @@ void mailbox_view_free(struct mailbox_view **_mailbox)
 
 	array_free(&view->uidmap);
 	i_free(view);
+}
+
+bool mailbox_global_get_sent_date(struct message_global *msg,
+				  time_t *date_r, int *tz_r)
+{
+	const char *data;
+
+	if (msg->sent_date != 0) {
+		*date_r = msg->sent_date;
+		*tz_r = msg->sent_date_tz;
+		return TRUE;
+	}
+
+	/* parse the sent date from envelope */
+	if (msg->envelope == NULL)
+		return FALSE;
+
+	if (!imap_envelope_parse(msg->envelope, IMAP_ENVELOPE_DATE,
+				 IMAP_ENVELOPE_RESULT_TYPE_STRING, &data))
+		msg->sent_date = (time_t)-1;
+	else if (data == NULL)
+		msg->sent_date = (time_t)-1;
+	else if (!message_date_parse((const unsigned char *)data, strlen(data),
+				     &msg->sent_date, &msg->sent_date_tz))
+		msg->sent_date = (time_t)-1;
+
+	*date_r = msg->sent_date;
+	*tz_r = msg->sent_date_tz;
+	return TRUE;
 }
 
 void mailboxes_init(void)

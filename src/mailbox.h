@@ -16,6 +16,8 @@ struct message_global {
 	char *message_id;
 	const char *body, *bodystructure, *envelope;
 	uoff_t header_size, body_size, full_size, mime1_size;
+	time_t sent_date;
+	int sent_date_tz;
 
 	ARRAY_TYPE(message_header) headers;
 };
@@ -162,6 +164,9 @@ message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid);
 void message_metadata_static_unref(struct mailbox_storage *storage,
 				   struct message_metadata_static **ms);
 void mailbox_view_expunge(struct mailbox_view *view, unsigned int seq);
+
+bool mailbox_global_get_sent_date(struct message_global *msg,
+				  time_t *date_r, int *tz_r);
 
 void mailboxes_init(void);
 void mailboxes_deinit(void);
