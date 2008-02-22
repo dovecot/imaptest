@@ -20,7 +20,6 @@ enum search_arg_type {
 	SEARCH_SUB,
 
 	/* sequence sets */
-	SEARCH_ALL,
 	SEARCH_SEQSET,
 
 	/* size */
@@ -54,7 +53,10 @@ struct search_node {
 
 struct search_context {
 	pool_t pool;
+	struct client *client;
 	struct search_node root;
+
+	unsigned int build_msg_idx;
 	ARRAY_TYPE(seq_range) result;
 };
 
@@ -129,7 +131,6 @@ search_node_verify_msg(struct client *client, struct search_node *node,
 
 	case SEARCH_OR:
 	case SEARCH_SUB:
-	case SEARCH_ALL:
 	case SEARCH_SEQSET:
 	case SEARCH_TYPE_COUNT:
 		i_unreached();
@@ -149,9 +150,6 @@ search_node_verify(struct client *client, struct search_node *node,
 	case SEARCH_SUB:
 		ret = search_node_verify(client, node->first_child, seq,
 					 node->type == SEARCH_OR);
-		break;
-	case SEARCH_ALL:
-		ret = 1;
 		break;
 	case SEARCH_SEQSET:
 		ret = seq_range_exists(&node->seqset, seq);
@@ -237,9 +235,53 @@ static time_t time_truncate_to_day(time_t t)
 	return utc_mktime(&day_tm);
 }
 
-static struct search_node *
-search_command_build(struct client *client, int probability)
+static bool node_children_has_conflict(struct search_node *parent,
+				       enum search_arg_type type)
 {
+	struct search_node *node;
+
+	node = parent->first_child;
+	for (; node != NULL; node = node->next_sibling) {
+		switch (node->type) {
+		case SEARCH_SEQSET:
+		case SEARCH_SMALLER:
+		case SEARCH_LARGER:
+			if (type == node->type)
+				return TRUE;
+			break;
+		case SEARCH_ON:
+			if (type == SEARCH_ON ||
+			    type == SEARCH_BEFORE || type == SEARCH_SINCE)
+				return TRUE;
+			break;
+		case SEARCH_BEFORE:
+		case SEARCH_SINCE:
+			if (type == SEARCH_ON || type == node->type)
+				return TRUE;
+			break;
+		case SEARCH_SENTON:
+			if (type == SEARCH_SENTON ||
+			    type == SEARCH_SENTBEFORE ||
+			    type == SEARCH_SENTSINCE)
+				return TRUE;
+			break;
+		case SEARCH_SENTBEFORE:
+		case SEARCH_SENTSINCE:
+			if (type == SEARCH_SENTON || type == node->type)
+				return TRUE;
+			break;
+		default:
+			break;
+		}
+	}
+	return FALSE;
+}
+
+static struct search_node *
+search_command_build(struct search_context *ctx, struct search_node *parent,
+		     int probability)
+{
+	struct client *client = ctx->client;
 	pool_t pool = client->search_ctx->pool;
 	struct message_metadata_static *const *ms, *m1 = NULL, *m2 = NULL;
 	struct search_node *node;
@@ -249,16 +291,34 @@ search_command_build(struct client *client, int probability)
 		return NULL;
 
 	ms = array_get(&client->view->storage->static_metadata, &ms_count);
+	if (ctx->build_msg_idx >= ms_count)
+		ctx->build_msg_idx = 0;
+
 	node = p_new(pool, struct search_node, 1);
 again:
 	node->type = rand() % SEARCH_TYPE_COUNT;
+	if (node_children_has_conflict(parent, node->type)) {
+		/* can't add this type, try again */
+		goto again;
+	}
 	switch (node->type) {
-	case SEARCH_OR:
 	case SEARCH_SUB:
+		if (parent->type == SEARCH_SUB)
+			node->type = SEARCH_OR;
+	case SEARCH_OR:
+		if (parent->type == SEARCH_OR && node->type == SEARCH_OR)
+			goto again;
 		probability -= I_MAX(probability/30, 1);
-		node->first_child = search_command_build(client, probability);
+		node->first_child =
+			search_command_build(ctx, node, probability);
 		if (node->first_child == NULL)
 			goto again;
+		if (node->first_child->next_sibling == NULL) {
+			/* just a single child - replace the sub node by it */
+			node->next_sibling = node->first_child;
+			node->first_child = NULL;
+			node = node->next_sibling;
+		}
 		break;
 	case SEARCH_SEQSET:
 		p_array_init(&node->seqset, pool, 5);
@@ -266,14 +326,12 @@ again:
 		if (!client_get_random_seq_range(client, &node->seqset,
 						 msgs / 2 + 1,
 						 CLIENT_RANDOM_FLAG_TYPE_NONE))
-			node->type = SEARCH_ALL;
-		break;
-	case SEARCH_ALL:
+			goto again;
 		break;
 	case SEARCH_SMALLER:
 	case SEARCH_LARGER:
 		/* find two messages with known sizes and use their average */
-		for (i = 0; i < ms_count; i++) {
+		for (i = ctx->build_msg_idx; i < ms_count; i++) {
 			if (ms[i]->msg != NULL && ms[i]->msg->full_size != 0) {
 				if (m1 == NULL)
 					m1 = ms[i];
@@ -295,7 +353,7 @@ again:
 	case SEARCH_SINCE:
 		/* find two messages with known internalsizes and use their
 		   average */
-		for (i = 0; i < ms_count; i++) {
+		for (i = ctx->build_msg_idx; i < ms_count; i++) {
 			if (ms[i]->internaldate != 0) {
 				if (m1 == NULL)
 					m1 = ms[i];
@@ -319,7 +377,7 @@ again:
 		int tz;
 
 		/* find two messages with known dates and use their average */
-		for (i = 0; i < ms_count; i++) {
+		for (i = ctx->build_msg_idx; i < ms_count; i++) {
 			if (ms[i]->msg != NULL &&
 			    mailbox_global_get_sent_date(ms[i]->msg, &t, &tz) &&
 			    t != 0 && t != (time_t)-1) {
@@ -345,7 +403,7 @@ again:
 		unsigned int len, count, start;
 
 		/* find a random subject */
-		for (i = 0; i < ms_count; i++) {
+		for (i = ctx->build_msg_idx; i < ms_count; i++) {
 			if (ms[i]->msg != NULL &&
 			    mailbox_global_get_subject_utf8(source, ms[i]->msg,
 							    &str) &&
@@ -379,8 +437,18 @@ again:
 	}
 
 	probability /= 2;
-	node->next_sibling = search_command_build(client, probability);
+	node->next_sibling = search_command_build(ctx, parent, probability);
 	return node;
+}
+
+static bool str_need_escaping(const char *str)
+{
+	for (; *str != '\0'; str++) {
+		if (*str < 32 || *str == '\\' || *str == '"' ||
+		    (unsigned char)*str >= 128)
+			return TRUE;
+	}
+	return FALSE;
 }
 
 static void search_command_append(string_t *cmd, const struct search_node *node)
@@ -394,7 +462,6 @@ static void search_command_append(string_t *cmd, const struct search_node *node)
 		left = node->first_child;
 		right = left->next_sibling;
 
-		str_append_c(cmd, '(');
 		while (right != NULL) {
 			str_append(cmd, "OR ");
 			search_command_append(cmd, left);
@@ -403,11 +470,10 @@ static void search_command_append(string_t *cmd, const struct search_node *node)
 			right = right->next_sibling;
 		}
 		search_command_append(cmd, left);
-		str_append_c(cmd, ')');
 		break;
 	case SEARCH_SUB:
 		i_assert(node->first_child != NULL);
-		str_append(cmd, "(");
+		str_append_c(cmd, '(');
 		node = node->first_child;
 		while (node != NULL) {
 			search_command_append(cmd, node);
@@ -416,9 +482,6 @@ static void search_command_append(string_t *cmd, const struct search_node *node)
 		}
 		str_truncate(cmd, str_len(cmd)-1);
 		str_append_c(cmd, ')');
-		break;
-	case SEARCH_ALL:
-		str_append(cmd, "ALL");
 		break;
 	case SEARCH_SEQSET: {
 		const struct seq_range *range;
@@ -478,8 +541,12 @@ static void search_command_append(string_t *cmd, const struct search_node *node)
 		str_truncate(cmd, len + 11);
 		break;
 	case SEARCH_SUBJECT:
-		str_printfa(cmd, "SUBJECT {%u+}\r\n%s",
-			    (unsigned int)strlen(node->str), node->str);
+		if (!str_need_escaping(node->str))
+			str_printfa(cmd, "SUBJECT \"%s\"", node->str);
+		else {
+			str_printfa(cmd, "SUBJECT {%u+}\r\n%s",
+				    (unsigned int)strlen(node->str), node->str);
+		}
 		break;
 	case SEARCH_TYPE_COUNT:
 		i_unreached();
@@ -496,18 +563,20 @@ void search_command_send(struct client *client)
 	pool = pool_alloconly_create("search context", 16384);
 	client->search_ctx = p_new(pool, struct search_context, 1);
 	client->search_ctx->pool = pool;
+	client->search_ctx->client = client;
 	client->search_ctx->root.type = SEARCH_SUB;
 	client->search_ctx->root.first_child =
-		search_command_build(client, 100);
+		search_command_build(client->search_ctx,
+				     &client->search_ctx->root, 100);
 
 	cmd = t_str_new(256);
 	str_append(cmd, "SEARCH ");
 	search_command_append(cmd, &client->search_ctx->root);
-	if (rand() % 2 == 0) {
-		/* remove () around the search query */
-		str_delete(cmd, 7, 1);
-		str_truncate(cmd, str_len(cmd)-1);
-	}
+
+	/* remove () around the search query */
+	str_delete(cmd, 7, 1);
+	str_truncate(cmd, str_len(cmd)-1);
+
 	command_send(client, str_c(cmd), search_callback);
 }
 
