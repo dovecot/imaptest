@@ -1098,6 +1098,8 @@ void client_cmd_reply_finish(struct client *client)
 	} else if (client->view->storage->checkpoint != NULL) {
 		/* don't do anything until checkpointing is finished */
 		return;
+	} else if (client->state == STATE_LOGOUT) {
+		return;
 	}
 
 	if (client_send_more_commands(client) < 0)

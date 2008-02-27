@@ -124,6 +124,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 			/* first one to set flags */
 			ctx->messages[i].mail_flags = msgs[i].mail_flags;
 			ctx->messages[i].keyword_bitmask =
+				dest_keywords_size == 0 ? NULL :
 				i_malloc(dest_keywords_size);
 			memcpy(ctx->messages[i].keyword_bitmask,
 			       keywords_remapped, dest_keywords_size);
