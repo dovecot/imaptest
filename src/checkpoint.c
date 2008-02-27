@@ -96,7 +96,8 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 
 	msgs = array_get(&view->messages, &count);
 	dest_keywords_size = (array_count(&ctx->all_keywords) + 7) / 8;
-	keywords_remapped = t_malloc(dest_keywords_size);
+	keywords_remapped = dest_keywords_size == 0 ? NULL :
+		t_malloc(dest_keywords_size);
 	for (i = 0; i < count; i++) {
 		if (uids[i] == 0) {
 			/* we don't have this message's metadata */
