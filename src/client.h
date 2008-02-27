@@ -57,6 +57,9 @@ struct client {
 	struct command *last_cmd;
 	unsigned int tag_counter;
 
+	int (*send_more_commands)(struct client *client);
+	int (*handle_untagged)(struct client *, const struct imap_arg *);
+
         time_t last_io;
 
 	char *username;
@@ -73,9 +76,13 @@ extern ARRAY_TYPE(client) clients;
 extern bool stalled, disconnect_clients;
 
 struct client *client_new(unsigned int idx, struct mailbox_source *source);
-bool client_unref(struct client *client);
+bool client_unref(struct client *client, bool reconnect);
+void client_disconnect(struct client *client);
 
 void client_delay(struct client *client, unsigned int msecs);
+int client_handle_untagged(struct client *client, const struct imap_arg *args);
+
+int client_send_more_commands(struct client *client);
 
 int client_input_error(struct client *client, const char *fmt, ...)
 	ATTR_FORMAT(2, 3);

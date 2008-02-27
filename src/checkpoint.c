@@ -214,7 +214,7 @@ void checkpoint_neg(struct mailbox_storage *storage)
 			/* send the checkpoint command */
 			c[i]->plan[0] = STATE_CHECK;
 			c[i]->plan_size = 1;
-			(void)client_send_next_cmd(c[i]);
+			(void)client_plan_send_next_cmd(c[i]);
 			storage->checkpoint->clients_left++;
 		}
 		if (storage->checkpoint->clients_left == 0) {
@@ -295,6 +295,7 @@ void checkpoint_neg(struct mailbox_storage *storage)
 	if (conf.error_quit && (ctx.errors || storage->dont_track_recent))
 		exit(2);
 
+	/* checkpointing is done - continue normal commands */
 	for (i = 0; i < count; i++) {
 		if (c[i] == NULL)
 			continue;

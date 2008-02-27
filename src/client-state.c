@@ -71,7 +71,7 @@ static void auth_plain_callback(struct client *client, struct command *cmd,
 	}
 	if (reply != REPLY_CONT) {
 		client_state_error(client, "AUTHENTICATE failed");
-		client_unref(client);
+		client_disconnect(client);
 		return;
 	}
 
@@ -163,7 +163,7 @@ client_get_pending_cmd_flags(struct client *client,
 	return state_flags;
 }
 
-enum client_state client_update_plan(struct client *client)
+static enum client_state client_update_plan(struct client *client)
 {
 	enum client_state state;
 	enum login_state lstate;
@@ -257,13 +257,12 @@ static bool client_pending_cmds_allow_statechange(struct client *client,
 	return TRUE;
 }
 
-int client_send_more_commands(struct client *client)
+int client_plan_send_more_commands(struct client *client)
 {
 	enum state_flags pending_flags;
 	enum login_state new_lstate;
 	enum client_state state;
 
-	o_stream_cork(client->output);
 	while (array_count(&client->commands) < MAX_COMMAND_QUEUE_LEN) {
 		state = client_update_plan(client);
 		i_assert(state <= STATE_LOGOUT);
@@ -302,10 +301,9 @@ int client_send_more_commands(struct client *client)
 			continue;
 		}
 
-		if (client_send_next_cmd(client) < 0)
+		if (client_plan_send_next_cmd(client) < 0)
 			return -1;
 	}
-	o_stream_uncork(client->output);
 
 	if (!client->delayed && do_rand(STATE_DELAY)) {
 		counters[STATE_DELAY]++;
@@ -387,7 +385,7 @@ int client_append(struct client *client, bool continued)
 	    client->plan_size > 0 && client->plan[0] == STATE_APPEND) {
 		/* we want to append another message.
 		   do it in the same transaction. */
-		return client_send_next_cmd(client);
+		return client_plan_send_next_cmd(client);
 	}
 
 	client->append_unfinished = FALSE;
@@ -824,7 +822,7 @@ static void seq_range_to_imap_range(const ARRAY_TYPE(seq_range) *seq_range,
 	}
 }
 
-int client_send_next_cmd(struct client *client)
+int client_plan_send_next_cmd(struct client *client)
 {
 	enum client_state state;
 	struct command *icmd;
@@ -844,7 +842,7 @@ int client_send_next_cmd(struct client *client)
 
 	if (client->append_unfinished && state != STATE_APPEND) {
 		i_assert(state == STATE_LOGOUT);
-		client_unref(client);
+		client_disconnect(client);
 		return -1;
 	}
 
@@ -1083,7 +1081,7 @@ void state_callback(struct client *client, struct command *cmd,
 		    const struct imap_arg *args, enum command_reply reply)
 {
 	if (client_handle_cmd_reply(client, cmd, args, reply) < 0)
-		client_unref(client);
+		client_disconnect(client);
 }
 
 void client_cmd_reply_finish(struct client *client)
@@ -1103,5 +1101,5 @@ void client_cmd_reply_finish(struct client *client)
 	}
 
 	if (client_send_more_commands(client) < 0)
-		client_unref(client);
+		client_disconnect(client);
 }

@@ -430,7 +430,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	c = array_get(&clients, &count);
 	for (i = 0; i < count; i++) {
 		if (c[i] != NULL)
-			client_unref(c[i]);
+			client_unref(c[i], FALSE);
         }
 
 	print_total();

@@ -41,8 +41,7 @@ int client_input_error(struct client *client, const char *fmt, ...)
 		t_strdup_vprintf(fmt, va), imap_args_to_str(client->cur_args));
 	va_end(va);
 
-	i_stream_close(client->input);
-	o_stream_close(client->output);
+	client_disconnect(client);
 	if (conf.error_quit)
 		exit(2);
 	return -1;
@@ -108,8 +107,7 @@ static void client_capability_parse(struct client *client, const char *line)
 	}
 }
 
-static int
-client_handle_untagged(struct client *client, const struct imap_arg *args)
+int client_handle_untagged(struct client *client, const struct imap_arg *args)
 {
 	struct mailbox_view *view = client->view;
 	const char *str;
@@ -202,7 +200,6 @@ client_handle_untagged(struct client *client, const struct imap_arg *args)
 	} else if (strcmp(str, "NO") == 0) {
 		/*i_info("%s: %s", client->username, line + 2);*/
 	} else if (strcmp(str, "BAD") == 0) {
-		client->refcount++;
 		client_input_error(client, "BAD received");
 	}
 	return 0;
@@ -230,7 +227,7 @@ client_input_args(struct client *client, const struct imap_arg *args)
 		return 0;
 	}
 	if (strcmp(tag, "*") == 0) {
-		if (client_handle_untagged(client, args) < 0) {
+		if (client->handle_untagged(client, args) < 0) {
 			return client_input_error(client,
 						  "Invalid untagged input");
 		}
@@ -259,7 +256,6 @@ client_input_args(struct client *client, const struct imap_arg *args)
 		reply = REPLY_NO;
 	else if (strcasecmp(tag_status, "BAD") == 0) {
 		reply = REPLY_BAD;
-		client->refcount++;
 		client_input_error(client, "BAD reply for command: %s",
 				   cmd->cmdline);
 	} else {
@@ -313,12 +309,12 @@ static void client_input(struct client *client)
 		return;
 	case -1:
 		/* disconnected */
-		client_unref(client);
+		client_unref(client, TRUE);
 		return;
 	case -2:
 		/* buffer full */
 		i_error("line too long");
-		client_unref(client);
+		client_unref(client, TRUE);
 		return;
 	}
 
@@ -344,10 +340,7 @@ static void client_input(struct client *client)
 			command_send(client, "CAPABILITY", state_callback);
 		else {
 			client_capability_parse(client, t_strcut(p + 12, ']'));
-			(void)client_update_plan(client);
-			o_stream_cork(client->output);
-			client_send_next_cmd(client);
-			o_stream_uncork(client->output);
+			(void)client_send_more_commands(client);
 		}
 	}
 
@@ -408,20 +401,20 @@ static void client_input(struct client *client)
 				i_stream_skip(client->input, 1);
 		}
 
-		if (!client_unref(client) || ret < 0)
+		if (!client_unref(client, TRUE) || ret < 0)
 			return;
 	}
 
 	if (do_rand(STATE_DISCONNECT)) {
 		/* random disconnection */
 		counters[STATE_DISCONNECT]++;
-		client_unref(client);
+		client_unref(client, TRUE);
 		return;
 	}
 
 	(void)i_stream_get_data(client->input, &client->prev_size);
 	if (client->input->closed)
-		client_unref(client);
+		client_unref(client, TRUE);
 }
 
 static void client_delay_timeout(void *context)
@@ -458,7 +451,7 @@ static int client_output(void *context)
 
 	if (client->append_size > 0) {
 		if (client_append(client, TRUE) < 0)
-			client_unref(client);
+			client_unref(client, TRUE);
 	}
 	o_stream_uncork(client->output);
 
@@ -474,7 +467,7 @@ static void client_wait_connect(void *context)
 	err = net_geterror(fd);
 	if (err != 0) {
 		i_error("connect() failed: %s", strerror(err));
-		client_unref(client);
+		client_unref(client, TRUE);
 		return;
 	}
 
@@ -533,11 +526,20 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 	o_stream_set_flush_callback(client->output, client_output, client);
 	clients_count++;
 
+	client->handle_untagged = client_handle_untagged;
+	client->send_more_commands = client_plan_send_more_commands;
+
         array_idx_set(&clients, idx, &client);
         return client;
 }
 
-bool client_unref(struct client *client)
+void client_disconnect(struct client *client)
+{
+	i_stream_close(client->input);
+	o_stream_close(client->output);
+}
+
+bool client_unref(struct client *client, bool reconnect)
 {
 	struct mailbox_storage *storage = client->view->storage;
 	unsigned int idx = client->idx;
@@ -579,7 +581,8 @@ bool client_unref(struct client *client)
 	i_stream_unref(&client->input);
 	i_free(client->username);
 
-	if (io_loop_is_running(current_ioloop) && !disconnect_clients) {
+	if (io_loop_is_running(current_ioloop) &&
+	    !disconnect_clients && reconnect) {
 		client_new(idx, storage->source);
 		if (!stalled) {
 			const unsigned int *indexes;
@@ -597,6 +600,16 @@ bool client_unref(struct client *client)
 		checkpoint_neg(storage);
 	mailbox_storage_unref(&storage);
 	return FALSE;
+}
+
+int client_send_more_commands(struct client *client)
+{
+	int ret;
+
+	o_stream_cork(client->output);
+	ret = client->send_more_commands(client);
+	o_stream_uncork(client->output);
+	return ret;
 }
 
 static void

@@ -75,9 +75,8 @@ bool do_rand(enum client_state state);
 bool do_rand_again(enum client_state state);
 
 int client_append(struct client *client, bool continued);
-int client_send_next_cmd(struct client *client);
-int client_send_more_commands(struct client *client);
-enum client_state client_update_plan(struct client *client);
+int client_plan_send_next_cmd(struct client *client);
+int client_plan_send_more_commands(struct client *client);
 
 bool client_get_random_seq_range(struct client *client,
 				 ARRAY_TYPE(seq_range) *range,
