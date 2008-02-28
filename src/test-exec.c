@@ -23,7 +23,7 @@ enum test_mailbox_state {
 	TEST_MAILBOX_STATE_DONE
 };
 
-struct tests_iter_context {
+struct tests_execute_context {
 	const ARRAY_TYPE(test) *tests;
 	unsigned int next_test;
 	unsigned int failures;
@@ -32,7 +32,7 @@ struct tests_iter_context {
 struct test_exec_context {
 	pool_t pool;
 
-	struct tests_iter_context *iter;
+	struct tests_execute_context *exec_ctx;
 	const struct test *test;
 
 	/* current command index */
@@ -620,7 +620,7 @@ static int test_send_lstate_commands(struct client *client)
 }
 
 static int test_execute(const struct test *test,
-			struct tests_iter_context *iter)
+			struct tests_execute_context *exec_ctx)
 {
 	struct test_exec_context *ctx;
 	unsigned int i;
@@ -630,7 +630,7 @@ static int test_execute(const struct test *test,
 	ctx = p_new(pool, struct test_exec_context, 1);
 	ctx->pool = pool;
 	ctx->test = test;
-	ctx->iter = iter;
+	ctx->exec_ctx = exec_ctx;
 	ctx->source = mailbox_source_new(test->mbox_source_path);
 	ctx->cur_received_untagged =
 		buffer_create_dynamic(default_pool, 128);
@@ -659,28 +659,39 @@ static int test_execute(const struct test *test,
 	return 0;
 }
 
-static void tests_execute_next(struct tests_iter_context *iter)
+static void tests_execute_next(struct tests_execute_context *exec_ctx)
 {
 	const struct test *const *tests;
 	unsigned int count;
 
-	tests = array_get(iter->tests, &count);
-	if (iter->next_test != count)
-		test_execute(tests[iter->next_test++], iter);
+	tests = array_get(exec_ctx->tests, &count);
+	if (exec_ctx->next_test != count)
+		test_execute(tests[exec_ctx->next_test++], exec_ctx);
 	else {
-		i_info("%u / %u tests failed", iter->failures, count);
+		i_info("%u / %u tests failed", exec_ctx->failures, count);
 		io_loop_stop(current_ioloop);
 	}
 }
 
-void tests_execute(const ARRAY_TYPE(test) *tests)
+struct tests_execute_context *tests_execute(const ARRAY_TYPE(test) *tests)
 {
-	struct tests_iter_context *iter;
+	struct tests_execute_context *ctx;
 
-	iter = i_new(struct tests_iter_context, 1);
-	iter->tests = tests;
+	ctx = i_new(struct tests_execute_context, 1);
+	ctx->tests = tests;
 
-	tests_execute_next(iter);
+	tests_execute_next(ctx);
+	return ctx;
+}
+
+bool tests_execute_done(struct tests_execute_context **_ctx)
+{
+	struct tests_execute_context *ctx = *_ctx;
+	bool ret = ctx->failures == 0;
+
+	*_ctx = NULL;
+	i_free(ctx);
+	return ret;
 }
 
 static void test_execute_finish(struct test_exec_context *ctx)
@@ -691,7 +702,7 @@ static void test_execute_finish(struct test_exec_context *ctx)
 	ctx->finished = TRUE;
 
 	if (ctx->failed)
-		ctx->iter->failures++;
+		ctx->exec_ctx->failures++;
 
 	/* disconnect all clients */
 	for (i = 0; i < ctx->test->connection_count; i++) {
@@ -713,7 +724,7 @@ static void test_execute_free(struct test_exec_context *ctx)
 void test_execute_cancel_by_client(struct client *client)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
-	struct tests_iter_context *iter = ctx->iter;
+	struct tests_execute_context *exec_ctx = ctx->exec_ctx;
 	unsigned int i;
 
 	for (i = 0; i < ctx->test->connection_count; i++) {
@@ -730,6 +741,6 @@ void test_execute_cancel_by_client(struct client *client)
 
 	if (--ctx->disconnects_waiting == 0) {
 		test_execute_free(ctx);
-		tests_execute_next(iter);
+		tests_execute_next(exec_ctx);
 	}
 }

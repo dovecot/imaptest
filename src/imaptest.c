@@ -257,13 +257,16 @@ static void imaptest_run_tests(const char *dir)
 {
 	struct test_parser *test_parser;
 	const ARRAY_TYPE(test) *tests;
+	struct tests_execute_context *exec_ctx;
 
 	no_new_clients = TRUE;
 	test_parser = test_parser_init(dir);
 	tests = test_parser_get_tests(test_parser);
 
-	tests_execute(tests);
-        io_loop_run(ioloop);
+	exec_ctx = tests_execute(tests);
+	io_loop_run(ioloop);
+	if (!tests_execute_done(&exec_ctx))
+		return_value = 2;
 
 	clients_unref();
 	test_parser_deinit(&test_parser);
