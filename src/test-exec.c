@@ -321,7 +321,7 @@ static bool test_imap_match_args(struct test_exec_context *ctx,
 static void test_handle_expunge(struct test_exec_context *ctx, uint32_t seq)
 {
 	uint32_t *seqs;
-	unsigned int count;
+	unsigned int i, count;
 
 	seqs = array_get_modifiable(&ctx->cur_seqmap, &count);
 	if (seq > count) {
@@ -329,12 +329,17 @@ static void test_handle_expunge(struct test_exec_context *ctx, uint32_t seq)
 		   they may come after EXISTS. */
 		return;
 	}
-	/* mark this one expunged */
-	seqs[seq-1] = 0;
-	/* update the larger sequences */
-	for (; seq < count; seq++) {
-		if (seqs[seq] != 0)
-			seqs[seq]--;
+	/* find the sequence we're expunging */
+	for (i = seq-1; i < count; i++) {
+		if (seqs[i] >= seq) {
+			if (seqs[i] == seq) {
+				/* mark this one expunged */
+				seqs[i] = 0;
+			} else {
+				/* update the larger sequences */
+				seqs[i]--;
+			}
+		}
 	}
 }
 
