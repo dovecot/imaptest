@@ -537,6 +537,12 @@ void client_disconnect(struct client *client)
 {
 	i_stream_close(client->input);
 	o_stream_close(client->output);
+
+	if (client->io != NULL)
+		io_remove(&client->io);
+	if (client->to != NULL)
+		timeout_remove(&client->to);
+	client->to = timeout_add(0, client_input, client);
 }
 
 bool client_unref(struct client *client, bool reconnect)

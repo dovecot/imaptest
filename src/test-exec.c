@@ -358,6 +358,18 @@ static int test_send_lstate_commands(struct client *client)
 		/* we're in the wanted state */
 		if (--ctx->clients_waiting == 0)
 			test_send_first_command(ctx);
+
+		if (client == ctx->clients[0] &&
+		    client->login_state == LSTATE_SELECTED) {
+			/* if any other clients were waiting on us,
+			   resume them */
+			for (i = 1; i < ctx->test->connection_count; i++) {
+				if (ctx->clients[i]->state != STATE_SELECT)
+					continue;
+
+				test_send_lstate_commands(ctx->clients[i]);
+			}
+		}
 		return 0;
 	}
 
@@ -369,9 +381,11 @@ static int test_send_lstate_commands(struct client *client)
 		break;
 	case LSTATE_AUTH:
 		if (ctx->mailbox_state == TEST_MAILBOX_STATE_DONE) {
-			i_assert(client != ctx->clients[0]);
-			client->plan[0] = STATE_SELECT;
-			client->plan_size = 1;
+			if (client != ctx->clients[0]) {
+				client->plan[0] = STATE_SELECT;
+				client->plan_size = 1;
+				break;
+			}
 			break;
 		}
 		/* the first client will delete and recreate the mailbox */
@@ -403,18 +417,11 @@ static int test_send_lstate_commands(struct client *client)
 					return -1;
 				break;
 			}
-			/* finished. if any other clients were waiting on us,
-			   resume them */
-			for (i = 0; i < ctx->test->connection_count; i++) {
-				if (ctx->clients[i]->state != STATE_SELECT)
-					continue;
-
-				i_assert(ctx->clients[i] != client);
-				test_send_lstate_commands(ctx->clients[i]);
-			}
+			/* finished. select the mailbox so we have the
+			   messages recent. */
+			ctx->mailbox_state++;
 			client->plan[0] = STATE_SELECT;
 			client->plan_size = 1;
-			ctx->mailbox_state++;
 			break;
 		case TEST_MAILBOX_STATE_DONE:
 			i_unreached();

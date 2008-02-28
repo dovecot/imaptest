@@ -44,7 +44,8 @@ test_parse_header_line(struct test_parser *parser, struct test *test,
 		return TRUE;
 	}
 	if (strcmp(key, "connections") == 0) {
-		test->connection_count = strtoul(value, NULL, 10);
+		test->connection_count = strcmp(value, "n") == 0 ? 2 :
+			strtoul(value, NULL, 10);
 		return TRUE;
 	}
 	if (strcmp(key, "state") == 0) {
@@ -205,7 +206,7 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 		cmd->connection_idx--;
 
 		line = strchr(line, ' ');
-		if (line == NULL)
+		if (line++ == NULL)
 			line = "";
 	}
 
