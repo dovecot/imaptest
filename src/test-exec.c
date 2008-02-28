@@ -2,6 +2,8 @@
 
 #include "lib.h"
 #include "ioloop.h"
+#include "hash.h"
+#include "str.h"
 #include "imap-parser.h"
 #include "mailbox.h"
 #include "mailbox-source.h"
@@ -10,6 +12,8 @@
 #include "imap-args.h"
 #include "test-parser.h"
 #include "test-exec.h"
+
+#include <ctype.h>
 
 enum test_mailbox_state {
 	TEST_MAILBOX_STATE_DELETE,
@@ -37,6 +41,7 @@ struct test_exec_context {
 	struct mailbox_source *source;
 	unsigned int clients_waiting, disconnects_waiting;
 
+	struct hash_table *variables;
 	enum test_mailbox_state mailbox_state;
 	unsigned int failed:1;
 	unsigned int finished:1;
@@ -46,11 +51,84 @@ static void test_execute_free(struct test_exec_context *ctx);
 static void test_execute_finish(struct test_exec_context *ctx);
 static void test_send_next_command(struct test_exec_context *ctx);
 
-static const char *
-test_expand_vars(struct test_exec_context *ctx ATTR_UNUSED, const char *str)
+static void ATTR_FORMAT(2, 3)
+test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 {
-	/* FIXME: add support for variables */
-	return str;
+	struct test_command *const *cmdp;
+	va_list args;
+
+	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd);
+
+	va_start(args, fmt);
+	i_error("Test %s command %u/%u failed: %s", ctx->test->name,
+		ctx->cur_cmd+1, array_count(&ctx->test->commands),
+		t_strdup_vprintf(fmt, args));
+	i_error(" - Command: %s", (*cmdp)->command);
+	va_end(args);
+
+	ctx->failed = TRUE;
+}
+
+static const char *
+test_expand_one(struct test_exec_context *ctx, const char *str,
+		const char *input)
+{
+	char *value;
+
+	if (*str != '$')
+		return str;
+	if (*++str == '$')
+		return str;
+
+	/* variable support */
+	value = hash_lookup(ctx->variables, str);
+	if (value == NULL) {
+		value = p_strdup(ctx->pool, input);
+		hash_insert(ctx->variables, p_strdup(ctx->pool, str), value);
+	}
+	return value;
+}
+
+static const char *
+test_expand_all(struct test_exec_context *ctx, const char *str)
+{
+	string_t *value;
+	const char *p, *var_name, *var_value;
+
+	p = strchr(str, '$');
+	if (p == NULL)
+		return str;
+
+	/* need to expand variables */
+	value = t_str_new(256);
+	str_append_n(value, str, p-str);
+	for (str = p; *str != '\0'; str++) {
+		if (*str != '$' || str[1] == '\0')
+			str_append_c(value, *str);
+		else if (*++str == '$') {
+			str_append_c(value, *str);
+		} else {
+			if (*str == '{') {
+				p = strchr(++str, '}');
+				if (p == NULL) {
+					test_fail(ctx, "Missing '}'");
+					break;
+				}
+			} else {
+				for (p = str; i_isalnum(*p); p++) ;
+			}
+			var_name = t_strdup_until(str, p);
+			var_value = hash_lookup(ctx->variables, var_name);
+			if (var_value == NULL) {
+				test_fail(ctx, "Uninitialized variable: %s",
+					  var_name);
+				break;
+			}
+			str_append(value, var_value);
+			str = p - 1;
+		}
+	}
+	return str_c(value);
 }
 
 static bool test_imap_args_match(struct test_exec_context *ctx,
@@ -76,8 +154,8 @@ static bool test_imap_args_match(struct test_exec_context *ctx,
 
 			if (!IMAP_ARG_TYPE_IS_STRING(args->type))
 				return FALSE;
-			mstr = test_expand_vars(ctx, IMAP_ARG_STR(match));
 			astr = IMAP_ARG_STR(args);
+			mstr = test_expand_one(ctx, IMAP_ARG_STR(match), astr);
 			if (prefix && match[1].type == IMAP_ARG_EOL) {
 				if (strncasecmp(astr, mstr, strlen(mstr)) != 0)
 					return FALSE;
@@ -106,24 +184,6 @@ static bool test_imap_args_match(struct test_exec_context *ctx,
 	return prefix || args->type == IMAP_ARG_EOL;
 }
 
-static void ATTR_FORMAT(2, 3)
-test_fail(struct test_exec_context *ctx, const char *fmt, ...)
-{
-	struct test_command *const *cmdp;
-	va_list args;
-
-	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd);
-
-	va_start(args, fmt);
-	i_error("Test %s command %u/%u failed: %s", ctx->test->name,
-		ctx->cur_cmd+1, array_count(&ctx->test->commands),
-		t_strdup_vprintf(fmt, args));
-	i_error(" - Command: %s", (*cmdp)->command);
-	va_end(args);
-
-	ctx->failed = TRUE;
-}
-
 static int
 test_handle_untagged(struct client *client, const struct imap_arg *args)
 {
@@ -132,6 +192,7 @@ test_handle_untagged(struct client *client, const struct imap_arg *args)
 	const struct imap_arg *const *untagged;
 	unsigned char *found;
 	unsigned int i, count;
+	bool prefix = FALSE;
 
 	if (client_handle_untagged(client, args) < 0)
 		return -1;
@@ -140,11 +201,23 @@ test_handle_untagged(struct client *client, const struct imap_arg *args)
 	if (!array_is_created(&(*cmdp)->untagged))
 		return 0;
 
+	if (args->type == IMAP_ARG_ATOM) {
+		const char *str = IMAP_ARG_STR(args);
+
+		if (strcasecmp(str, "ok") == 0 ||
+		    strcasecmp(str, "no") == 0 ||
+		    strcasecmp(str, "bad") == 0) {
+			/* these will have human-readable text appended after
+			   [resp-text-code] */
+			prefix = TRUE;
+		}
+	}
+
 	untagged = array_get(&(*cmdp)->untagged, &count);
 	found = buffer_get_space_unsafe(ctx->cur_received_untagged, 0, count);
 	for (i = 0; i < count; i++) {
 		if (found[i] == 0 &&
-		    test_imap_args_match(ctx, untagged[i], args, FALSE)) {
+		    test_imap_args_match(ctx, untagged[i], args, prefix)) {
 			found[i] = 1;
 			break;
 		}
@@ -207,6 +280,7 @@ static void test_cmd_callback(struct client *client,
 static void test_send_next_command(struct test_exec_context *ctx)
 {
 	struct test_command *const *cmdp;
+	struct client *client;
 	const char *cmdline;
 
 	if (ctx->cur_cmd == array_count(&ctx->test->commands)) {
@@ -214,16 +288,31 @@ static void test_send_next_command(struct test_exec_context *ctx)
 		return;
 	}
 	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd);
+	client = ctx->clients[(*cmdp)->connection_idx];
 
 	ctx->cur_untagged_mismatch_count = 0;
 	buffer_reset(ctx->cur_received_untagged);
-	cmdline = test_expand_vars(ctx, (*cmdp)->command);
-	command_send(ctx->clients[(*cmdp)->connection_idx],
-		     cmdline, test_cmd_callback);
+	cmdline = test_expand_all(ctx, (*cmdp)->command);
+
+	if (strcasecmp(cmdline, "append") == 0) {
+		client->state = STATE_APPEND;
+		(void)client_append(client, FALSE, FALSE);
+	} else {
+		command_send(client, cmdline, test_cmd_callback);
+	}
 }
 
-static int test_send_no_commands(struct client *client ATTR_UNUSED)
+static int test_send_no_commands(struct client *client)
 {
+	struct test_exec_context *ctx = client->test_exec_ctx;
+
+	if (client->state == STATE_APPEND) {
+		/* we just executed an APPEND */
+		i_assert(!client->append_unfinished);
+		ctx->cur_cmd++;
+		client->state = STATE_SELECT;
+		test_send_next_command(ctx);
+	}
 	return 0;
 }
 
@@ -335,6 +424,8 @@ static int test_execute(const struct test *test,
 	ctx->source = mailbox_source_new(test->mbox_source_path);
 	ctx->cur_received_untagged =
 		buffer_create_dynamic(default_pool, 128);
+	ctx->variables = hash_create(default_pool, pool, 0, str_hash,
+				     (hash_cmp_callback_t *)strcmp);
 
 	/* create clients for the test */
 	ctx->clients = p_new(pool, struct client *, test->connection_count);
@@ -350,6 +441,9 @@ static int test_execute(const struct test *test,
 		ctx->clients[i]->test_exec_ctx = ctx;
 	}
 	ctx->clients_waiting = test->connection_count;
+
+	hash_insert(ctx->variables, "mailbox",
+		    ctx->clients[0]->view->storage->name);
 	return 0;
 }
 
@@ -397,6 +491,7 @@ static void test_execute_finish(struct test_exec_context *ctx)
 
 static void test_execute_free(struct test_exec_context *ctx)
 {
+	hash_destroy(&ctx->variables);
 	mailbox_source_unref(&ctx->source);
 	buffer_free(&ctx->cur_received_untagged);
 	pool_unref(&ctx->pool);
