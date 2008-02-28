@@ -42,6 +42,8 @@ struct test_exec_context {
 	unsigned int clients_waiting, disconnects_waiting;
 
 	struct hash_table *variables;
+	ARRAY_DEFINE(added_variables, const char *);
+
 	enum test_mailbox_state mailbox_state;
 	unsigned int failed:1;
 	unsigned int finished:1;
@@ -73,7 +75,8 @@ static const char *
 test_expand_one(struct test_exec_context *ctx, const char *str,
 		const char *input)
 {
-	char *value;
+	const char *ckey;
+	char *key, *value;
 
 	if (*str != '$')
 		return str;
@@ -83,8 +86,12 @@ test_expand_one(struct test_exec_context *ctx, const char *str,
 	/* variable support */
 	value = hash_lookup(ctx->variables, str);
 	if (value == NULL) {
+		key = p_strdup(ctx->pool, str);
 		value = p_strdup(ctx->pool, input);
-		hash_insert(ctx->variables, p_strdup(ctx->pool, str), value);
+		hash_insert(ctx->variables, key, value);
+
+		ckey = key;
+		array_append(&ctx->added_variables, &ckey, 1);
 	}
 	return value;
 }
@@ -213,13 +220,25 @@ test_handle_untagged(struct client *client, const struct imap_arg *args)
 		}
 	}
 
+	array_clear(&ctx->added_variables);
 	untagged = array_get(&(*cmdp)->untagged, &count);
 	found = buffer_get_space_unsafe(ctx->cur_received_untagged, 0, count);
 	for (i = 0; i < count; i++) {
-		if (found[i] == 0 &&
-		    test_imap_args_match(ctx, untagged[i], args, prefix)) {
+		if (found[i] != 0)
+			continue;
+
+		if (test_imap_args_match(ctx, untagged[i], args, prefix)) {
 			found[i] = 1;
 			break;
+		} else {
+			/* if any variables were added, revert them */
+			const char *const *vars;
+			unsigned int j, var_count;
+
+			vars = array_get(&ctx->added_variables, &var_count);
+			for (j = 0; j < var_count; j++)
+				hash_remove(ctx->variables, vars[j]);
+			array_clear(&ctx->added_variables);
 		}
 	}
 	if (i == count)
@@ -426,6 +445,7 @@ static int test_execute(const struct test *test,
 		buffer_create_dynamic(default_pool, 128);
 	ctx->variables = hash_create(default_pool, pool, 0, str_hash,
 				     (hash_cmp_callback_t *)strcmp);
+	p_array_init(&ctx->added_variables, pool, 32);
 
 	/* create clients for the test */
 	ctx->clients = p_new(pool, struct client *, test->connection_count);
