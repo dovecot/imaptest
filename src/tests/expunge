@@ -3,7 +3,7 @@ connections: 2
 1 ok fetch * uid
 * $seq fetch (uid $uid)
 1 ok store $seq flags \deleted
-* $seq fetch (flags (\deleted \recent))
+* $seq fetch (flags ($!unordered \deleted))
 1 ok expunge
 * $seq expunge
 

@@ -19,20 +19,8 @@ ok [read-only]
 ok close
 
 # check that STATUS replies with the same values
-ok status $mailbox (messages)
-* status $mailbox (messages 2)
-
-ok status $mailbox (recent)
-* status $mailbox (recent 2)
-
-ok status $mailbox (uidnext)
-* status $mailbox (uidnext $uidnext)
-
-ok status $mailbox (uidvalidity)
-* status $mailbox (uidvalidity $uidvalidity)
-
-ok status $mailbox (unseen)
-* status $mailbox (unseen 2)
+ok status $mailbox (messages recent uidnext uidvalidity unseen)
+* status $mailbox (messages 2 recent 2 uidnext $uidnext uidvalidity $uidvalidity unseen 2)
 
 # then try read-write
 select $mailbox

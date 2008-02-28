@@ -1,0 +1,14 @@
+state: auth
+
+# get separator
+ok list "" ""
+* list (\noselect) $sep ""
+
+"" delete $mailbox${sep}test
+"" delete $mailbox${sep}test2
+ok create $mailbox${sep}test
+ok create $mailbox${sep}test2
+
+ok list "" $mailbox$sep%
+* list () $sep $mailbox${sep}test
+* list () $sep $mailbox${sep}test2
