@@ -72,10 +72,10 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd);
 
 	va_start(args, fmt);
-	i_error("Test %s command %u/%u failed: %s", ctx->test->name,
+	i_error("Test %s command %u/%u failed: %s\n"
+		" - Command: %s", ctx->test->name,
 		ctx->cur_cmd+1, array_count(&ctx->test->commands),
-		t_strdup_vprintf(fmt, args));
-	i_error(" - Command: %s", (*cmdp)->command);
+		t_strdup_vprintf(fmt, args), (*cmdp)->command);
 	va_end(args);
 
 	ctx->failed = TRUE;
@@ -146,6 +146,9 @@ test_expand_all(struct test_exec_context *ctx, const char *str)
 			str_append_c(value, *str);
 		else if (*++str == '$') {
 			str_append_c(value, *str);
+		} else if (*str == '!') {
+			/* skip directives */
+			while (str[1] != ' ' && str[1] != '\0') str++;
 		} else {
 			if (*str == '{') {
 				p = strchr(++str, '}');
@@ -158,11 +161,19 @@ test_expand_all(struct test_exec_context *ctx, const char *str)
 				for (p = str; i_isalnum(*p); p++) ;
 				var_name = t_strdup_until(str, p);
 			}
-			var_value = hash_lookup(ctx->variables, var_name);
-			if (var_value == NULL) {
-				test_fail(ctx, "Uninitialized variable: %s",
-					  var_name);
-				break;
+
+			if (is_numeric(var_name, '\0')) {
+				/* relative sequence */
+				var_value = test_expand_relative_seq(ctx,
+								     atoi(str));
+			} else {
+				var_value = hash_lookup(ctx->variables, var_name);
+				if (var_value == NULL) {
+					test_fail(ctx,
+						  "Uninitialized variable: %s",
+						  var_name);
+					break;
+				}
 			}
 			str_append(value, var_value);
 			str = p - 1;
@@ -439,10 +450,12 @@ static void test_cmd_callback(struct client *client,
 				array_idx(&cmd->untagged, first_missing_idx);
 
 			test_fail(ctx, "Missing %u untagged replies "
-				  "(%u mismatches), first one: %s",
-				  missing_count,
+				  "(%u mismatches)\n"
+				  " - first unexpanded: %s\n"
+				  " - first expanded: %s", missing_count,
 				  ctx->cur_untagged_mismatch_count,
-				  imap_args_to_str(*uarg));
+				  imap_args_to_str(*uarg),
+				  test_expand_all(ctx, imap_args_to_str(*uarg)));
 		}
 	}
 
