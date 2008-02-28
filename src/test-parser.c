@@ -17,7 +17,7 @@ struct test_parser {
 	pool_t pool;
 	const char *dir, *default_mbox_path;
 
-	struct imap_arg *reply_ok, *reply_no, *reply_bad;
+	struct imap_arg *reply_ok, *reply_no, *reply_bad, *reply_any;
 	struct test_command *cur_cmd;
 	ARRAY_TYPE(test) tests;
 };
@@ -161,6 +161,30 @@ test_parse_command_untagged(struct test_parser *parser,
 	return TRUE;
 }
 
+static struct imap_arg *
+test_get_cmd_reply(struct test_parser *parser, const char **line)
+{
+	struct imap_arg *reply = NULL;
+	const char *arg = t_strcut(*line, ' ');
+
+	if (strcasecmp(arg, "ok") == 0) {
+		reply = parser->reply_ok;
+		*line += 2;
+	} else if (strcasecmp(arg, "no") == 0) {
+		reply = parser->reply_no;
+		*line += 2;
+	} else if (strcasecmp(arg, "bad") == 0) {
+		reply = parser->reply_bad;
+		*line += 3;
+	} else if (strcasecmp(arg, "\"\"") == 0) {
+		reply = parser->reply_any;
+		*line += 2;
+	}
+	if (reply != NULL && **line == ' ')
+		*line += 1;
+	return reply;
+}
+
 static bool
 test_parse_command_finish(struct test_parser *parser,
 			  const char *line, const char **error_r)
@@ -176,18 +200,22 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 			const char *line, const char **error_r)
 {
 	struct test_command *cmd;
+	const char *line2;
 
 	if (parser->cur_cmd != NULL) {
 		if (strncmp(line, "* ", 2) == 0) {
 			return test_parse_command_untagged(parser, line + 2,
 							   error_r);
-		} else if (parser->cur_cmd->reply == NULL) {
+		}
+		line2 = line;
+		if (parser->cur_cmd->reply == NULL &&
+		    test_get_cmd_reply(parser, &line2) != NULL) {
 			return test_parse_command_finish(parser, line, error_r);
 		}
 	}
 
 	if (parser->cur_cmd != NULL && parser->cur_cmd->reply == NULL) {
-		*error_r = "Missing command reply line";
+		*error_r = "Missing reply from previous command";
 		return FALSE;
 	}
 
@@ -211,16 +239,7 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 	}
 
 	/* optional expected ok/no/bad reply */
-	if (strncasecmp(line, "ok ", 3) == 0) {
-		cmd->reply = parser->reply_ok;
-		line += 3;
-	} else if (strncasecmp(line, "no ", 3) == 0) {
-		cmd->reply = parser->reply_no;
-		line += 3;
-	} else if (strncasecmp(line, "bad ", 4) == 0) {
-		cmd->reply = parser->reply_bad;
-		line += 4;
-	}
+	cmd->reply = test_get_cmd_reply(parser, &line);
 
 	cmd->command = p_strdup(parser->pool, line);
 	parser->cur_cmd = cmd;
@@ -239,7 +258,6 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 	while ((line = i_stream_read_next_line(input)) != NULL) {
 		linenum++;
 		if (*line == '\0') {
-			parser->cur_cmd = NULL;
 			header = FALSE;
 			continue;
 		}
@@ -262,7 +280,7 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 		}
 	}
 	if (parser->cur_cmd != NULL && parser->cur_cmd->reply == NULL) {
-		i_error("%s line %u: Missing command reply line",
+		i_error("%s line %u: Missing reply from previous command",
 			test->path, linenum);
 		return FALSE;
 	}
@@ -386,6 +404,7 @@ struct test_parser *test_parser_init(const char *dir)
 	parser->reply_ok = test_parser_reply_init(pool, "ok");
 	parser->reply_no = test_parser_reply_init(pool, "no");
 	parser->reply_bad = test_parser_reply_init(pool, "bad");
+	parser->reply_any = test_parser_reply_init(pool, "");
 
 	if (test_parser_scan_dir(parser) < 0)
 		i_fatal("Failed to read tests");
