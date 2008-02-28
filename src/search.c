@@ -586,10 +586,8 @@ void search_result(struct client *client, const struct imap_arg *args)
 	unsigned long num;
 	unsigned int msgs_count;
 
-	if (client->search_ctx == NULL) {
-		client_input_error(client, "unexpected SEARCH reply");
+	if (client->search_ctx == NULL)
 		return;
-	}
 
 	if (array_is_created(&client->search_ctx->result)) {
 		client_input_error(client, "duplicate SEARCH reply");

@@ -14,6 +14,7 @@
 #include "commands.h"
 #include "checkpoint.h"
 #include "search.h"
+#include "test-exec.h"
 #include "client.h"
 
 #include <stdlib.h>
@@ -24,7 +25,7 @@ int clients_count = 0;
 unsigned int total_disconnects = 0;
 ARRAY_TYPE(client) clients;
 ARRAY_DEFINE(stalled_clients, unsigned int);
-bool stalled = FALSE, disconnect_clients = FALSE;
+bool stalled = FALSE, disconnect_clients = FALSE, no_new_clients = FALSE;
 
 static unsigned int global_id_counter = 0;
 
@@ -239,7 +240,6 @@ client_input_args(struct client *client, const struct imap_arg *args)
 		return client_input_error(client, "Broken tagged reply");
 	}
 	tag_status = IMAP_ARG_STR(args);
-	args++;
 
 	p = strchr(tag, '.');
 	cmd = p != NULL &&
@@ -449,8 +449,8 @@ static int client_output(void *context)
 	ret = o_stream_flush(client->output);
 	client->last_io = ioloop_time;
 
-	if (client->append_size > 0) {
-		if (client_append(client, TRUE) < 0)
+	if (client->append_vsize_left > 0) {
+		if (client_append(client, TRUE, FALSE) < 0)
 			client_unref(client, TRUE);
 	}
 	o_stream_uncork(client->output);
@@ -565,8 +565,6 @@ bool client_unref(struct client *client, bool reconnect)
 		command_free(cmds[i]);
 	array_free(&client->commands);
 
-	if (clients_count == 0 && disconnect_clients)
-		io_loop_stop(current_ioloop);
 	if (client->io != NULL)
 		io_remove(&client->io);
 	if (client->to != NULL)
@@ -577,12 +575,22 @@ bool client_unref(struct client *client, bool reconnect)
 		o_stream_destroy(&client->rawlog_output);
 	mailbox_view_free(&client->view);
 	imap_parser_destroy(&client->parser);
+
+	if (client->test_exec_ctx != NULL) {
+		/* storage must be fully unreferenced before new test can
+		   begin. */
+		mailbox_storage_unref(&storage);
+		test_execute_cancel_by_client(client);
+	}
+
 	o_stream_unref(&client->output);
 	i_stream_unref(&client->input);
 	i_free(client->username);
 
-	if (io_loop_is_running(current_ioloop) &&
-	    !disconnect_clients && reconnect) {
+	if (clients_count == 0 && disconnect_clients)
+		io_loop_stop(current_ioloop);
+	else if (io_loop_is_running(current_ioloop) && !no_new_clients &&
+		 !disconnect_clients && reconnect) {
 		client_new(idx, storage->source);
 		if (!stalled) {
 			const unsigned int *indexes;
@@ -596,9 +604,11 @@ bool client_unref(struct client *client, bool reconnect)
 	}
 	i_free(client);
 
-	if (checkpoint)
-		checkpoint_neg(storage);
-	mailbox_storage_unref(&storage);
+	if (storage != NULL) {
+		if (checkpoint)
+			checkpoint_neg(storage);
+		mailbox_storage_unref(&storage);
+	}
 	return FALSE;
 }
 

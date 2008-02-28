@@ -16,6 +16,7 @@ struct mailbox_source *mailbox_source_new(const char *path)
 	struct mailbox_source *source;
 
 	source = i_new(struct mailbox_source, 1);
+	source->refcount = 1;
 	source->path = i_strdup(path);
 	source->fd = open(path, O_RDONLY);
 	if (source->fd == -1)
@@ -28,9 +29,13 @@ struct mailbox_source *mailbox_source_new(const char *path)
 	return source;
 }
 
-void mailbox_source_free(struct mailbox_source **_source)
+void mailbox_source_unref(struct mailbox_source **_source)
 {
 	struct mailbox_source *source = *_source;
+
+	i_assert(source->refcount > 0);
+	if (--source->refcount > 0)
+		return;
 
 	hash_destroy(&source->messages);
 	pool_unref(&source->messages_pool);
@@ -40,13 +45,22 @@ void mailbox_source_free(struct mailbox_source **_source)
 	i_free(source);
 }
 
-void mailbox_source_get_next_size(struct mailbox_source *source, uoff_t *size_r,
+bool mailbox_source_eof(struct mailbox_source *source)
+{
+	if (!source->input->eof)
+		(void)i_stream_read(source->input);
+	return i_stream_have_bytes_left(source->input) == 0;
+}
+
+void mailbox_source_get_next_size(struct mailbox_source *source,
+				  uoff_t *psize_r, uoff_t *vsize_r,
 				  time_t *time_r)
 {
 	const char *line;
 	char *sender;
-	uoff_t offset, last_offset;
+	uoff_t offset, last_offset, vsize;
 	time_t next_time;
+	unsigned int linelen;
 
 	i_stream_seek(source->input, source->next_offset);
 
@@ -56,7 +70,7 @@ void mailbox_source_get_next_size(struct mailbox_source *source, uoff_t *size_r,
 			i_fatal("Empty mbox file: %s", source->path);
 
 		source->next_offset = 0;
-		mailbox_source_get_next_size(source, size_r, time_r);
+		mailbox_source_get_next_size(source, psize_r, vsize_r, time_r);
 		return;
 	}
 
@@ -71,11 +85,13 @@ void mailbox_source_get_next_size(struct mailbox_source *source, uoff_t *size_r,
 	}
 	i_free(sender);
 
+	vsize = 0;
         offset = last_offset = source->input->v_offset;
         while ((line = i_stream_read_next_line(source->input)) != NULL) {
+		linelen = strlen(line);
 		if (strncmp(line, "From ", 5) == 0 &&
 		    mbox_from_parse((const unsigned char *)line+5,
-				    strlen(line+5), &next_time, &sender) == 0) {
+				    linelen-5, &next_time, &sender) == 0) {
 			i_free(sender);
 			if (offset != last_offset)
                                 break;
@@ -83,13 +99,15 @@ void mailbox_source_get_next_size(struct mailbox_source *source, uoff_t *size_r,
                         /* empty body */
                         offset = last_offset;
                 }
+		vsize += linelen + 2; /* count lines always as CR+LFs */
                 last_offset = source->input->v_offset;
         }
         if (offset == last_offset)
                 i_fatal("mbox file ends with From-line: %s", source->path);
 
-        *size_r = last_offset - offset;
 	i_stream_seek(source->input, offset);
 
 	source->next_offset = last_offset;
+	*psize_r = last_offset - offset;
+	*vsize_r = vsize;
 }

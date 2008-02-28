@@ -74,7 +74,7 @@ extern unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
 bool do_rand(enum client_state state);
 bool do_rand_again(enum client_state state);
 
-int client_append(struct client *client, bool continued);
+int client_append(struct client *client, bool continued, bool randomness);
 int client_plan_send_next_cmd(struct client *client);
 int client_plan_send_more_commands(struct client *client);
 

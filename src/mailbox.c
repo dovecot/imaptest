@@ -394,6 +394,7 @@ mailbox_storage_get(struct mailbox_source *source, const char *name)
 		i_array_init(&storage->static_metadata, 128);
 		i_array_init(&storage->keyword_names, 64);
 		hash_insert(storages, storage->name, storage);
+		source->refcount++;
 	} else {
 		i_assert(storage->source == source);
 		storage->refcount++;
@@ -420,6 +421,7 @@ void mailbox_storage_unref(struct mailbox_storage **_storage)
 		i_free(names[i]);
 	}
 
+	mailbox_source_unref(&storage->source);
 	array_free(&storage->expunged_uids);
 	array_free(&storage->static_metadata);
 	array_free(&storage->keyword_names);

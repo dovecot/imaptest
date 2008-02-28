@@ -16,7 +16,9 @@ imaptest_SOURCES = \
 	mailbox.c \
 	mailbox-source.c \
 	mailbox-state.c \
-	search.c
+	search.c \
+	test-exec.c \
+	test-parser.c
 
 noinst_HEADERS = \
 	checkpoint.h \
@@ -28,7 +30,9 @@ noinst_HEADERS = \
 	mailbox-source.h \
 	mailbox-state.h \
 	search.h \
-	settings.h
+	settings.h \
+	test-exec.h \
+	test-parser.h
 
 imaptest_LDADD = \
 	$(LIBICONV) \

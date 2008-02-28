@@ -14,6 +14,7 @@
 #include "client.h"
 #include "checkpoint.h"
 #include "commands.h"
+#include "test-exec.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -220,6 +221,54 @@ static struct state *state_find(const char *name)
 	return NULL;
 }
 
+static void clients_unref(void)
+{
+	struct client *const *c;
+	unsigned int i, count;
+
+	c = array_get(&clients, &count);
+	for (i = 0; i < count; i++) {
+		if (c[i] != NULL)
+			client_unref(c[i], FALSE);
+        }
+}
+
+static void imaptest_run(void)
+{
+	struct timeout *to;
+	unsigned int i;
+
+	next_checkpoint_time = ioloop_time + conf.checkpoint_interval;
+	mailbox_source = mailbox_source_new(conf.mbox_path);
+	to = timeout_add(1000, print_timeout, NULL);
+	for (i = 0; i < INIT_CLIENT_COUNT && i < conf.clients_count; i++)
+		client_new(i, mailbox_source);
+
+        io_loop_run(ioloop);
+
+	timeout_remove(&to);
+	clients_unref();
+	mailbox_source_unref(&mailbox_source);
+
+	print_total();
+}
+
+static void imaptest_run_tests(const char *dir)
+{
+	struct test_parser *test_parser;
+	const ARRAY_TYPE(test) *tests;
+
+	no_new_clients = TRUE;
+	test_parser = test_parser_init(dir);
+	tests = test_parser_get_tests(test_parser);
+
+	tests_execute(tests);
+        io_loop_run(ioloop);
+
+	clients_unref();
+	test_parser_deinit(&test_parser);
+}
+
 static void print_help(void)
 {
 	printf(
@@ -243,11 +292,10 @@ static void print_help(void)
 
 int main(int argc ATTR_UNUSED, char *argv[])
 {
-	struct timeout *to, *to_stop;
-	struct client *const *c;
+	struct timeout *to_stop;
 	struct ip_addr *ips;
 	struct state *state;
-	const char *key, *value;
+	const char *key, *value, *testdir = NULL;
 	unsigned int i, count;
 	int ret;
 
@@ -262,7 +310,6 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	conf.host = HOST;
 	conf.port = PORT;
 	conf.mbox_path = home_expand(MBOX_PATH);
-	conf.mailbox = "INBOX";
 	conf.clients_count = CLIENTS_COUNT;
 	conf.message_count_threshold = MESSAGE_COUNT_THRESHOLD;
 	to_stop = NULL;
@@ -382,6 +429,11 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			conf.mailbox = value;
 			continue;
 		}
+		/* test=dir */
+		if (strcmp(key, "test") == 0) {
+			testdir = value;
+			continue;
+		}
 
 		/* copybox=mailbox */
 		if (strcmp(key, "copybox") == 0) {
@@ -404,6 +456,9 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		printf("Unknown arg: %s\n", *argv);
 		return 1;
 	}
+	if (conf.mailbox == NULL)
+		conf.mailbox = testdir == NULL ? "INBOX" : "imaptest";
+
 	if (conf.username_template == NULL)
 		i_fatal("Missing username");
 
@@ -418,27 +473,14 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	mailboxes_init();
 	clients_init();
 
-	mailbox_source = mailbox_source_new(conf.mbox_path);
-	next_checkpoint_time = ioloop_time + conf.checkpoint_interval;
-
 	i_array_init(&clients, CLIENTS_COUNT);
-	to = timeout_add(1000, print_timeout, NULL);
-	for (i = 0; i < INIT_CLIENT_COUNT && i < conf.clients_count; i++)
-		client_new(i, mailbox_source);
-        io_loop_run(ioloop);
-
-	c = array_get(&clients, &count);
-	for (i = 0; i < count; i++) {
-		if (c[i] != NULL)
-			client_unref(c[i], FALSE);
-        }
-
-	print_total();
-	mailbox_source_free(&mailbox_source);
+	if (testdir == NULL)
+		imaptest_run();
+	else
+		imaptest_run_tests(testdir);
 	clients_deinit();
 	mailboxes_deinit();
 
-	timeout_remove(&to);
 	if (to_stop != NULL)
 		timeout_remove(&to_stop);
 

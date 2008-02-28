@@ -46,10 +46,11 @@ struct client {
 	unsigned int plan_size;
 
 	const struct imap_arg *cur_args;
-	uoff_t append_offset, append_size;
+	uoff_t append_offset, append_psize, append_vsize_left, append_skip;
 	uoff_t literal_left;
 
 	struct search_context *search_ctx;
+	struct test_exec_context *test_exec_ctx;
 
 	struct mailbox_view *view;
 	struct mailbox_storage *checkpointing;
@@ -73,7 +74,7 @@ ARRAY_DEFINE_TYPE(client, struct client *);
 extern int clients_count;
 extern unsigned int total_disconnects;
 extern ARRAY_TYPE(client) clients;
-extern bool stalled, disconnect_clients;
+extern bool stalled, disconnect_clients, no_new_clients;
 
 struct client *client_new(unsigned int idx, struct mailbox_source *source);
 bool client_unref(struct client *client, bool reconnect);
