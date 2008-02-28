@@ -36,8 +36,9 @@ struct test_exec_context {
 	const struct test *test;
 
 	/* current command index */
-	unsigned int cur_cmd;
+	unsigned int cur_cmd_idx;
 	unsigned int cur_untagged_mismatch_count;
+	struct command *cur_cmd;
 	buffer_t *cur_received_untagged;
 	/* initial sequence -> current sequence (0=expunged) mapping */
 	ARRAY_DEFINE(cur_seqmap, uint32_t);
@@ -67,15 +68,18 @@ static void ATTR_FORMAT(2, 3)
 test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 {
 	struct test_command *const *cmdp;
+	struct client *client;
 	va_list args;
 
-	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd);
+	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
+	client = ctx->clients[(*cmdp)->connection_idx];
 
 	va_start(args, fmt);
 	i_error("Test %s command %u/%u failed: %s\n"
-		" - Command: %s", ctx->test->name,
-		ctx->cur_cmd+1, array_count(&ctx->test->commands),
-		t_strdup_vprintf(fmt, args), (*cmdp)->command);
+		" - Command (tag %u.%u): %s", ctx->test->name,
+		ctx->cur_cmd_idx+1, array_count(&ctx->test->commands),
+		t_strdup_vprintf(fmt, args),
+		client->global_id, ctx->cur_cmd->tag, (*cmdp)->command);
 	va_end(args);
 
 	ctx->failed = TRUE;
@@ -353,7 +357,7 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 	unsigned int i, count;
 	bool prefix = FALSE;
 
-	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd);
+	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
 	if (!array_is_created(&(*cmdp)->untagged)) {
 		/* no untagged replies defined for the command.
 		   don't bother checking further */
@@ -429,7 +433,7 @@ static void test_cmd_callback(struct client *client,
 
 	i_assert(reply != REPLY_CONT);
 
-	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd);
+	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
 	cmd = *cmdp;
 
 	if (!test_imap_match_args(ctx, cmd->reply, args, -1U, TRUE)) {
@@ -464,7 +468,7 @@ static void test_cmd_callback(struct client *client,
 		}
 	}
 
-	ctx->cur_cmd++;
+	ctx->cur_cmd_idx++;
 	test_send_next_command(ctx);
 }
 
@@ -475,11 +479,13 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	const char *cmdline;
 	uint32_t seq;
 
-	if (ctx->cur_cmd == array_count(&ctx->test->commands)) {
+	ctx->cur_cmd = NULL;
+
+	if (ctx->cur_cmd_idx == array_count(&ctx->test->commands)) {
 		test_execute_finish(ctx);
 		return;
 	}
-	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd);
+	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
 	client = ctx->clients[(*cmdp)->connection_idx];
 
 	ctx->cur_untagged_mismatch_count = 0;
@@ -495,7 +501,7 @@ static void test_send_next_command(struct test_exec_context *ctx)
 		client->state = STATE_APPEND;
 		(void)client_append(client, FALSE, FALSE);
 	} else {
-		command_send(client, cmdline, test_cmd_callback);
+		ctx->cur_cmd = command_send(client, cmdline, test_cmd_callback);
 	}
 }
 
@@ -506,7 +512,7 @@ static int test_send_no_commands(struct client *client)
 	if (client->state == STATE_APPEND) {
 		/* we just executed an APPEND */
 		i_assert(!client->append_unfinished);
-		ctx->cur_cmd++;
+		ctx->cur_cmd_idx++;
 		client->state = STATE_SELECT;
 		test_send_next_command(ctx);
 	}
