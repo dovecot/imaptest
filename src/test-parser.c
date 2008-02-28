@@ -185,6 +185,11 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 		}
 	}
 
+	if (parser->cur_cmd != NULL && parser->cur_cmd->reply == NULL) {
+		*error_r = "Missing command reply line";
+		return FALSE;
+	}
+
 	cmd = p_new(parser->pool, struct test_command, 1);
 	if (test->connection_count > 1) {
 		/* begins with connection index */
@@ -194,7 +199,9 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 		}
 
 		cmd->connection_idx = strtoul(line, NULL, 10);
-		i_assert(cmd->connection_idx  > 0);
+		i_assert(cmd->connection_idx > 0);
+		if (test->connection_count < cmd->connection_idx)
+			test->connection_count = cmd->connection_idx;
 		cmd->connection_idx--;
 
 		line = strchr(line, ' ');
@@ -252,6 +259,11 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 			i_error("%s line %u: %s", test->path, linenum, error);
 			return FALSE;
 		}
+	}
+	if (parser->cur_cmd != NULL && parser->cur_cmd->reply == NULL) {
+		i_error("%s line %u: Missing command reply line",
+			test->path, linenum);
+		return FALSE;
 	}
 	return TRUE;
 }
