@@ -175,7 +175,7 @@ list_parse_directives(struct list_directives_context *ctx,
 	const char *str;
 
 	while (args->type == IMAP_ARG_ATOM &&
-	       strcmp(args->_data.str, "$!") == 0) {
+	       strncmp(args->_data.str, "$!", 2) == 0) {
 		str = args->_data.str + 2;
 
 		str += 2;
@@ -195,6 +195,7 @@ list_parse_directives(struct list_directives_context *ctx,
 		} else {
 			*error_r = t_strdup_printf("Unknown directive: %s",
 						   str - 2);
+			return FALSE;
 		}
 		ctx->directives = TRUE;
 		args++;
