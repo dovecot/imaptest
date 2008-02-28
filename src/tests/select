@@ -1,0 +1,14 @@
+state: auth
+
+ok delete $mailbox
+ok create $mailbox
+ok append
+ok append
+
+select $mailbox
+* 2 exists
+* 2 recent
+* ok [unseen 1]
+* ok [uidvalidity $uidvalidity]
+* ok [uidnext $uidnext]
+ok [read-write]
