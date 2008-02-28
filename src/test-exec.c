@@ -13,6 +13,7 @@
 #include "test-parser.h"
 #include "test-exec.h"
 
+#include <stdlib.h>
 #include <ctype.h>
 
 enum test_mailbox_state {
@@ -33,9 +34,13 @@ struct test_exec_context {
 
 	struct tests_iter_context *iter;
 	const struct test *test;
+
+	/* current command index */
 	unsigned int cur_cmd;
 	unsigned int cur_untagged_mismatch_count;
 	buffer_t *cur_received_untagged;
+	/* initial sequence -> current sequence (0=expunged) mapping */
+	ARRAY_DEFINE(cur_seqmap, uint32_t);
 
 	struct client **clients;
 	struct mailbox_source *source;
@@ -72,6 +77,23 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 }
 
 static const char *
+test_expand_relative_seq(struct test_exec_context *ctx, uint32_t seq)
+{
+	const uint32_t *seqs;
+	unsigned int count;
+
+	if (seq == 0)
+		return "<zero seq>";
+
+	seqs = array_get(&ctx->cur_seqmap, &count);
+	if (seq > count)
+		return "<out of range>";
+	if (seqs[seq-1] == 0)
+		return "<expunged>";
+	return dec2str(seqs[seq-1]);
+}
+
+static const char *
 test_expand_one(struct test_exec_context *ctx, const char *str,
 		const char *input)
 {
@@ -82,6 +104,11 @@ test_expand_one(struct test_exec_context *ctx, const char *str,
 		return str;
 	if (*++str == '$')
 		return str;
+
+	if (is_numeric(str, '\0')) {
+		/* relative sequence */
+		return test_expand_relative_seq(ctx, atoi(str));
+	}
 
 	/* variable support */
 	value = hash_lookup(ctx->variables, str);
@@ -192,8 +219,28 @@ static bool test_imap_args_match(struct test_exec_context *ctx,
 	return prefix || args->type == IMAP_ARG_EOL;
 }
 
-static int
-test_handle_untagged(struct client *client, const struct imap_arg *args)
+static void test_handle_expunge(struct test_exec_context *ctx, uint32_t seq)
+{
+	uint32_t *seqs;
+	unsigned int count;
+
+	seqs = array_get_modifiable(&ctx->cur_seqmap, &count);
+	if (seq > count) {
+		/* ignore sequences larger than our initial count.
+		   they may come after EXISTS. */
+		return;
+	}
+	/* mark this one expunged */
+	seqs[seq-1] = 0;
+	/* update the larger sequences */
+	for (; seq < count; seq++) {
+		if (seqs[seq] != 0)
+			seqs[seq]--;
+	}
+}
+
+static void
+test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
 	struct test_command *const *cmdp;
@@ -202,12 +249,12 @@ test_handle_untagged(struct client *client, const struct imap_arg *args)
 	unsigned int i, count;
 	bool prefix = FALSE;
 
-	if (client_handle_untagged(client, args) < 0)
-		return -1;
 	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd);
-
-	if (!array_is_created(&(*cmdp)->untagged))
-		return 0;
+	if (!array_is_created(&(*cmdp)->untagged)) {
+		/* no untagged replies defined for the command.
+		   don't bother checking further */
+		return;
+	}
 
 	if (args->type == IMAP_ARG_ATOM) {
 		const char *str = IMAP_ARG_STR(args);
@@ -244,6 +291,24 @@ test_handle_untagged(struct client *client, const struct imap_arg *args)
 	}
 	if (i == count)
 		ctx->cur_untagged_mismatch_count++;
+}
+
+static int
+test_handle_untagged(struct client *client, const struct imap_arg *args)
+{
+	if (client_handle_untagged(client, args) < 0)
+		return -1;
+
+	test_handle_untagged_match(client, args);
+
+	if (args->type == IMAP_ARG_ATOM && args[1].type == IMAP_ARG_ATOM &&
+	    strcasecmp(args[1]._data.str, "expunge") == 0) {
+		/* expunge: update sequence mapping. do this after matching
+		   expunges above. */
+		uint32_t seq = strtoul(args->_data.str, NULL, 10);
+
+		test_handle_expunge(client->test_exec_ctx, seq);
+	}
 	return 0;
 }
 
@@ -302,6 +367,7 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	struct test_command *const *cmdp;
 	struct client *client;
 	const char *cmdline;
+	uint32_t seq;
 
 	if (ctx->cur_cmd == array_count(&ctx->test->commands)) {
 		test_execute_finish(ctx);
@@ -312,8 +378,13 @@ static void test_send_next_command(struct test_exec_context *ctx)
 
 	ctx->cur_untagged_mismatch_count = 0;
 	buffer_reset(ctx->cur_received_untagged);
-	cmdline = test_expand_all(ctx, (*cmdp)->command);
 
+	/* create initial sequence map */
+	array_clear(&ctx->cur_seqmap);
+	for (seq = 1; seq <= array_count(&client->view->uidmap); seq++)
+		array_append(&ctx->cur_seqmap, &seq, 1);
+
+	cmdline = test_expand_all(ctx, (*cmdp)->command);
 	if (strcasecmp(cmdline, "append") == 0) {
 		client->state = STATE_APPEND;
 		(void)client_append(client, FALSE, FALSE);
@@ -454,6 +525,7 @@ static int test_execute(const struct test *test,
 	ctx->variables = hash_create(default_pool, pool, 0, str_hash,
 				     (hash_cmp_callback_t *)strcmp);
 	p_array_init(&ctx->added_variables, pool, 32);
+	i_array_init(&ctx->cur_seqmap, 128);
 
 	/* create clients for the test */
 	ctx->clients = p_new(pool, struct client *, test->connection_count);
@@ -519,6 +591,7 @@ static void test_execute_finish(struct test_exec_context *ctx)
 
 static void test_execute_free(struct test_exec_context *ctx)
 {
+	array_free(&ctx->cur_seqmap);
 	hash_destroy(&ctx->variables);
 	mailbox_source_unref(&ctx->source);
 	buffer_free(&ctx->cur_received_untagged);
