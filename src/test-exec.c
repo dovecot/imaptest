@@ -121,10 +121,11 @@ test_expand_all(struct test_exec_context *ctx, const char *str)
 					test_fail(ctx, "Missing '}'");
 					break;
 				}
+				var_name = t_strdup_until(str, p++);
 			} else {
 				for (p = str; i_isalnum(*p); p++) ;
+				var_name = t_strdup_until(str, p);
 			}
-			var_name = t_strdup_until(str, p);
 			var_value = hash_lookup(ctx->variables, var_name);
 			if (var_value == NULL) {
 				test_fail(ctx, "Uninitialized variable: %s",
