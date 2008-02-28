@@ -188,7 +188,9 @@ list_parse_directives(struct list_directives_context *ctx,
 				*error_r = "Broken $!unordered directive";
 				return FALSE;
 			}
-		} else if (strcmp(str, "noextra") == 0) {
+		} else if (strcmp(str, "ordered") == 0 ||
+			   strcmp(str, "noextra") == 0 ||
+			   strcmp(str, "extra") == 0) {
 			/* ok */
 		} else {
 			*error_r = t_strdup_printf("Unknown directive: %s",

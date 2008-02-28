@@ -196,6 +196,10 @@ static bool test_imap_match_list(struct test_exec_context *ctx,
 				noextra = 0;
 			if (str[9] == '=')
 				chain_count = strtoul(str+10, NULL, 10);
+		} else if (strcmp(str, "ordered") == 0) {
+			unordered = FALSE;
+		} else if (strcmp(str, "extra") == 0) {
+			noextra = 0;
 		} else if (strcmp(str, "noextra") == 0) {
 			noextra = 1;
 		} else {
