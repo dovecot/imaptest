@@ -1,13 +1,13 @@
 connections: 2
 
-1 ok fetch 1 uid
+1 ok fetch * uid
 * $seq fetch (uid $uid)
 1 ok store $seq flags \deleted
 * $seq fetch (flags (\deleted \recent))
 1 ok expunge
 * $seq expunge
 
-2 ok fetch 1 uid
+2 ok fetch $seq uid
 * $seq fetch (uid $uid)
 2 ok noop
 * $seq expunge
