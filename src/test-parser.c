@@ -96,30 +96,32 @@ test_parse_imap_arg_dup(pool_t pool, const struct imap_arg *args,
 	}
 }
 
-static const struct imap_arg *
+static ARRAY_TYPE(imap_arg_list) *
 test_parse_imap_args_dup(pool_t pool, const struct imap_arg *args)
 {
-	ARRAY_TYPE(imap_arg_list) list;
+	ARRAY_TYPE(imap_arg_list) *list;
 	struct imap_arg *dub;
 	unsigned int i, count = 0;
 
 	while (args[count++].type != IMAP_ARG_EOL) ;
 
-	p_array_init(&list, pool, count);
+	list = p_new(pool, ARRAY_TYPE(imap_arg_list), 1);
+	p_array_init(list, pool, count);
 	for (i = 0; i < count; i++) {
-		dub = array_append_space(&list);
+		dub = array_append_space(list);
 		test_parse_imap_arg_dup(pool, &args[i], dub);
 	}
-	return array_idx(&list, 0);
+	return list;
 }
 
-static const struct imap_arg *
+static ARRAY_TYPE(imap_arg_list) *
 test_parse_imap_args(struct test_parser *parser, const char *line,
 		     const char **error_r)
 {
 	struct imap_parser *imap_parser;
 	struct istream *input;
 	const struct imap_arg *args;
+	ARRAY_TYPE(imap_arg_list) *dup_args;
 	bool fatal;
 	int ret;
 
@@ -128,7 +130,7 @@ test_parse_imap_args(struct test_parser *parser, const char *line,
 	ret = imap_parser_finish_line(imap_parser, 0,
 				      IMAP_PARSE_FLAG_ATOM_ALLCHARS, &args);
 	if (ret < 0) {
-		args = NULL;
+		dup_args = NULL;
 		if (ret == -2)
 			*error_r = "Missing data";
 		else {
@@ -136,11 +138,172 @@ test_parse_imap_args(struct test_parser *parser, const char *line,
 								  &fatal));
 		}
 	} else {
-		args = test_parse_imap_args_dup(parser->pool, args);
+		dup_args = test_parse_imap_args_dup(parser->pool, args);
 	}
 	imap_parser_destroy(&imap_parser);
 	i_stream_unref(&input);
-	return args;
+	return dup_args;
+}
+
+struct list_directives_context {
+	struct test_parser *parser;
+	struct list_directives_context *parent;
+
+	/* the untagged reply name (e.g. FETCH) */
+	const char *reply_name;
+
+	/* previous atom before this list, NULL if none */
+	const char *prev_atom;
+	/* if parent->chain_count > 1: Relative chain index (0..n).
+	   (e.g. if we're parsing sublist in FETCH (UID 1 FLAGS (..))
+	   we have parent_chain_idx=1 and prev_atom=FLAGS.
+
+	   if parent->chain_count == 1: Chain index is the argument index
+	   relative to first one (0..n). */
+	unsigned int parent_chain_idx;
+
+	/* Number of elements in a chain (default: 1) */
+	unsigned int chain_count;
+	/* Directives have been specified for this list */
+	bool directives;
+};
+
+static bool
+list_parse_directives(struct list_directives_context *ctx,
+		      const struct imap_arg *args, const char **error_r)
+{
+	const char *str;
+
+	while (args->type == IMAP_ARG_ATOM &&
+	       strcmp(args->_data.str, "$!") == 0) {
+		str = args->_data.str + 2;
+
+		str += 2;
+		if (strncmp(str, "unordered", 9) == 0) {
+			if (str[9] == '\0')
+				;
+			else if (str[9] == '=' && is_numeric(str+10, '\0'))
+				ctx->chain_count = strtoul(str+10, NULL, 10);
+			else {
+				*error_r = "Broken $!unordered directive";
+				return FALSE;
+			}
+		} else if (strcmp(str, "noextra") == 0) {
+			/* ok */
+		} else {
+			*error_r = t_strdup_printf("Unknown directive: %s",
+						   str - 2);
+		}
+		ctx->directives = TRUE;
+		args++;
+	}
+	return TRUE;
+}
+
+static void args_directive(struct list_directives_context *ctx,
+			   ARRAY_TYPE(imap_arg_list) *args_arr,
+			   const char *directive)
+{
+	const struct imap_arg *nextarg;
+	struct imap_arg *arg;
+
+	nextarg = array_idx(args_arr, 0);
+	arg = array_insert_space(args_arr, 0);
+	arg->parent = nextarg->parent;
+	arg->type = IMAP_ARG_ATOM;
+	arg->_data.str = p_strdup(ctx->parser->pool, directive);
+}
+
+static void test_add_default_directives(struct list_directives_context *ctx,
+					ARRAY_TYPE(imap_arg_list) *args_arr)
+{
+	if (ctx->parent == NULL)
+		return;
+
+	if (strcmp(ctx->reply_name, "list") == 0) {
+		if (ctx->parent->parent == NULL &&
+		    ctx->parent->parent_chain_idx == 0 &&
+		    ctx->parent_chain_idx == 1) {
+			/* list (flags) sep mailbox */
+			args_directive(ctx, args_arr, "$!unordered");
+		}
+	} else if (strcmp(ctx->reply_name, "status") == 0) {
+		if (ctx->parent->parent == NULL &&
+		    ctx->parent->parent_chain_idx == 0 &&
+		    ctx->parent_chain_idx == 2) {
+			/* status <mailbox> (reply) */
+			args_directive(ctx, args_arr, "$!unordered=2");
+		}
+	} else if (strcmp(ctx->reply_name, "fetch") == 0) {
+		if (ctx->parent->parent == NULL &&
+		    ctx->parent->parent_chain_idx == 0 &&
+		    ctx->parent_chain_idx == 2) {
+			/* <seq> fetch (reply) */
+			args_directive(ctx, args_arr, "$!unordered=2");
+		} else if (ctx->parent->parent != NULL &&
+			   ctx->parent->parent->parent == NULL &&
+			   ctx->parent->parent->parent_chain_idx == 0 &&
+			   ctx->parent->parent_chain_idx == 2 &&
+			   ctx->prev_atom != NULL &&
+			   strcmp(ctx->reply_name, "fetch") == 0 &&
+			   strcmp(ctx->prev_atom, "flags") == 0) {
+			/* <seq> fetch (flags (..)) */
+			args_directive(ctx, args_arr, "$!unordered");
+			args_directive(ctx, args_arr, "$!noextra");
+		}
+	}
+}
+
+static bool
+test_parse_untagged_handle_directives(struct list_directives_context *ctx,
+				      ARRAY_TYPE(imap_arg_list) *args_arr,
+				      const char **error_r)
+{
+	struct imap_arg *args;
+	struct list_directives_context subctx;
+	const char *prev_atom = NULL;
+	unsigned int i;
+
+	args = array_idx_modifiable(args_arr, 0);
+
+	/* directives exist only at the beginning of a list */
+	if (!list_parse_directives(ctx, args, error_r))
+		return FALSE;
+
+	if (!ctx->directives) {
+		/* no directives specified - see if we could add defaults */
+		test_add_default_directives(ctx, args_arr);
+		args = array_idx_modifiable(args_arr, 0);
+	}
+
+	for (i = 0; args[i].type != IMAP_ARG_EOL; i++) ;
+	if (i % ctx->chain_count != 0) {
+		*error_r = t_strdup_printf("Invalid list argument count, "
+					   "chain size=%u", ctx->chain_count);
+		return FALSE;
+	}
+
+	for (i = 0; args->type != IMAP_ARG_EOL; args++, i++) {
+		if (args->type == IMAP_ARG_ATOM)
+			prev_atom = t_str_lcase(IMAP_ARG_STR(args));
+		if (args->type != IMAP_ARG_LIST)
+			continue;
+
+		memset(&subctx, 0, sizeof(subctx));
+		subctx.parser = ctx->parser;
+		subctx.parent = ctx;
+		subctx.reply_name = t_str_lcase(ctx->reply_name);
+		subctx.chain_count = 1;
+		subctx.prev_atom = prev_atom;
+		subctx.parent_chain_idx = ctx->chain_count == 1 ? i :
+			i % ctx->chain_count;
+
+		if (!test_parse_untagged_handle_directives(&subctx,
+							   &args->_data.list,
+							   error_r))
+			return FALSE;
+	}
+	return TRUE;
 }
 
 static bool
@@ -148,15 +311,38 @@ test_parse_command_untagged(struct test_parser *parser,
 			    const char *line, const char **error_r)
 {
 	struct test_command *cmd = parser->cur_cmd;
+	struct list_directives_context directives_ctx;
 	const struct imap_arg *args;
+	ARRAY_TYPE(imap_arg_list) *args_arr;
+	const char *str = "";
 
 	if (!array_is_created(&cmd->untagged))
 		p_array_init(&cmd->untagged, parser->pool, 8);
 
-	args = test_parse_imap_args(parser, line, error_r);
-	if (args == NULL)
+	args_arr = test_parse_imap_args(parser, line, error_r);
+	if (args_arr == NULL)
 		return FALSE;
 
+	args = array_idx(args_arr, 0);
+	memset(&directives_ctx, 0, sizeof(directives_ctx));
+	directives_ctx.parser = parser;
+	directives_ctx.chain_count = 1;
+	if (args->type == IMAP_ARG_ATOM) {
+		str = IMAP_ARG_STR(args);
+		if (*str == '$' || (*str >= '0' && *str <= '9')) {
+			/* <seq> <reply> */
+			if (args[1].type != IMAP_ARG_ATOM)
+				str = "";
+			else
+				str = IMAP_ARG_STR(&args[1]);
+		}
+	}
+	directives_ctx.reply_name = str;
+	if (!test_parse_untagged_handle_directives(&directives_ctx, args_arr,
+						   error_r))
+		return FALSE;
+
+	args = array_idx(args_arr, 0);
 	array_append(&cmd->untagged, &args, 1);
 	return TRUE;
 }
@@ -190,8 +376,10 @@ test_parse_command_finish(struct test_parser *parser,
 			  const char *line, const char **error_r)
 {
 	struct test_command *cmd = parser->cur_cmd;
+	ARRAY_TYPE(imap_arg_list) *args;
 
-	cmd->reply = test_parse_imap_args(parser, line, error_r);
+	args = test_parse_imap_args(parser, line, error_r);
+	cmd->reply = array_idx(args, 0);
 	return cmd->reply != NULL;
 }
 

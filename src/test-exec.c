@@ -58,6 +58,11 @@ static void test_execute_free(struct test_exec_context *ctx);
 static void test_execute_finish(struct test_exec_context *ctx);
 static void test_send_next_command(struct test_exec_context *ctx);
 
+static bool test_imap_match_args(struct test_exec_context *ctx,
+				 const struct imap_arg *match,
+				 const struct imap_arg *args,
+				 unsigned int max, bool prefix);
+
 static void ATTR_FORMAT(2, 3)
 test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 {
@@ -166,13 +171,93 @@ test_expand_all(struct test_exec_context *ctx, const char *str)
 	return str_c(value);
 }
 
-static bool test_imap_args_match(struct test_exec_context *ctx,
+static bool test_imap_match_list(struct test_exec_context *ctx,
 				 const struct imap_arg *match,
-				 const struct imap_arg *args, bool prefix)
+				 const struct imap_arg *args)
+{
+	bool unordered = FALSE;
+	unsigned int chain_count = 1;
+	const char *str;
+	unsigned int i, arg_count;
+	buffer_t *matchbuf;
+	unsigned char *matches;
+	int noextra = -1;
+
+	/* get $! directives */
+	for (; match->type == IMAP_ARG_ATOM; match++) {
+		str = IMAP_ARG_STR(match);
+		if (strncmp(str, "$!", 2) != 0)
+			break;
+
+		str += 2;
+		if (strncmp(str, "unordered", 9) == 0) {
+			unordered = TRUE;
+			if (noextra == -1)
+				noextra = 0;
+			if (str[9] == '=')
+				chain_count = strtoul(str+10, NULL, 10);
+		} else if (strcmp(str, "noextra") == 0) {
+			noextra = 1;
+		} else {
+			/* we should have caught this in parser */
+			i_panic("Unknown directive: %s", str-2);
+		}
+	}
+	if (noextra == -1)
+		noextra = 1;
+
+	if (!unordered) {
+		/* full matching */
+		return test_imap_match_args(ctx, match, args, -1U, FALSE);
+	}
+
+	/* sanity check - parser should check this already */
+	for (i = 0; match[i].type != IMAP_ARG_EOL; i++) ;
+	i_assert(i % chain_count == 0);
+
+	/* make sure input has the correct argument i */
+	for (i = 0; args[i].type != IMAP_ARG_EOL; i++) ;
+	arg_count = i;
+
+	if (arg_count % chain_count != 0) {
+		/* non-even input argument count, can't match */
+		return FALSE;
+	}
+
+	/* try to find each chain separately */
+	matchbuf = buffer_create_dynamic(pool_datastack_create(), arg_count);
+	matches = buffer_append_space_unsafe(matchbuf, arg_count);
+	for (; match->type != IMAP_ARG_EOL; match += chain_count) {
+		for (i = 0; i < arg_count; i += chain_count) {
+			if (test_imap_match_args(ctx, match, &args[i],
+						 chain_count, FALSE)) {
+				matches[i] = 1;
+				break;
+			}
+		}
+		if (i == arg_count) {
+			/* not found */
+			return FALSE;
+		}
+	}
+	if (noextra) {
+		/* make sure everything got matched */
+		for (i = 0; i < arg_count; i += chain_count) {
+			if (matches[i] == 0)
+				return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+static bool test_imap_match_args(struct test_exec_context *ctx,
+				 const struct imap_arg *match,
+				 const struct imap_arg *args,
+				 unsigned int max, bool prefix)
 {
 	const char *mstr, *astr;
 
-	for (; match->type != IMAP_ARG_EOL; match++, args++) {
+	for (; match->type != IMAP_ARG_EOL && max > 0; match++, args++, max--) {
 		switch (match->type) {
 		case IMAP_ARG_NIL:
 			if (args->type != IMAP_ARG_NIL)
@@ -202,10 +287,9 @@ static bool test_imap_args_match(struct test_exec_context *ctx,
 		case IMAP_ARG_LIST:
 			if (args->type != IMAP_ARG_LIST)
 				return FALSE;
-			if (!test_imap_args_match(ctx,
+			if (!test_imap_match_list(ctx,
 						  IMAP_ARG_LIST_ARGS(match),
-						  IMAP_ARG_LIST_ARGS(args),
-						  FALSE))
+						  IMAP_ARG_LIST_ARGS(args)))
 				return FALSE;
 			break;
 		case IMAP_ARG_LITERAL_SIZE:
@@ -216,7 +300,7 @@ static bool test_imap_args_match(struct test_exec_context *ctx,
 			i_unreached();
 		}
 	}
-	return prefix || args->type == IMAP_ARG_EOL;
+	return prefix || args->type == IMAP_ARG_EOL || max == 0;
 }
 
 static void test_handle_expunge(struct test_exec_context *ctx, uint32_t seq)
@@ -275,7 +359,7 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 		if (found[i] != 0)
 			continue;
 
-		if (test_imap_args_match(ctx, untagged[i], args, prefix)) {
+		if (test_imap_match_args(ctx, untagged[i], args, -1U, prefix)) {
 			found[i] = 1;
 			break;
 		} else {
@@ -328,7 +412,7 @@ static void test_cmd_callback(struct client *client,
 	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd);
 	cmd = *cmdp;
 
-	if (!test_imap_args_match(ctx, cmd->reply, args, TRUE)) {
+	if (!test_imap_match_args(ctx, cmd->reply, args, -1U, TRUE)) {
 		test_fail(ctx, "Expected tagged reply '%s', got '%s'",
 			  imap_args_to_str(cmd->reply),
 			  imap_args_to_str(args));
