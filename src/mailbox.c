@@ -75,7 +75,6 @@ message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid)
 {
 	struct message_metadata_static **base, *ms;
 	const struct seq_range *range;
-	struct seq_range *nrange;
 	unsigned int count, idx;
 	uint32_t first_uid;
 
@@ -90,14 +89,8 @@ message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid)
 	first_uid = idx == 0 ? uid : base[0]->uid;
 	range = array_get(&storage->expunged_uids, &count);
 	if (count > 32 && first_uid > 2 && range[0].seq2 < first_uid-1) {
-		seq_range_array_remove_range(&storage->expunged_uids,
-					     1, first_uid-1);
-		/* FIXME: Use seq_range_array_add_range() once it's
-		   not so slow. */
-		nrange = array_insert_space(&storage->expunged_uids, 0);
-		nrange->seq1 = 2;
-		nrange->seq2 = first_uid - 1;
-		seq_range_array_add(&storage->expunged_uids, 0, 1);
+		seq_range_array_add_range(&storage->expunged_uids,
+					  1, first_uid-1);
 	}
 
 	ms = i_new(struct message_metadata_static, 1);
