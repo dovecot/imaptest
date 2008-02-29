@@ -652,8 +652,6 @@ int mailbox_state_set_flags(struct mailbox_view *view,
 
 	if (errors && conf.error_quit)
 		exit(2);
-	if ((count+7)/8 > view->keyword_bitmask_alloc_size)
-		mailbox_view_keywords_realloc(view, (count+7) / 8 * 4);
 	return 0;
 }
 

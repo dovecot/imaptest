@@ -198,11 +198,16 @@ mailbox_keyword_name_get(struct mailbox_storage *storage, const char *name)
 void mailbox_view_keyword_add(struct mailbox_view *view, const char *name)
 {
 	struct mailbox_keyword keyword;
+	unsigned int count;
 
 	memset(&keyword, 0, sizeof(keyword));
 	keyword.name = mailbox_keyword_name_get(view->storage, name);
 	keyword.flags_counter = view->flags_counter;
 	array_append(&view->keywords, &keyword, 1);
+
+	count = array_count(&view->keywords);
+	if ((count+7)/8 > view->keyword_bitmask_alloc_size)
+		mailbox_view_keywords_realloc(view, (count+7) / 8 * 4);
 }
 
 void mailbox_keywords_clear(struct mailbox_view *view,
@@ -232,8 +237,8 @@ void mailbox_view_keywords_realloc(struct mailbox_view *view,
 
 	metadata = array_get_modifiable(&view->messages, &count);
 	for (i = 0; i < count; i++) {
-		metadata->keyword_bitmask =
-			i_realloc(metadata->keyword_bitmask,
+		metadata[i].keyword_bitmask =
+			i_realloc(metadata[i].keyword_bitmask,
 				  old_alloc_size, new_alloc_size);
 	}
 }
