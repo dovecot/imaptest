@@ -450,7 +450,7 @@ static int client_output(void *context)
 	client->last_io = ioloop_time;
 
 	if (client->append_vsize_left > 0) {
-		if (client_append(client, TRUE, FALSE) < 0)
+		if (client_append_continue(client) < 0)
 			client_unref(client, TRUE);
 	}
 	o_stream_uncork(client->output);

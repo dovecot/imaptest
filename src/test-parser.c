@@ -388,7 +388,8 @@ test_parse_command_finish(struct test_parser *parser,
 
 static bool
 test_parse_command_line(struct test_parser *parser, struct test *test,
-			const char *line, const char **error_r)
+			unsigned int linenum, const char *line,
+			const char **error_r)
 {
 	struct test_command *cmd;
 	const char *line2;
@@ -411,6 +412,7 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 	}
 
 	cmd = p_new(parser->pool, struct test_command, 1);
+	cmd->linenum = linenum;
 	if (test->connection_count > 1) {
 		/* begins with connection index */
 		if (!is_numeric(line, ' ') || *line == '0') {
@@ -461,6 +463,7 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 							     line, &error);
 			} else {
 				ret = test_parse_command_line(parser, test,
+							      linenum,
 							      line, &error);
 			}
 		} T_END;

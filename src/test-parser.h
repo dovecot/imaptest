@@ -6,6 +6,8 @@
 struct test_command {
 	/* Connection index which runs this command (0..connection_count-1) */
 	unsigned int connection_idx;
+	/* line number in configuration file */
+	unsigned int linenum;
 
 	/* Command to execute */
 	const char *command;

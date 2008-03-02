@@ -14,10 +14,6 @@ enum command_reply {
 struct client;
 struct command;
 
-typedef void command_callback_t(struct client *client, struct command *cmd,
-				const struct imap_arg *args,
-				enum command_reply reply);
-
 struct command {
 	char *cmdline;
 	enum client_state state;

@@ -297,57 +297,12 @@ int client_plan_send_more_commands(struct client *client)
 	return 0;
 }
 
-int client_append(struct client *client, bool continued, bool randomness)
+static int client_append_more(struct client *client)
 {
 	struct mailbox_source *source = client->view->storage->source;
-	string_t *cmd;
 	struct istream *input, *input2;
-	time_t t;
 	off_t ret;
-
-	if (!continued) {
-		i_assert(client->append_vsize_left == 0);
-		mailbox_source_get_next_size(source, &client->append_psize,
-					     &client->append_vsize_left, &t);
-		client->append_offset = source->input->v_offset;
-		client->append_skip = 0;
-
-		cmd = t_str_new(128);
-		if (!client->append_unfinished) {
-			str_printfa(cmd, "APPEND \"%s\"",
-				    client->view->storage->name);
-		}
-		if (randomness && (rand() % 2) == 0) {
-			str_printfa(cmd, " (%s)",
-				    mailbox_view_get_random_flags(client->view,
-								  client->idx));
-		}
-		if (!randomness || (rand() % 2) == 0)
-			str_printfa(cmd, " \"%s\"", imap_to_datetime(t));
-		str_printfa(cmd, " {%"PRIuUOFF_T, client->append_vsize_left);
-		if ((client->capabilities & CAP_LITERALPLUS) != 0)
-			str_append_c(cmd, '+');
-		str_append_c(cmd, '}');
-
-		if (client->append_unfinished) {
-			/* continues the last APPEND call */
-			str_append(cmd, "\r\n");
-			o_stream_send_str(client->output, str_c(cmd));
-		} else {
-			client->state = STATE_APPEND;
-			command_send(client, str_c(cmd), state_callback);
-			client->append_unfinished = TRUE;
-		}
-
-		if ((client->capabilities & CAP_LITERALPLUS) == 0) {
-			/* we'll have to wait for "+" */
-			i_stream_skip(source->input, client->append_psize);
-			return 0;
-		}
-	} else {
-		i_stream_seek(source->input, client->append_offset);
-	}
-
+	
 	input = i_stream_create_limit(source->input, client->append_psize);
 	input2 = i_stream_create_crlf(input);
 	i_stream_skip(input2, client->append_skip);
@@ -382,6 +337,94 @@ int client_append(struct client *client, bool continued, bool randomness)
 	client->append_unfinished = FALSE;
 	o_stream_send_str(client->output, "\r\n");
 	return 0;
+}
+
+int client_append(struct client *client, const char *args, bool add_datetime,
+		  command_callback_t *callback)
+{
+	struct mailbox_source *source = client->view->storage->source;
+	string_t *cmd;
+	time_t t;
+
+	i_assert(client->append_vsize_left == 0);
+	mailbox_source_get_next_size(source, &client->append_psize,
+				     &client->append_vsize_left, &t);
+	client->append_offset = source->input->v_offset;
+	client->append_skip = 0;
+
+	cmd = t_str_new(128);
+	if (client->append_unfinished) {
+		/* MULTIAPPEND contination */
+	} else {
+		str_append(cmd, "APPEND ");
+	}
+	str_append(cmd, args);
+	if (add_datetime)
+		str_printfa(cmd, " \"%s\"", imap_to_datetime(t));
+
+	str_printfa(cmd, " {%"PRIuUOFF_T, client->append_vsize_left);
+	if ((client->capabilities & CAP_LITERALPLUS) != 0)
+		str_append_c(cmd, '+');
+	str_append_c(cmd, '}');
+
+	if (client->append_unfinished) {
+		/* continues the last APPEND call */
+		str_append(cmd, "\r\n");
+		o_stream_send_str(client->output, str_c(cmd));
+	} else {
+		client->state = STATE_APPEND;
+		command_send(client, str_c(cmd), callback);
+		client->append_unfinished = TRUE;
+	}
+
+	if ((client->capabilities & CAP_LITERALPLUS) == 0) {
+		/* we'll have to wait for "+" */
+		i_stream_skip(source->input, client->append_psize);
+		return 0;
+	}
+
+	return client_append_more(client);
+}
+
+int client_append_full(struct client *client, const char *mailbox,
+		       const char *flags, const char *datetime,
+		       command_callback_t *callback)
+{
+	string_t *args;
+	bool add_datetime = FALSE;
+
+	args = t_str_new(128);
+	str_printfa(args, "\"%s\"", mailbox != NULL ? mailbox :
+		    client->view->storage->name);
+	if (flags != NULL)
+		str_printfa(args, " (%s)", flags);
+	if (datetime == NULL)
+		add_datetime = TRUE;
+	else if (*datetime != '\0')
+		str_printfa(args, " \"%s\"", datetime);
+
+	return client_append(client, str_c(args), add_datetime, callback);
+}
+
+int client_append_random(struct client *client)
+{
+	const char *flags = NULL, *datetime = NULL;
+
+	if ((rand() % 2) == 0) {
+		flags = mailbox_view_get_random_flags(client->view,
+						      client->idx);
+	}
+	if ((rand() % 2) == 0)
+		datetime = "";
+	return client_append_full(client, NULL, flags, datetime,
+				  state_callback);
+}
+
+int client_append_continue(struct client *client)
+{
+	i_stream_seek(client->view->storage->source->input,
+		      client->append_offset);
+	return client_append_more(client);
 }
 
 static void
@@ -711,7 +754,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	case STATE_APPEND:
 		if (reply == REPLY_CONT) {
 			/* finish appending */
-			if (client_append(client, TRUE, FALSE) < 0)
+			if (client_append_continue(client) < 0)
 				return -1;
 		} else if (reply == REPLY_NO) {
 			client_try_create_mailbox(client);
@@ -1040,7 +1083,7 @@ int client_plan_send_next_cmd(struct client *client)
 		if (msgs >= conf.message_count_threshold)
 			break;
 
-		if (client_append(client, FALSE, TRUE) < 0)
+		if (client_append_random(client) < 0)
 			return -1;
 		break;
 	case STATE_STATUS:

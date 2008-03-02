@@ -68,13 +68,23 @@ enum client_random_flag_type {
 	CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT
 };
 
+typedef void command_callback_t(struct client *client, struct command *cmd,
+				const struct imap_arg *args,
+				enum command_reply reply);
+
 extern struct state states[STATE_COUNT];
 extern unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
 
 bool do_rand(enum client_state state);
 bool do_rand_again(enum client_state state);
 
-int client_append(struct client *client, bool continued, bool randomness);
+int client_append(struct client *client, const char *args, bool add_datetime,
+		  command_callback_t *callback);
+int client_append_full(struct client *client, const char *mailbox,
+		       const char *flags, const char *datetime,
+		       command_callback_t *callback);
+int client_append_random(struct client *client);
+int client_append_continue(struct client *client);
 int client_plan_send_next_cmd(struct client *client);
 int client_plan_send_more_commands(struct client *client);
 
