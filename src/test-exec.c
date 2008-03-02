@@ -147,7 +147,8 @@ test_expand_one(struct test_exec_context *ctx, const char *str,
 }
 
 static const char *
-test_expand_all(struct test_exec_context *ctx, const char *str)
+test_expand_all(struct test_exec_context *ctx, const char *str,
+		bool skip_uninitialized)
 {
 	string_t *value;
 	const char *p, *var_name, *var_value;
@@ -186,11 +187,13 @@ test_expand_all(struct test_exec_context *ctx, const char *str)
 								     atoi(str));
 			} else {
 				var_value = hash_lookup(ctx->variables, var_name);
-				if (var_value == NULL) {
+				if (var_value == NULL && !skip_uninitialized) {
 					test_fail(ctx,
 						  "Uninitialized variable: %s",
 						  var_name);
 					break;
+				} else if (var_value == NULL) {
+					var_value = "$";
 				}
 			}
 			str_append(value, var_value);
@@ -515,7 +518,7 @@ static void test_cmd_callback(struct client *client,
 				  " - best match: %s", missing_count,
 				  ctx->cur_untagged_mismatch_count,
 				  imap_args_to_str(*uarg),
-				  test_expand_all(ctx, imap_args_to_str(*uarg)),
+				  test_expand_all(ctx, imap_args_to_str(*uarg), TRUE),
 				  best_match == NULL ? "" : best_match);
 		}
 	}
@@ -549,7 +552,7 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	for (seq = 1; seq <= array_count(&client->view->uidmap); seq++)
 		array_append(&ctx->cur_seqmap, &seq, 1);
 
-	cmdline = test_expand_all(ctx, (*cmdp)->command);
+	cmdline = test_expand_all(ctx, (*cmdp)->command, FALSE);
 	if (strcasecmp(cmdline, "append") == 0) {
 		client->state = STATE_APPEND;
 		(void)client_append_full(client, NULL, NULL, NULL,
