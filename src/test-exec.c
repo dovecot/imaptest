@@ -124,36 +124,6 @@ test_expand_relative_seq(struct test_exec_context *ctx, uint32_t seq)
 }
 
 static const char *
-test_expand_one(struct test_exec_context *ctx, const char *str,
-		const char *input)
-{
-	const char *ckey;
-	char *key, *value;
-
-	if (*str != '$')
-		return str;
-	if (*++str == '$')
-		return str;
-
-	if (is_numeric(str, '\0')) {
-		/* relative sequence */
-		return test_expand_relative_seq(ctx, atoi(str));
-	}
-
-	/* variable support */
-	value = hash_lookup(ctx->variables, str);
-	if (value == NULL) {
-		key = p_strdup(ctx->pool, str);
-		value = p_strdup(ctx->pool, input);
-		hash_insert(ctx->variables, key, value);
-
-		ckey = key;
-		array_append(&ctx->added_variables, &ckey, 1);
-	}
-	return value;
-}
-
-static const char *
 test_expand_all(struct test_exec_context *ctx, const char *str,
 		bool skip_uninitialized)
 {
@@ -208,6 +178,74 @@ test_expand_all(struct test_exec_context *ctx, const char *str,
 		}
 	}
 	return str_c(value);
+}
+
+static const char *
+test_expand_input(struct test_exec_context *ctx, const char *str,
+		  const char *input)
+{
+	const char *p, *ckey, *value, *var_name, *tmp_str;
+	char *key, *value2;
+	string_t *output;
+
+	output = t_str_new(128);
+	for (; *str != '\0'; ) {
+		if (*str != '$' || str[1] == '\0' || *++str == '$') {
+			if (i_toupper(*str) != i_toupper(*input)) {
+				/* mismatch already */
+				return NULL;
+			}
+			input++;
+			str_append_c(output, *str++);
+			continue;
+		}
+
+		if (*str == '{') {
+			p = strchr(str + 1, '}');
+			if (p == NULL)
+				return "";
+			var_name = t_strdup_until(str + 1, p);
+			str = p + 1;
+		} else {
+			for (p = str; i_isalnum(*p); p++) ;
+			var_name = t_strdup_until(str, p);
+			str = p;
+		}
+
+		if (is_numeric(var_name, '\0')) {
+			/* relative sequence */
+			value = test_expand_relative_seq(ctx, atoi(var_name));
+		} else {
+			value = hash_lookup(ctx->variables, var_name);
+			if (value == NULL) {
+				/* find how far we want to expand.
+				   FIXME: for now we just check the first
+				   letter */
+				tmp_str = *str != '$' ? str :
+					test_expand_input(ctx, str, input);
+				p = input;
+				while (i_toupper(*p) != i_toupper(*tmp_str) &&
+				       *p != '\0')
+					p++;
+
+				key = p_strdup(ctx->pool, var_name);
+				value2 = p_strdup_until(ctx->pool, input, p);
+				hash_insert(ctx->variables, key, value2);
+
+				ckey = key;
+				value = value2;
+				array_append(&ctx->added_variables, &ckey, 1);
+			}
+		}
+		str_append(output, value);
+
+		/* skip over value from input */
+		for (; *value != '\0'; value++, input++) {
+			if (*input != *value)
+				return NULL;
+		}
+	}
+	return str_c(output);
 }
 
 static unsigned int
@@ -321,7 +359,10 @@ test_imap_match_args(struct test_exec_context *ctx,
 			if (!IMAP_ARG_TYPE_IS_STRING(args->type))
 				return ret;
 			astr = IMAP_ARG_STR(args);
-			mstr = test_expand_one(ctx, IMAP_ARG_STR(match), astr);
+			mstr = test_expand_input(ctx, IMAP_ARG_STR(match),
+						 astr);
+			if (mstr == NULL)
+				return ret;
 			if (prefix && match[1].type == IMAP_ARG_EOL) {
 				if (strncasecmp(astr, mstr, strlen(mstr)) != 0)
 					return ret;
