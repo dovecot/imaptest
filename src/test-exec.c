@@ -466,6 +466,7 @@ static void test_cmd_callback(struct client *client,
 		ctx->cur_cmd = command;
 	}
 	i_assert(ctx->cur_cmd == command);
+	client_handle_tagged_resp_text_code(client, command, args, reply);
 
 	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
 	cmd = *cmdp;

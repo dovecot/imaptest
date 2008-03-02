@@ -219,6 +219,24 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 	} else if (client->view->storage->assign_flag_owners)
 		check_unexpected_flag_changes(client, &old_flags, metadata);
 
+	if ((flags & MAIL_RECENT) != 0 && metadata->ms != NULL &&
+	    !view->storage->dont_track_recent) {
+		if (metadata->ms->recent_client_global_id == 0) {
+			if (client->view->readwrite) {
+				metadata->ms->recent_client_global_id =
+					client->global_id;
+			}
+		} else if (metadata->ms->recent_client_global_id !=
+			   client->global_id) {
+			i_error("Message UID=%u has \\Recent flag in "
+				"multiple sessions: %u and %u",
+				metadata->ms->uid,
+				client->global_id,
+				metadata->ms->recent_client_global_id);
+			view->storage->dont_track_recent = TRUE;
+		}
+	}
+
 	if (metadata->fetch_refcount <= 1) {
 		/* mark as seen, but don't mark undirty because we may see
 		   more updates for this same message */

@@ -32,6 +32,9 @@ struct message_metadata_static {
 	time_t internaldate;
 	int internaldate_tz;
 	unsigned int owner_client_idx1;
+	/* If non-zero, specifies the client that saw the message as \Recent
+	   with a read-write mailbox. */
+	unsigned int recent_client_global_id;
 
 	struct message_global *msg;
 
@@ -130,6 +133,7 @@ struct mailbox_view {
 	/* seq -> metadata */
 	ARRAY_DEFINE(messages, struct message_metadata_dynamic);
 
+	unsigned int readwrite:1;
 	unsigned int keywords_can_create_more:1;
 };
 

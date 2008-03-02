@@ -616,6 +616,26 @@ static void client_try_create_mailbox(struct client *client)
 	command_send(client, str, state_callback);
 }
 
+void client_handle_tagged_resp_text_code(struct client *client,
+					 struct command *cmd,
+					 const struct imap_arg *args,
+					 enum command_reply reply)
+{
+	const char *arg;
+
+	if (strncasecmp(cmd->cmdline, "select ", 7) == 0) {
+		if (reply != REPLY_OK)
+			return;
+
+		arg = args->type == IMAP_ARG_ATOM &&
+			args[1].type == IMAP_ARG_ATOM ?
+			IMAP_ARG_STR(&args[1]) : NULL;
+		if (arg != NULL && strcasecmp(arg, "[READ-WRITE]") == 0)
+			client->view->readwrite = TRUE;
+		client->login_state = LSTATE_SELECTED;
+	}
+}
+
 static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				   const struct imap_arg *args,
 				   enum command_reply reply)
@@ -624,6 +644,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	unsigned int i;
 
 	line = imap_args_to_str(args);
+	client_handle_tagged_resp_text_code(client, cmd, args, reply);
 	switch (reply) {
 	case REPLY_OK:
 		if (cmd->state != STATE_DISCONNECT)
@@ -700,9 +721,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		}
 		break;
 	case STATE_SELECT:
-		if (reply == REPLY_OK)
-			client->login_state = LSTATE_SELECTED;
-		else if (reply == REPLY_NO)
+		if (reply == REPLY_NO)
 			client_try_create_mailbox(client);
 		break;
 	case STATE_STATUS:
