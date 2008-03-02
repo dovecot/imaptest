@@ -79,6 +79,7 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 {
 	struct test_command *const *cmdp;
 	struct client *client;
+	string_t *str;
 	va_list args;
 
 	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
@@ -88,11 +89,17 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 	if (!ctx->init_finished)
 		i_error("Test %s initialization failed", ctx->test->name);
 	else {
-		i_error("Test %s command %u/%u (line %u) failed: %s\n"
-			" - Command (tag %u.%u): %s", ctx->test->name,
-			ctx->cur_cmd_idx+1, array_count(&ctx->test->commands),
-			(*cmdp)->linenum, t_strdup_vprintf(fmt, args),
-			client->global_id, ctx->cur_cmd->tag, (*cmdp)->command);
+		str = t_str_new(256);
+		str_printfa(str, "Test %s command %u/%u (line %u) failed: %s\n"
+			    " - Command", ctx->test->name, ctx->cur_cmd_idx+1,
+			    array_count(&ctx->test->commands),
+			    (*cmdp)->linenum, t_strdup_vprintf(fmt, args));
+		if (ctx->cur_cmd != NULL && client != NULL) {
+			str_printfa(str, " (tag %u.%u)",
+				    client->global_id, ctx->cur_cmd->tag);
+		}
+		str_printfa(str, ": %s", (*cmdp)->command);
+		i_error("%s", str_c(str));
 	}
 	va_end(args);
 
