@@ -556,19 +556,8 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	}
 }
 
-static int test_send_no_commands(struct client *client)
+static int test_send_no_commands(struct client *client ATTR_UNUSED)
 {
-	struct test_exec_context *ctx = client->test_exec_ctx;
-
-#if 0
-	if (client->state == STATE_APPEND) {
-		/* we just executed an APPEND */
-		i_assert(!client->append_unfinished);
-		ctx->cur_cmd_idx++;
-		client->state = STATE_SELECT;
-		test_send_next_command(ctx);
-	}
-#endif
 	return 0;
 }
 
