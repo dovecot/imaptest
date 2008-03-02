@@ -79,10 +79,10 @@ bool do_rand(enum client_state state);
 bool do_rand_again(enum client_state state);
 
 int client_append(struct client *client, const char *args, bool add_datetime,
-		  command_callback_t *callback);
+		  command_callback_t *callback, struct command **cmd_r);
 int client_append_full(struct client *client, const char *mailbox,
 		       const char *flags, const char *datetime,
-		       command_callback_t *callback);
+		       command_callback_t *callback, struct command **cmd_r);
 int client_append_random(struct client *client);
 int client_append_continue(struct client *client);
 int client_plan_send_next_cmd(struct client *client);

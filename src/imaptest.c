@@ -265,10 +265,11 @@ static void imaptest_run_tests(const char *dir)
 
 	exec_ctx = tests_execute(tests);
 	io_loop_run(ioloop);
+
+	clients_unref();
 	if (!tests_execute_done(&exec_ctx))
 		return_value = 2;
 
-	clients_unref();
 	test_parser_deinit(&test_parser);
 }
 

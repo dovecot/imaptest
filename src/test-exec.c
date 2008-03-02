@@ -59,11 +59,14 @@ struct test_exec_context {
 	enum test_mailbox_state mailbox_state;
 	unsigned int failed:1;
 	unsigned int finished:1;
+	unsigned int init_finished:1;
+	unsigned int selected:1;
 };
 
 static void test_execute_free(struct test_exec_context *ctx);
 static void test_execute_finish(struct test_exec_context *ctx);
 static void test_send_next_command(struct test_exec_context *ctx);
+static int test_send_lstate_commands(struct client *client);
 
 static unsigned int
 test_imap_match_args(struct test_exec_context *ctx,
@@ -82,11 +85,15 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 	client = ctx->clients[(*cmdp)->connection_idx];
 
 	va_start(args, fmt);
-	i_error("Test %s command %u/%u (line %u) failed: %s\n"
-		" - Command (tag %u.%u): %s", ctx->test->name,
-		ctx->cur_cmd_idx+1, array_count(&ctx->test->commands),
-		(*cmdp)->linenum, t_strdup_vprintf(fmt, args),
-		client->global_id, ctx->cur_cmd->tag, (*cmdp)->command);
+	if (!ctx->init_finished)
+		i_error("Test %s initialization failed", ctx->test->name);
+	else {
+		i_error("Test %s command %u/%u (line %u) failed: %s\n"
+			" - Command (tag %u.%u): %s", ctx->test->name,
+			ctx->cur_cmd_idx+1, array_count(&ctx->test->commands),
+			(*cmdp)->linenum, t_strdup_vprintf(fmt, args),
+			client->global_id, ctx->cur_cmd->tag, (*cmdp)->command);
+	}
 	va_end(args);
 
 	ctx->failed = TRUE;
@@ -455,17 +462,15 @@ static void test_cmd_callback(struct client *client,
 	const unsigned char *found;
 	unsigned int i, first_missing_idx, missing_count;
 
+	i_assert(ctx->init_finished);
+	i_assert(ctx->cur_cmd == command);
+
 	if (reply == REPLY_CONT) {
 		i_assert(command->state == STATE_APPEND);
 		if (client_append_continue(client) < 0)
 			test_fail(ctx, "APPEND failed");
 		return;
 	}
-	if (ctx->cur_cmd == NULL) {
-		/* should happen only with appends */
-		ctx->cur_cmd = command;
-	}
-	i_assert(ctx->cur_cmd == command);
 	client_handle_tagged_resp_text_code(client, command, args, reply);
 
 	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
@@ -515,6 +520,7 @@ static void test_cmd_callback(struct client *client,
 		}
 	}
 
+	ctx->cur_cmd = NULL;
 	ctx->cur_cmd_idx++;
 	test_send_next_command(ctx);
 }
@@ -526,7 +532,7 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	const char *cmdline;
 	uint32_t seq;
 
-	ctx->cur_cmd = NULL;
+	i_assert(ctx->cur_cmd == NULL);
 
 	if (ctx->cur_cmd_idx == array_count(&ctx->test->commands)) {
 		test_execute_finish(ctx);
@@ -547,12 +553,13 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	if (strcasecmp(cmdline, "append") == 0) {
 		client->state = STATE_APPEND;
 		(void)client_append_full(client, NULL, NULL, NULL,
-					 test_cmd_callback);
+					 test_cmd_callback, &ctx->cur_cmd);
 	} else if (strncasecmp(cmdline, "append ", 7) == 0) {
 		client->state = STATE_APPEND;
 		(void)client_append(client, cmdline + 7, FALSE,
-				    test_cmd_callback);
+				    test_cmd_callback, &ctx->cur_cmd);
 	} else {
+		client->state = STATE_SELECT;
 		ctx->cur_cmd = command_send(client, cmdline, test_cmd_callback);
 	}
 }
@@ -570,32 +577,61 @@ static void test_send_first_command(struct test_exec_context *ctx)
 	for (i = 0; i < ctx->test->connection_count; i++)
 		ctx->clients[i]->send_more_commands = test_send_no_commands;
 
+	ctx->init_finished = TRUE;
 	test_send_next_command(ctx);
+}
+
+static void init_callback(struct client *client, struct command *command,
+			  const struct imap_arg *args ATTR_UNUSED,
+			  enum command_reply reply)
+{
+	struct test_exec_context *ctx = client->test_exec_ctx;
+	unsigned int i;
+
+	i_assert(!ctx->init_finished);
+
+	if (reply == REPLY_CONT) {
+		i_assert(command->state == STATE_APPEND);
+		if (client_append_continue(client) < 0)
+			test_fail(ctx, "APPEND failed");
+		return;
+	}
+	client_handle_tagged_resp_text_code(client, command, args, reply);
+
+	if (client->login_state == ctx->test->login_state) {
+		/* we're in the wanted state */
+		if (client->login_state == LSTATE_SELECTED && !ctx->selected) {
+			ctx->selected = TRUE;
+
+			/* if any other clients were waiting on us,
+			   resume them */
+			for (i = 1; i < ctx->test->connection_count; i++) {
+				if (ctx->clients[i]->state != STATE_NOOP)
+					continue;
+
+				test_send_lstate_commands(ctx->clients[i]);
+			}
+		}
+		if (--ctx->clients_waiting == 0)
+			test_send_first_command(ctx);
+	}
 }
 
 static int test_send_lstate_commands(struct client *client)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
+	struct command *cmd;
 	const char *str;
-	unsigned int i;
 
 	i_assert(ctx->clients_waiting > 0);
 
 	if (client->login_state == ctx->test->login_state) {
-		/* we're in the wanted state */
-		if (--ctx->clients_waiting == 0)
-			test_send_first_command(ctx);
-
-		if (client == ctx->clients[0] &&
-		    client->login_state == LSTATE_SELECTED) {
-			/* if any other clients were waiting on us,
-			   resume them */
-			for (i = 1; i < ctx->test->connection_count; i++) {
-				if (ctx->clients[i]->state != STATE_SELECT)
-					continue;
-
-				test_send_lstate_commands(ctx->clients[i]);
-			}
+		/* we're in the wanted state. selected state handling is
+		   done in init_callback to make sure that all commands have
+		   been finished before starting the test. */
+		if (client->login_state != LSTATE_SELECTED) {
+			if (--ctx->clients_waiting == 0)
+				test_send_first_command(ctx);
 		}
 		return 0;
 	}
@@ -605,20 +641,19 @@ static int test_send_lstate_commands(struct client *client)
 	case LSTATE_NONAUTH:
 		client->plan[0] = STATE_LOGIN;
 		client->plan_size = 1;
+		if (client_plan_send_next_cmd(client) < 0)
+			return -1;
 		break;
 	case LSTATE_AUTH:
-		if (ctx->mailbox_state == TEST_MAILBOX_STATE_DONE) {
-			if (client != ctx->clients[0]) {
-				client->plan[0] = STATE_SELECT;
-				client->plan_size = 1;
-				break;
-			}
+		if (ctx->selected) {
+			i_assert(client != ctx->clients[0]);
 			break;
 		}
+
 		/* the first client will delete and recreate the mailbox */
 		if (client != ctx->clients[0]) {
 			/* wait until the mailbox is created */
-			client->state = STATE_SELECT;
+			client->state = STATE_NOOP;
 			break;
 		}
 
@@ -628,28 +663,26 @@ static int test_send_lstate_commands(struct client *client)
 			str = t_strdup_printf("DELETE \"%s\"",
 					      client->view->storage->name);
 			ctx->mailbox_state++;
-			command_send(client, str, state_callback);
+			command_send(client, str, init_callback);
 			break;
 		case TEST_MAILBOX_STATE_CREATE:
 			client->state = STATE_MCREATE;
 			str = t_strdup_printf("CREATE \"%s\"",
 					      client->view->storage->name);
 			ctx->mailbox_state++;
-			command_send(client, str, state_callback);
+			command_send(client, str, init_callback);
 			break;
 		case TEST_MAILBOX_STATE_APPEND:
 			if (!mailbox_source_eof(ctx->source)) {
 				client->state = STATE_APPEND;
 				if (client_append_full(client, NULL, NULL, NULL,
-						       test_cmd_callback) < 0)
+						       init_callback, &cmd) < 0)
 					return -1;
 				break;
 			}
 			/* finished. select the mailbox so we have the
 			   messages recent. */
 			ctx->mailbox_state++;
-			client->plan[0] = STATE_SELECT;
-			client->plan_size = 1;
 			break;
 		case TEST_MAILBOX_STATE_DONE:
 			i_unreached();
@@ -658,8 +691,13 @@ static int test_send_lstate_commands(struct client *client)
 	case LSTATE_SELECTED:
 		i_unreached();
 	}
-	if (client->plan_size > 0)
-		(void)client_plan_send_next_cmd(client);
+	if (ctx->mailbox_state == TEST_MAILBOX_STATE_DONE) {
+		i_assert(client->login_state == LSTATE_AUTH);
+		str = t_strdup_printf("SELECT \"%s\"",
+				      client->view->storage->name);
+		client->state = STATE_SELECT;
+		command_send(client, str, init_callback);
+	}
 	return 0;
 }
 

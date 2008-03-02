@@ -340,11 +340,13 @@ static int client_append_more(struct client *client)
 }
 
 int client_append(struct client *client, const char *args, bool add_datetime,
-		  command_callback_t *callback)
+		  command_callback_t *callback, struct command **cmd_r)
 {
 	struct mailbox_source *source = client->view->storage->source;
 	string_t *cmd;
 	time_t t;
+
+	*cmd_r = NULL;
 
 	i_assert(client->append_vsize_left == 0);
 	mailbox_source_get_next_size(source, &client->append_psize,
@@ -373,7 +375,7 @@ int client_append(struct client *client, const char *args, bool add_datetime,
 		o_stream_send_str(client->output, str_c(cmd));
 	} else {
 		client->state = STATE_APPEND;
-		command_send(client, str_c(cmd), callback);
+		*cmd_r = command_send(client, str_c(cmd), callback);
 		client->append_unfinished = TRUE;
 	}
 
@@ -388,7 +390,7 @@ int client_append(struct client *client, const char *args, bool add_datetime,
 
 int client_append_full(struct client *client, const char *mailbox,
 		       const char *flags, const char *datetime,
-		       command_callback_t *callback)
+		       command_callback_t *callback, struct command **cmd_r)
 {
 	string_t *args;
 	bool add_datetime = FALSE;
@@ -405,12 +407,14 @@ int client_append_full(struct client *client, const char *mailbox,
 	else if (*datetime != '\0')
 		str_printfa(args, " \"%s\"", datetime);
 
-	return client_append(client, str_c(args), add_datetime, callback);
+	return client_append(client, str_c(args), add_datetime,
+			     callback, cmd_r);
 }
 
 int client_append_random(struct client *client)
 {
 	const char *flags = NULL, *datetime = NULL;
+	struct command *cmd;
 
 	if ((rand() % 2) == 0) {
 		flags = mailbox_view_get_random_flags(client->view,
@@ -419,7 +423,7 @@ int client_append_random(struct client *client)
 	if ((rand() % 2) == 0)
 		datetime = "";
 	return client_append_full(client, NULL, flags, datetime,
-				  state_callback);
+				  state_callback, &cmd);
 }
 
 int client_append_continue(struct client *client)
