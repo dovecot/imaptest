@@ -394,8 +394,10 @@ int client_append_full(struct client *client, const char *mailbox,
 	bool add_datetime = FALSE;
 
 	args = t_str_new(128);
-	str_printfa(args, "\"%s\"", mailbox != NULL ? mailbox :
-		    client->view->storage->name);
+	if (!client->append_unfinished) {
+		str_printfa(args, "\"%s\"", mailbox != NULL ? mailbox :
+			    client->view->storage->name);
+	}
 	if (flags != NULL)
 		str_printfa(args, " (%s)", flags);
 	if (datetime == NULL)
