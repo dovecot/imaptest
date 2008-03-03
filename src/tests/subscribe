@@ -3,14 +3,17 @@ state: auth
 
 # get the separator
 1 ok list "" ""
-* list (\noselect) $sep ""
+* list () $sep ""
 
 1 "" unsubscribe $mailbox${sep}test
 1 "" unsubscribe $mailbox${sep}test2
 1 "" unsubscribe $mailbox${sep}test2${sep}test
 1 "" unsubscribe $mailbox${sep}test3${sep}test3
 
+1 ok create $mailbox${sep}
 1 ok create $mailbox${sep}test
+1 ok create $mailbox${sep}test2${sep}
+1 ok create $mailbox${sep}test3${sep}
 1 ok create $mailbox${sep}test2${sep}test
 1 ok create $mailbox${sep}test3${sep}test3
 # create the test2 mailbox only if server supports inferior mailboxes

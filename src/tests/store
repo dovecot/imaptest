@@ -21,12 +21,12 @@ connections: 2
 * 4 fetch (flags ($$hello $$world))
 
 # check that two sessions don't overwrite each others' changes
-1 ok store 1 +flags (\draft)
+1 ok store 1 +flags (\answered)
 2 ok store 1 -flags (\seen)
 1 ok check
 2 ok check
 
 1 ok fetch 1 flags
-* 1 fetch (flags (\draft))
+* 1 fetch (flags (\answered))
 2 ok fetch 1 flags
-* 1 fetch (flags (\draft))
+* 1 fetch (flags (\answered))

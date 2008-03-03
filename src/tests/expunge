@@ -19,10 +19,8 @@ messages: 8
 * $1 expunge
 * $3 expunge
 
-2 ok fetch 1:4 (uid)
-* 1 fetch (uid $uid1)
+2 ok fetch 2,4 (uid)
 * 2 fetch (uid $uid2)
-* 3 fetch (uid $uid3)
 * 4 fetch (uid $uid4)
 2 ok fetch 2,4 (uid)
 * 2 fetch (uid $uid2)
@@ -38,10 +36,10 @@ messages: 8
 1 ok store 2 +flags \deleted
 1 ok expunge
 
-2 ok store 1 flags \draft
-* 1 fetch (flags (\draft))
+2 ok store 1 flags \answered
+* 1 fetch (flags (\answered))
 1 ok check
-* 1 fetch (flags (\draft))
+* 1 fetch (flags (\answered))
 2 ok noop
 * 2 expunge
 

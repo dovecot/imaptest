@@ -1,9 +1,9 @@
 
-# subject
+# just check that this returns ok. it's not really specified in RFC, so
+# don't verify the result.
 ok search subject ""
-* search 1
-ok search not subject ""
-* search 2
+
+# subject
 ok search subject hello
 * search 1
 ok search subject beautiful
