@@ -687,6 +687,10 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				/* Communigate Pro (FETCH/STORE) */
 				break;
 			}
+			if (strstr(line, "Document has been deleted") != NULL) {
+				/* Domino (FETCH/STORE/EXPUNGE) */
+				break;
+			}
 		default:
 			client_state_error(client, "%s failed",
 					   states[cmd->state].name);
