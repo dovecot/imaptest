@@ -447,7 +447,7 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 	const char *const *vars;
 	unsigned char *found;
 	unsigned int i, count, j, var_count, match_count;
-	bool prefix = FALSE;
+	bool prefix = FALSE, found_some;
 
 	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
 	if (!array_is_created(&(*cmdp)->untagged)) {
@@ -474,6 +474,7 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 	found = buffer_get_space_unsafe(ctx->cur_received_untagged, 0, count);
 	(void)array_idx_modifiable(&ctx->cur_maybe_matches, count-1);
 	maybes = array_idx_modifiable(&ctx->cur_maybe_matches, 0);
+	found_some = FALSE;
 	for (i = 0; i < count; i++) {
 		if (found[i] != 0)
 			continue;
@@ -481,17 +482,19 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 		match_count = test_imap_match_args(ctx, untagged[i].args, args,
 						   -1U, prefix);
 		if (match_count == -1U) {
-			if (!untagged[i].not_found) {
-				found[i] = 1;
-				break;
+			if (untagged[i].not_found) {
+				test_fail(ctx, "Unexpected untagged match:\n"
+					  "Match: %s\n"
+					  "Reply: %s",
+					  imap_args_to_str(untagged[i].args),
+					  imap_args_to_str(args));
+				return;
 			}
-
-			test_fail(ctx, "Unexpected untagged match:\n"
-				  "Match: %s\n"
-				  "Reply: %s",
-				  imap_args_to_str(untagged[i].args),
-				  imap_args_to_str(args));
-			return;
+			found[i] = 1;
+			/* continue - we may want to match more */
+			found_some = TRUE;
+			array_clear(&ctx->added_variables);
+			continue;
 		}
 		if (maybes[i].count < match_count) {
 			maybes[i].count = match_count;
@@ -505,7 +508,7 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 			hash_remove(ctx->variables, vars[j]);
 		array_clear(&ctx->added_variables);
 	}
-	if (i == count)
+	if (!found_some)
 		ctx->cur_untagged_mismatch_count++;
 }
 
