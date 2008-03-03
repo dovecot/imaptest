@@ -86,9 +86,10 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 	client = ctx->clients[(*cmdp)->connection_idx];
 
 	va_start(args, fmt);
-	if (!ctx->init_finished)
-		i_error("Test %s initialization failed", ctx->test->name);
-	else {
+	if (!ctx->init_finished) {
+		i_error("Test %s initialization failed: %s",
+			ctx->test->name, t_strdup_vprintf(fmt, args));
+	} else {
 		str = t_str_new(256);
 		str_printfa(str, "Test %s command %u/%u (line %u) failed: %s\n"
 			    " - Command", ctx->test->name, ctx->cur_cmd_idx+1,
@@ -640,7 +641,7 @@ static void test_send_first_command(struct test_exec_context *ctx)
 }
 
 static void init_callback(struct client *client, struct command *command,
-			  const struct imap_arg *args ATTR_UNUSED,
+			  const struct imap_arg *args,
 			  enum command_reply reply)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
@@ -655,6 +656,18 @@ static void init_callback(struct client *client, struct command *command,
 		return;
 	}
 	client_handle_tagged_resp_text_code(client, command, args, reply);
+
+	if (reply == REPLY_NO &&
+	    (client->state == STATE_MDELETE ||
+	     client->state == STATE_MCREATE)) {
+		/* ignore the error */
+		return;
+	}
+	if (reply == REPLY_NO || reply == REPLY_BAD) {
+		test_fail(ctx, "%s failed: %s", command->cmdline,
+			  imap_args_to_str(args));
+		return;
+	}
 
 	if (client->login_state == ctx->test->login_state) {
 		/* we're in the wanted state */
@@ -683,6 +696,8 @@ static int test_send_lstate_commands(struct client *client)
 
 	i_assert(ctx->clients_waiting > 0);
 
+	if (ctx->failed)
+		return -1;
 	if (client->login_state == ctx->test->login_state) {
 		/* we're in the wanted state. selected state handling is
 		   done in init_callback to make sure that all commands have
