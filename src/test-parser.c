@@ -187,7 +187,6 @@ list_parse_directives(struct list_directives_context *ctx,
 	       strncmp(args->_data.str, "$!", 2) == 0) {
 		str = args->_data.str + 2;
 
-		str += 2;
 		if (strncmp(str, "unordered", 9) == 0) {
 			if (str[9] == '\0')
 				;
@@ -204,7 +203,7 @@ list_parse_directives(struct list_directives_context *ctx,
 			/* ok */
 		} else {
 			*error_r = t_strdup_printf("Unknown directive: %s",
-						   str - 2);
+						   str);
 			return FALSE;
 		}
 		ctx->directives = TRUE;
