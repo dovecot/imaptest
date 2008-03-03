@@ -633,6 +633,7 @@ static void test_send_next_command(struct test_exec_context *ctx)
 
 	ctx->cur_untagged_mismatch_count = 0;
 	buffer_reset(ctx->cur_received_untagged);
+	array_clear(&ctx->cur_maybe_matches);
 
 	/* create initial sequence map */
 	array_clear(&ctx->cur_seqmap);
