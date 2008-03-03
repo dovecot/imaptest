@@ -3,7 +3,7 @@
 #include "lib.h"
 #include "hash.h"
 #include "istream.h"
-#include "src/lib-storage/index/mbox/mbox-from.h"
+#include "mbox-from.h"
 #include "mailbox-source.h"
 
 #include <fcntl.h>

@@ -37,7 +37,6 @@ noinst_HEADERS = \
 imaptest_LDADD = \
 	$(LIBICONV) \
 	$(RAND_LIBS) \
-	$(dovecotdir)/src/lib-storage/index/mbox/mbox-from.o \
 	$(dovecotdir)/src/lib-imap/libimap.a \
 	$(dovecotdir)/src/lib-mail/libmail.a \
 	$(dovecotdir)/src/lib-charset/libcharset.a \
