@@ -45,6 +45,7 @@ struct test_exec_context {
 	struct client **clients;
 	struct mailbox_source *source;
 	unsigned int clients_waiting, disconnects_waiting;
+	unsigned int appends_left;
 
 	ARRAY_DEFINE(delete_mailboxes, const char *);
 	unsigned int delete_refcount;
@@ -804,8 +805,11 @@ static int test_send_lstate_commands(struct client *client)
 			command_send(client, str, init_callback);
 			break;
 		case TEST_STARTUP_STATE_CREATED:
-			if (!mailbox_source_eof(ctx->source)) {
+			if (ctx->appends_left > 0 &&
+			    (!mailbox_source_eof(ctx->source) ||
+			     ctx->test->message_count != -1U)) {
 				client->state = STATE_APPEND;
+				ctx->appends_left--;
 				if (client_append_full(client, NULL, NULL, NULL,
 						       init_callback, &cmd) < 0)
 					return -1;
@@ -853,6 +857,7 @@ static int test_execute(const struct test *test,
 	p_array_init(&ctx->added_variables, pool, 32);
 	i_array_init(&ctx->cur_seqmap, 128);
 	p_array_init(&ctx->delete_mailboxes, pool, 16);
+	ctx->appends_left = ctx->test->message_count;
 
 	/* create clients for the test */
 	ctx->clients = p_new(pool, struct client *, test->connection_count);

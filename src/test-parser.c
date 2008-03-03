@@ -48,6 +48,11 @@ test_parse_header_line(struct test_parser *parser, struct test *test,
 			strtoul(value, NULL, 10);
 		return TRUE;
 	}
+	if (strcmp(key, "messages") == 0) {
+		test->message_count = strcmp(value, "all") == 0 ? -1U :
+			strtoul(value, NULL, 10);
+		return TRUE;
+	}
 	if (strcmp(key, "state") == 0) {
 		if (strcasecmp(value, "nonauth") == 0)
 			test->startup_state = TEST_STARTUP_STATE_NONAUTH;
@@ -511,6 +516,7 @@ test_parser_read_test(struct test_parser *parser, const char *fname,
 	test = p_new(parser->pool, struct test, 1);
 	test->startup_state = TEST_STARTUP_STATE_SELECTED;
 	test->connection_count = 1;
+	test->message_count = -1U;
 	p_array_init(&test->commands, parser->pool, 32);
 
 	mbox_path = t_strdup_printf("%s/%s.mbox", parser->dir, fname);

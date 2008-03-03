@@ -44,6 +44,8 @@ struct test {
 	const char *const *required_capabilities;
 	/* Number of connections to use */
 	unsigned int connection_count;
+	/* Number of messages to APPEND initially (-1 = all) */
+	unsigned int message_count;
 	/* Startup state in which this test is run */
 	enum test_startup_state startup_state;
 
