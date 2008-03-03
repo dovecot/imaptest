@@ -1,14 +1,78 @@
 state: auth
+connections: 3
 
-# get separator
-ok list "" ""
+# get the separator
+1 ok list "" ""
 * list (\noselect) $sep ""
 
-"" delete $mailbox${sep}test
-"" delete $mailbox${sep}test2
-ok create $mailbox${sep}test
-ok create $mailbox${sep}test2
+1 "" delete $mailbox
+1 "" delete $mailbox${sep}test
+1 "" delete $mailbox${sep}test2
+1 "" delete $mailbox${sep}test3${sep}test4${sep}test5
+1 "" delete $mailbox${sep}test3${sep}test4
+1 "" delete $mailbox${sep}test3
 
-ok list "" $mailbox$sep%
+1 ok create $mailbox${sep}test
+2 ok list "" $mailbox${sep}%
+* list () $sep $mailbox${sep}test
+
+2 ok create $mailbox${sep}test2
+1 ok list "" $mailbox${sep}%
 * list () $sep $mailbox${sep}test
 * list () $sep $mailbox${sep}test2
+
+3 ok create $mailbox${sep}test3${sep}
+2 ok create $mailbox${sep}test3${sep}test4${sep}test5
+2 ok list "" $mailbox${sep}%
+* list () $sep $mailbox${sep}test
+* list () $sep $mailbox${sep}test2
+* list () $sep $mailbox${sep}test3
+! list () $sep $mailbox${sep}test3${sep}test4
+! list () $sep $mailbox${sep}test3${sep}test4${sep}test5
+
+3 ok list "" $mailbox${sep}%
+* list () $sep $mailbox${sep}test
+* list () $sep $mailbox${sep}test2
+* list () $sep $mailbox${sep}test3
+
+2 ok list "" $mailbox${sep}%${sep}%
+! list () $sep $mailbox${sep}test
+! list () $sep $mailbox${sep}test2
+! list () $sep $mailbox${sep}test3
+* list (\noselect) $sep $mailbox${sep}test3${sep}test4
+! list () $sep $mailbox${sep}test3${sep}test4${sep}test5
+
+3 ok list "" $mailbox${sep}*
+* list () $sep $mailbox${sep}test
+* list () $sep $mailbox${sep}test2
+* list () $sep $mailbox${sep}test3
+* list () $sep $mailbox${sep}test3${sep}test4${sep}test5
+
+3 ok list $mailbox${sep} *
+* list () $sep $mailbox${sep}test
+* list () $sep $mailbox${sep}test2
+* list () $sep $mailbox${sep}test3
+* list () $sep $mailbox${sep}test3${sep}test4${sep}test5
+
+2 ok list "" $mailbox${sep}*test4
+! list () $sep $mailbox${sep}test
+! list () $sep $mailbox${sep}test2
+! list () $sep $mailbox${sep}test3
+* list (\noselect) $sep $mailbox${sep}test3${sep}test4
+! list () $sep $mailbox${sep}test3${sep}test4${sep}test5
+
+2 ok list "" $mailbox${sep}*test*
+* list () $sep $mailbox${sep}test
+* list () $sep $mailbox${sep}test2
+* list () $sep $mailbox${sep}test3
+* list () $sep $mailbox${sep}test3${sep}test4${sep}test5
+
+2 ok list "" $mailbox${sep}%3${sep}%
+* list (\noselect) $sep $mailbox${sep}test3${sep}test4
+2 ok list "" $mailbox${sep}%3${sep}%4
+* list (\noselect) $sep $mailbox${sep}test3${sep}test4
+2 ok list "" $mailbox${sep}%t*4
+* list (\noselect) $sep $mailbox${sep}test3${sep}test4
+
+1 ok list "" inbox
+* list () $inboxsep inbox
