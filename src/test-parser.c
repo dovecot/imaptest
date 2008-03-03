@@ -194,7 +194,8 @@ list_parse_directives(struct list_directives_context *ctx,
 			}
 		} else if (strcmp(str, "ordered") == 0 ||
 			   strcmp(str, "noextra") == 0 ||
-			   strcmp(str, "extra") == 0) {
+			   strcmp(str, "extra") == 0 ||
+			   strncmp(str, "ignore=", 7) == 0) {
 			/* ok */
 		} else {
 			*error_r = t_strdup_printf("Unknown directive: %s",
@@ -257,6 +258,7 @@ static void test_add_default_directives(struct list_directives_context *ctx,
 			/* <seq> fetch (flags (..)) */
 			args_directive(ctx, args_arr, "$!unordered");
 			args_directive(ctx, args_arr, "$!noextra");
+			args_directive(ctx, args_arr, "$!ignore=\\recent");
 		}
 	}
 }
@@ -482,6 +484,10 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 			i_error("%s line %u: %s", test->path, linenum, error);
 			return FALSE;
 		}
+	}
+	if (parser->cur_cmd == NULL) {
+		i_error("%s: No commands in file", test->path);
+		return FALSE;
 	}
 	if (parser->cur_cmd != NULL && parser->cur_cmd->reply == NULL) {
 		i_error("%s line %u: Missing reply from previous command",

@@ -252,12 +252,14 @@ test_imap_match_list(struct test_exec_context *ctx,
 	bool unordered = FALSE;
 	unsigned int chain_count = 1;
 	const char *str;
-	unsigned int i, arg_count, ret = 0;
+	unsigned int i, j, arg_count, ret = 0;
 	buffer_t *matchbuf;
 	unsigned char *matches;
+	ARRAY_DEFINE(ignores, const char *);
 	int noextra = -1;
 
 	/* get $! directives */
+	t_array_init(&ignores, 8);
 	for (; match->type == IMAP_ARG_ATOM; match++) {
 		str = IMAP_ARG_STR(match);
 		if (strncmp(str, "$!", 2) != 0)
@@ -276,6 +278,9 @@ test_imap_match_list(struct test_exec_context *ctx,
 			noextra = 0;
 		} else if (strcmp(str, "noextra") == 0) {
 			noextra = 1;
+		} else if (strncmp(str, "ignore=", 7) == 0) {
+			str += 7;
+			array_append(&ignores, &str, 1);
 		} else {
 			/* we should have caught this in parser */
 			i_panic("Unknown directive: %s", str-2);
@@ -320,8 +325,23 @@ test_imap_match_list(struct test_exec_context *ctx,
 	}
 	if (noextra) {
 		/* make sure everything got matched */
+		const char *const *s;
+		unsigned int i, count;
+
 		for (i = 0; i < arg_count; i += chain_count) {
-			if (matches[i] == 0)
+			if (matches[i] != 0)
+				continue;
+
+			if (!IMAP_ARG_TYPE_IS_STRING(args[i].type))
+				return ret;
+
+			/* is it in our ignore list? */
+			s = array_get(&ignores, &count);
+			for (j = 0; j < count; j++) {
+				if (strcasecmp(s[j], args[i]._data.str) == 0)
+					break;
+			}
+			if (j == count)
 				return ret;
 		}
 	}
