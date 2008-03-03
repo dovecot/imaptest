@@ -4,6 +4,7 @@
 #include "ioloop.h"
 #include "hash.h"
 #include "str.h"
+#include "imap-quote.h"
 #include "imap-parser.h"
 #include "mailbox.h"
 #include "mailbox-source.h"
@@ -58,6 +59,9 @@ struct test_exec_context {
 	unsigned int finished:1;
 	unsigned int init_finished:1;
 };
+
+#define t_imap_quote_str(str) \
+	imap_quote(pool_datastack_create(), (const void *)str, strlen(str))
 
 static void test_execute_free(struct test_exec_context *ctx);
 static void test_execute_finish(struct test_exec_context *ctx);
@@ -725,7 +729,8 @@ static void init_callback(struct client *client, struct command *command,
 		boxes = array_get_modifiable(&ctx->delete_mailboxes, &count);
 		qsort(boxes, count, sizeof(*boxes), rev_strcasecmp);
 		for (i = 0; i < count; i++) {
-			str = t_strdup_printf("DELETE \"%s\"", boxes[i]);
+			str = t_strdup_printf("DELETE %s",
+					      t_imap_quote_str(boxes[i]));
 			command_send(client, str, init_callback);
 		}
 		ctx->delete_refcount = count;
@@ -799,14 +804,16 @@ static int test_send_lstate_commands(struct client *client)
 			if (ctx->delete_refcount > 0)
 				return 0;
 			client->state = STATE_MDELETE;
-			str = t_strdup_printf("LIST \"\" \"%s*\"",
-					      client->view->storage->name);
+			str = t_strconcat(client->view->storage->name,
+					  "*", NULL);
+			str = t_strdup_printf("LIST \"\" %s",
+					      t_imap_quote_str(str));
 			command_send(client, str, init_callback);
 			break;
 		case TEST_STARTUP_STATE_DELETED:
 			client->state = STATE_MCREATE;
-			str = t_strdup_printf("CREATE \"%s\"",
-					      client->view->storage->name);
+			str = t_strdup_printf("CREATE %s",
+				t_imap_quote_str(client->view->storage->name));
 			command_send(client, str, init_callback);
 			break;
 		case TEST_STARTUP_STATE_CREATED:
@@ -824,8 +831,8 @@ static int test_send_lstate_commands(struct client *client)
 			ctx->startup_state++;
 			return test_send_lstate_commands(client);
 		case TEST_STARTUP_STATE_APPENDED:
-			str = t_strdup_printf("SELECT \"%s\"",
-					      client->view->storage->name);
+			str = t_strdup_printf("SELECT %s",
+				t_imap_quote_str(client->view->storage->name));
 			client->state = STATE_SELECT;
 			command_send(client, str, init_callback);
 			break;
