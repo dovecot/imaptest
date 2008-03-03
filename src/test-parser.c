@@ -484,12 +484,14 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 							      linenum,
 							      line, &error);
 			}
+			if (!ret) {
+				i_error("%s line %u: %s", test->path,
+					linenum, error);
+			}
 		} T_END;
 
-		if (!ret) {
-			i_error("%s line %u: %s", test->path, linenum, error);
+		if (!ret)
 			return FALSE;
-		}
 	}
 	if (parser->cur_cmd == NULL) {
 		i_error("%s: No commands in file", test->path);
