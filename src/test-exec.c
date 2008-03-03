@@ -662,9 +662,9 @@ static void wakeup_clients(struct test_exec_context *ctx)
 
 static int rev_strcasecmp(const void *p1, const void *p2)
 {
-	const char *s1 = p1, *s2 = p2;
+	const char *const *s1 = p1, *const *s2 = p2;
 
-	return -strcasecmp(s1, s2);
+	return -strcasecmp(*s1, *s2);
 }
 
 static void init_callback(struct client *client, struct command *command,
@@ -684,7 +684,8 @@ static void init_callback(struct client *client, struct command *command,
 	client_handle_tagged_resp_text_code(client, command, args, reply);
 
 	if (reply == REPLY_NO || reply == REPLY_BAD) {
-		test_fail(ctx, "%s failed: %s", command->cmdline,
+		test_fail(ctx, "%s (tag %u.%u) failed: %s", command->cmdline,
+			  client->global_id, command->tag,
 			  imap_args_to_str(args));
 		return;
 	}
