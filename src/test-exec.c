@@ -425,7 +425,7 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
 	struct test_command *const *cmdp;
-	const struct imap_arg *const *untagged;
+	const struct test_untagged *untagged;
 	struct test_maybe_match *maybes;
 	const char *const *vars;
 	unsigned char *found;
@@ -461,11 +461,20 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 		if (found[i] != 0)
 			continue;
 
-		match_count = test_imap_match_args(ctx, untagged[i], args,
+		match_count = test_imap_match_args(ctx, untagged[i].args, args,
 						   -1U, prefix);
 		if (match_count == -1U) {
-			found[i] = 1;
-			break;
+			if (!untagged[i].not_found) {
+				found[i] = 1;
+				break;
+			}
+
+			test_fail(ctx, "Unexpected untagged match:\n"
+				  "Match: %s\n"
+				  "Reply: %s",
+				  imap_args_to_str(untagged[i].args),
+				  imap_args_to_str(args));
+			return;
 		}
 		if (maybes[i].count < match_count) {
 			maybes[i].count = match_count;
@@ -510,8 +519,9 @@ static void test_cmd_callback(struct client *client,
 	struct test_exec_context *ctx = client->test_exec_ctx;
 	struct test_command *const *cmdp;
 	const struct test_command *cmd;
+	const struct test_untagged *ut;
 	const unsigned char *found;
-	unsigned int i, first_missing_idx, missing_count;
+	unsigned int i, first_missing_idx, missing_count, ut_count;
 
 	i_assert(ctx->init_finished);
 	i_assert(ctx->cur_cmd == command);
@@ -532,29 +542,26 @@ static void test_cmd_callback(struct client *client,
 			  imap_args_to_str(cmd->reply),
 			  imap_args_to_str(args));
 	} else if (array_is_created(&cmd->untagged)) {
-		first_missing_idx = ctx->cur_received_untagged->used + 1;
+		ut = array_get(&cmd->untagged, &ut_count);
+		first_missing_idx = ut_count;
 		missing_count = 0;
 		found = ctx->cur_received_untagged->data;
-		for (i = 0; i < ctx->cur_received_untagged->used; i++) {
-			if (found[i] == 0) {
+		for (i = 0; i < ut_count; i++) {
+			if (!ut[i].not_found &&
+			    (i >= ctx->cur_received_untagged->used ||
+			     found[i] == 0)) {
 				if (i < first_missing_idx)
 					first_missing_idx = i;
 				missing_count++;
 			}
 		}
-		if (ctx->cur_received_untagged->used >
-		    array_count(&cmd->untagged)) {
-			missing_count += ctx->cur_received_untagged->used -
-				array_count(&cmd->untagged);
-		}
 
 		if (missing_count != 0) {
-			const struct imap_arg *const *uarg =
-				array_idx(&cmd->untagged, first_missing_idx);
 			const struct test_maybe_match *maybes;
 			const char *best_match;
 			unsigned int mcount;
 
+			ut += first_missing_idx;
 			maybes = array_get(&ctx->cur_maybe_matches, &mcount);
 			best_match = mcount < first_missing_idx ? NULL :
 				maybes[first_missing_idx].str;
@@ -565,8 +572,8 @@ static void test_cmd_callback(struct client *client,
 				  " - first expanded: %s\n"
 				  " - best match: %s", missing_count,
 				  ctx->cur_untagged_mismatch_count,
-				  imap_args_to_str(*uarg),
-				  test_expand_all(ctx, imap_args_to_str(*uarg), TRUE),
+				  imap_args_to_str(ut->args),
+				  test_expand_all(ctx, imap_args_to_str(ut->args), TRUE),
 				  best_match == NULL ? "" : best_match);
 		}
 	}

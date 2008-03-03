@@ -311,11 +311,13 @@ test_parse_untagged_handle_directives(struct list_directives_context *ctx,
 
 static bool
 test_parse_command_untagged(struct test_parser *parser,
-			    const char *line, const char **error_r)
+			    const char *line, bool not_found,
+			    const char **error_r)
 {
 	struct test_command *cmd = parser->cur_cmd;
 	struct list_directives_context directives_ctx;
 	const struct imap_arg *args;
+	struct test_untagged ut;
 	ARRAY_TYPE(imap_arg_list) *args_arr;
 	const char *str = "";
 
@@ -345,8 +347,10 @@ test_parse_command_untagged(struct test_parser *parser,
 						   error_r))
 		return FALSE;
 
-	args = array_idx(args_arr, 0);
-	array_append(&cmd->untagged, &args, 1);
+	memset(&ut, 0, sizeof(ut));
+	ut.args = array_idx(args_arr, 0);
+	ut.not_found = not_found;
+	array_append(&cmd->untagged, &ut, 1);
 	return TRUE;
 }
 
@@ -395,9 +399,11 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 	const char *line2;
 
 	if (parser->cur_cmd != NULL) {
-		if (strncmp(line, "* ", 2) == 0) {
+		if (strncmp(line, "* ", 2) == 0 ||
+		    strncmp(line, "! ", 2) == 0) {
+			bool not_found = line[0] == '!';
 			return test_parse_command_untagged(parser, line + 2,
-							   error_r);
+							   not_found, error_r);
 		}
 		line2 = line;
 		if (parser->cur_cmd->reply == NULL &&

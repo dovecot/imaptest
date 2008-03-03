@@ -3,6 +3,12 @@
 
 #include "client-state.h"
 
+struct test_untagged {
+	const struct imap_arg *args;
+
+	unsigned int not_found:1;
+};
+
 struct test_command {
 	/* Connection index which runs this command (0..connection_count-1) */
 	unsigned int connection_idx;
@@ -15,7 +21,7 @@ struct test_command {
 	const struct imap_arg *reply;
 
 	/* Expected untagged replies */
-	ARRAY_DEFINE(untagged, const struct imap_arg *);
+	ARRAY_DEFINE(untagged, struct test_untagged);
 };
 
 struct test {
