@@ -703,7 +703,10 @@ static void init_callback(struct client *client, struct command *command,
 	}
 	client_handle_tagged_resp_text_code(client, command, args, reply);
 
-	if (reply == REPLY_NO || reply == REPLY_BAD) {
+	/* Ignore if DELETE fails. It was probably a \NoSelect mailbox. */
+	if (reply == REPLY_BAD ||
+	    (reply == REPLY_NO &&
+	     !(client->state == STATE_MDELETE && ctx->delete_refcount > 0))) {
 		test_fail(ctx, "%s (tag %u.%u) failed: %s", command->cmdline,
 			  client->global_id, command->tag,
 			  imap_args_to_str(args));
@@ -836,7 +839,7 @@ static int test_execute(const struct test *test,
 	unsigned int i;
 	pool_t pool;
 
-	pool = pool_alloconly_create("test exec context", 1024);
+	pool = pool_alloconly_create("test exec context", 2048);
 	ctx = p_new(pool, struct test_exec_context, 1);
 	ctx->pool = pool;
 	ctx->test = test;
