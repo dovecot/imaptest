@@ -16,13 +16,6 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-enum test_mailbox_state {
-	TEST_MAILBOX_STATE_DELETE,
-	TEST_MAILBOX_STATE_CREATE,
-	TEST_MAILBOX_STATE_APPEND,
-	TEST_MAILBOX_STATE_DONE
-};
-
 struct tests_execute_context {
 	const ARRAY_TYPE(test) *tests;
 	unsigned int next_test;
@@ -53,14 +46,16 @@ struct test_exec_context {
 	struct mailbox_source *source;
 	unsigned int clients_waiting, disconnects_waiting;
 
+	ARRAY_DEFINE(delete_mailboxes, const char *);
+	unsigned int delete_refcount;
+
 	struct hash_table *variables;
 	ARRAY_DEFINE(added_variables, const char *);
 
-	enum test_mailbox_state mailbox_state;
+	enum test_startup_state startup_state;
 	unsigned int failed:1;
 	unsigned int finished:1;
 	unsigned int init_finished:1;
-	unsigned int selected:1;
 };
 
 static void test_execute_free(struct test_exec_context *ctx);
@@ -496,6 +491,8 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 static int
 test_handle_untagged(struct client *client, const struct imap_arg *args)
 {
+	struct test_exec_context *ctx = client->test_exec_ctx;
+
 	if (client_handle_untagged(client, args) < 0)
 		return -1;
 
@@ -508,6 +505,16 @@ test_handle_untagged(struct client *client, const struct imap_arg *args)
 		uint32_t seq = strtoul(args->_data.str, NULL, 10);
 
 		test_handle_expunge(client->test_exec_ctx, seq);
+	}
+	if (args->type == IMAP_ARG_ATOM &&
+	    args[1].type == IMAP_ARG_LIST &&
+	    IMAP_ARG_TYPE_IS_STRING(args[2].type) &&
+	    IMAP_ARG_TYPE_IS_STRING(args[3].type) &&
+	    strcasecmp(args->_data.str, "list") == 0) {
+		const char *name = IMAP_ARG_STR(&args[3]);
+
+		name = p_strdup(ctx->pool, name);
+		array_append(&ctx->delete_mailboxes, &name, 1);
 	}
 	return 0;
 }
@@ -640,12 +647,31 @@ static void test_send_first_command(struct test_exec_context *ctx)
 	test_send_next_command(ctx);
 }
 
+static void wakeup_clients(struct test_exec_context *ctx)
+{
+	unsigned int i;
+
+	/* if any other clients were waiting on us, resume them */
+	for (i = 1; i < ctx->test->connection_count; i++) {
+		if (ctx->clients[i]->state == STATE_NOOP) {
+			ctx->clients[i]->state = STATE_SELECT;
+			test_send_lstate_commands(ctx->clients[i]);
+		}
+	}
+}
+
+static int rev_strcasecmp(const void *p1, const void *p2)
+{
+	const char *s1 = p1, *s2 = p2;
+
+	return -strcasecmp(s1, s2);
+}
+
 static void init_callback(struct client *client, struct command *command,
 			  const struct imap_arg *args,
 			  enum command_reply reply)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
-	unsigned int i;
 
 	i_assert(!ctx->init_finished);
 
@@ -657,34 +683,41 @@ static void init_callback(struct client *client, struct command *command,
 	}
 	client_handle_tagged_resp_text_code(client, command, args, reply);
 
-	if (reply == REPLY_NO &&
-	    (client->state == STATE_MDELETE ||
-	     client->state == STATE_MCREATE)) {
-		/* ignore the error */
-		return;
-	}
 	if (reply == REPLY_NO || reply == REPLY_BAD) {
 		test_fail(ctx, "%s failed: %s", command->cmdline,
 			  imap_args_to_str(args));
 		return;
 	}
+	if (client->state == STATE_MDELETE &&
+	    array_count(&ctx->delete_mailboxes) > 0) {
+		const char **boxes, *str;
+		unsigned int i, count;
 
-	if (client->login_state == ctx->test->login_state) {
-		/* we're in the wanted state */
-		if (client->login_state == LSTATE_SELECTED && !ctx->selected) {
-			ctx->selected = TRUE;
-
-			/* if any other clients were waiting on us,
-			   resume them */
-			for (i = 1; i < ctx->test->connection_count; i++) {
-				if (ctx->clients[i]->state != STATE_NOOP)
-					continue;
-
-				test_send_lstate_commands(ctx->clients[i]);
-			}
+		boxes = array_get_modifiable(&ctx->delete_mailboxes, &count);
+		qsort(boxes, count, sizeof(*boxes), rev_strcasecmp);
+		for (i = 0; i < count; i++) {
+			str = t_strdup_printf("DELETE \"%s\"", boxes[i]);
+			command_send(client, str, init_callback);
 		}
-		if (--ctx->clients_waiting == 0)
+		ctx->delete_refcount = count;
+		array_clear(&ctx->delete_mailboxes);
+		return;
+	} else if (client->state == STATE_MDELETE && ctx->delete_refcount > 0) {
+		if (--ctx->delete_refcount > 0)
+			return;
+	}
+
+	if (ctx->startup_state == TEST_STARTUP_STATE_APPENDED) {
+		/* waiting for all clients to finish SELECTing */
+		i_assert(ctx->test->startup_state == TEST_STARTUP_STATE_SELECTED);
+		if (--ctx->clients_waiting == 0) {
+			ctx->startup_state++;
 			test_send_first_command(ctx);
+		} else if (client == ctx->clients[0])
+			wakeup_clients(ctx);
+	} else if (client->state != STATE_APPEND) {
+		/* continue to next command */
+		ctx->startup_state++;
 	}
 }
 
@@ -698,13 +731,17 @@ static int test_send_lstate_commands(struct client *client)
 
 	if (ctx->failed)
 		return -1;
-	if (client->login_state == ctx->test->login_state) {
+	if (ctx->startup_state == ctx->test->startup_state &&
+	    (client->login_state != LSTATE_NONAUTH ||
+	     ctx->test->startup_state == TEST_STARTUP_STATE_NONAUTH)) {
 		/* we're in the wanted state. selected state handling is
 		   done in init_callback to make sure that all commands have
 		   been finished before starting the test. */
-		if (client->login_state != LSTATE_SELECTED) {
+		if (ctx->test->startup_state != TEST_STARTUP_STATE_SELECTED) {
 			if (--ctx->clients_waiting == 0)
 				test_send_first_command(ctx);
+			else if (client == ctx->clients[0])
+				wakeup_clients(ctx);
 		}
 		return 0;
 	}
@@ -716,36 +753,33 @@ static int test_send_lstate_commands(struct client *client)
 		client->plan_size = 1;
 		if (client_plan_send_next_cmd(client) < 0)
 			return -1;
+		ctx->startup_state = TEST_STARTUP_STATE_AUTH;
 		break;
 	case LSTATE_AUTH:
-		if (ctx->selected) {
-			i_assert(client != ctx->clients[0]);
-			break;
-		}
-
 		/* the first client will delete and recreate the mailbox */
-		if (client != ctx->clients[0]) {
+		if (client != ctx->clients[0] &&
+		    ctx->startup_state != TEST_STARTUP_STATE_APPENDED) {
 			/* wait until the mailbox is created */
 			client->state = STATE_NOOP;
 			break;
 		}
 
-		switch (ctx->mailbox_state) {
-		case TEST_MAILBOX_STATE_DELETE:
+		switch (ctx->startup_state) {
+		case TEST_STARTUP_STATE_AUTH:
+			if (ctx->delete_refcount > 0)
+				return 0;
 			client->state = STATE_MDELETE;
-			str = t_strdup_printf("DELETE \"%s\"",
+			str = t_strdup_printf("LIST \"\" \"%s*\"",
 					      client->view->storage->name);
-			ctx->mailbox_state++;
 			command_send(client, str, init_callback);
 			break;
-		case TEST_MAILBOX_STATE_CREATE:
+		case TEST_STARTUP_STATE_DELETED:
 			client->state = STATE_MCREATE;
 			str = t_strdup_printf("CREATE \"%s\"",
 					      client->view->storage->name);
-			ctx->mailbox_state++;
 			command_send(client, str, init_callback);
 			break;
-		case TEST_MAILBOX_STATE_APPEND:
+		case TEST_STARTUP_STATE_CREATED:
 			if (!mailbox_source_eof(ctx->source)) {
 				client->state = STATE_APPEND;
 				if (client_append_full(client, NULL, NULL, NULL,
@@ -753,23 +787,23 @@ static int test_send_lstate_commands(struct client *client)
 					return -1;
 				break;
 			}
-			/* finished. select the mailbox so we have the
-			   messages recent. */
-			ctx->mailbox_state++;
+			/* finished appending */
+			ctx->startup_state++;
+			return test_send_lstate_commands(client);
+		case TEST_STARTUP_STATE_APPENDED:
+			str = t_strdup_printf("SELECT \"%s\"",
+					      client->view->storage->name);
+			client->state = STATE_SELECT;
+			command_send(client, str, init_callback);
 			break;
-		case TEST_MAILBOX_STATE_DONE:
+		case TEST_STARTUP_STATE_NONAUTH:
+		case TEST_STARTUP_STATE_SELECTED:
 			i_unreached();
 		}
 		break;
 	case LSTATE_SELECTED:
-		i_unreached();
-	}
-	if (ctx->mailbox_state == TEST_MAILBOX_STATE_DONE) {
-		i_assert(client->login_state == LSTATE_AUTH);
-		str = t_strdup_printf("SELECT \"%s\"",
-				      client->view->storage->name);
-		client->state = STATE_SELECT;
-		command_send(client, str, init_callback);
+		/* waiting for everyone to finish SELECTing */
+		break;
 	}
 	return 0;
 }
@@ -794,6 +828,7 @@ static int test_execute(const struct test *test,
 				     (hash_cmp_callback_t *)strcmp);
 	p_array_init(&ctx->added_variables, pool, 32);
 	i_array_init(&ctx->cur_seqmap, 128);
+	p_array_init(&ctx->delete_mailboxes, pool, 16);
 
 	/* create clients for the test */
 	ctx->clients = p_new(pool, struct client *, test->connection_count);
@@ -808,6 +843,7 @@ static int test_execute(const struct test *test,
 		ctx->clients[i]->send_more_commands = test_send_lstate_commands;
 		ctx->clients[i]->test_exec_ctx = ctx;
 	}
+	ctx->startup_state = TEST_STARTUP_STATE_NONAUTH;
 	ctx->clients_waiting = test->connection_count;
 
 	hash_insert(ctx->variables, "mailbox",

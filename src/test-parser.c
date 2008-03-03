@@ -50,11 +50,15 @@ test_parse_header_line(struct test_parser *parser, struct test *test,
 	}
 	if (strcmp(key, "state") == 0) {
 		if (strcasecmp(value, "nonauth") == 0)
-			test->login_state = LSTATE_NONAUTH;
+			test->startup_state = TEST_STARTUP_STATE_NONAUTH;
 		else if (strcasecmp(value, "auth") == 0)
-			test->login_state = LSTATE_AUTH;
+			test->startup_state = TEST_STARTUP_STATE_DELETED;
+		else if (strcasecmp(value, "created") == 0)
+			test->startup_state = TEST_STARTUP_STATE_CREATED;
+		else if (strcasecmp(value, "appended") == 0)
+			test->startup_state = TEST_STARTUP_STATE_APPENDED;
 		else if (strcasecmp(value, "selected") == 0)
-			test->login_state = LSTATE_SELECTED;
+			test->startup_state = TEST_STARTUP_STATE_SELECTED;
 		else {
 			*error_r = "Unknown state value";
 			return FALSE;
@@ -498,7 +502,7 @@ test_parser_read_test(struct test_parser *parser, const char *fname,
 	int fd, ret = 0;
 
 	test = p_new(parser->pool, struct test, 1);
-	test->login_state = LSTATE_SELECTED;
+	test->startup_state = TEST_STARTUP_STATE_SELECTED;
 	test->connection_count = 1;
 	p_array_init(&test->commands, parser->pool, 32);
 

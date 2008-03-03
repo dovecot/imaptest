@@ -3,6 +3,17 @@
 
 #include "client-state.h"
 
+enum test_startup_state {
+	TEST_STARTUP_STATE_NONAUTH,
+	/* auth is currently only an internal state. we make sure to delete all
+	   mailboxes after auth. */
+	TEST_STARTUP_STATE_AUTH,
+	TEST_STARTUP_STATE_DELETED,
+	TEST_STARTUP_STATE_CREATED,
+	TEST_STARTUP_STATE_APPENDED,
+	TEST_STARTUP_STATE_SELECTED
+};
+
 struct test_untagged {
 	const struct imap_arg *args;
 
@@ -33,8 +44,8 @@ struct test {
 	const char *const *required_capabilities;
 	/* Number of connections to use */
 	unsigned int connection_count;
-	/* Login state in which this command is run */
-	enum login_state login_state;
+	/* Startup state in which this test is run */
+	enum test_startup_state startup_state;
 
 	/* List of commands to run for this test */
 	ARRAY_DEFINE(commands, struct test_command *);
