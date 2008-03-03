@@ -228,11 +228,12 @@ static void test_add_default_directives(struct list_directives_context *ctx,
 	if (ctx->parent == NULL)
 		return;
 
-	if (strcmp(ctx->reply_name, "list") == 0) {
+	if (strcmp(ctx->reply_name, "list") == 0 ||
+	    strcmp(ctx->reply_name, "lsub") == 0) {
 		if (ctx->parent->parent == NULL &&
 		    ctx->parent->parent_chain_idx == 0 &&
 		    ctx->parent_chain_idx == 1) {
-			/* list (flags) sep mailbox */
+			/* list|lsub (flags) sep mailbox */
 			args_directive(ctx, args_arr, "$!unordered");
 		}
 	} else if (strcmp(ctx->reply_name, "status") == 0) {
@@ -603,7 +604,7 @@ struct test_parser *test_parser_init(const char *dir)
 	struct test_parser *parser;
 	pool_t pool;
 
-	pool = pool_alloconly_create("test parser", 1024*32);
+	pool = pool_alloconly_create("test parser", 1024*256);
 	parser = p_new(pool, struct test_parser, 1);
 	parser->pool = pool;
 	parser->dir = p_strdup(pool, dir);
