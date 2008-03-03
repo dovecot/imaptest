@@ -1,7 +1,5 @@
-state: auth
+state: created
 
-"" delete $mailbox
-ok create $mailbox
 ok append
 ok append
 

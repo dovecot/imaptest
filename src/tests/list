@@ -1,16 +1,9 @@
-state: auth
 connections: 3
+state: auth
 
 # get the separator
 1 ok list "" ""
 * list (\noselect) $sep ""
-
-1 "" delete $mailbox
-1 "" delete $mailbox${sep}test
-1 "" delete $mailbox${sep}test2
-1 "" delete $mailbox${sep}test3${sep}test4${sep}test5
-1 "" delete $mailbox${sep}test3${sep}test4
-1 "" delete $mailbox${sep}test3
 
 1 ok create $mailbox${sep}test
 2 ok list "" $mailbox${sep}%

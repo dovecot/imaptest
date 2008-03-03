@@ -1,22 +1,20 @@
 connections: 2
+state: auth
 
 # get the separator
 1 ok list "" ""
 * list (\noselect) $sep ""
 
-1 "" delete $mailbox${sep}test3${sep}test3
-1 "" delete $mailbox${sep}test2${sep}test
-1 "" delete $mailbox${sep}test
-1 "" delete $mailbox${sep}test2
 1 "" unsubscribe $mailbox${sep}test
 1 "" unsubscribe $mailbox${sep}test2
 1 "" unsubscribe $mailbox${sep}test2${sep}test
 1 "" unsubscribe $mailbox${sep}test3${sep}test3
 
 1 ok create $mailbox${sep}test
-1 ok create $mailbox${sep}test2
 1 ok create $mailbox${sep}test2${sep}test
 1 ok create $mailbox${sep}test3${sep}test3
+# create the test2 mailbox only if server supports inferior mailboxes
+1 "" create $mailbox${sep}test2
 
 1 ok subscribe $mailbox${sep}test
 1 ok subscribe $mailbox${sep}test2${sep}test

@@ -1,8 +1,6 @@
 connections: 3
-state: auth
+state: created
 
-1 "" delete $mailbox
-1 ok create $mailbox
 1 ok select $mailbox
 2 ok select $mailbox
 
