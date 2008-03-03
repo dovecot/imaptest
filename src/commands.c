@@ -18,7 +18,8 @@ struct command *command_send(struct client *client, const char *cmdline,
 	i_assert(!client->append_unfinished);
 
 	cmd = i_new(struct command, 1);
-	cmd->cmdline = i_strdup(cmdline);
+	cmd->cmdline = i_malloc(strlen(cmdline) + 2);
+	strcpy(cmd->cmdline, cmdline);
 	cmd->state = client->state;
 	cmd->tag = tag;
 	cmd->callback = callback;
@@ -32,7 +33,15 @@ struct command *command_send(struct client *client, const char *cmdline,
 			/* @UNSAFE: using literal+ without server support,
 			   change it to a normal literal */
 			memmove(p-2, p-1, strlen(p) + 2);
+		} else if ((client->capabilities & CAP_LITERALPLUS) != 0 &&
+			   p[-2] != '+') {
+			/* FIXME: @UNSAFE: for now we always convert to
+			   literal+ */
+			memmove(p, p-1, strlen(p) + 2);
+			p[-1] = '+';
+			p++;
 		}
+
 		if (p[-2] != '+') {
 			i_fatal("FIXME: Add support for sync literals");
 		}
