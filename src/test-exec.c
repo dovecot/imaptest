@@ -778,7 +778,8 @@ static int test_send_lstate_commands(struct client *client)
 		client->plan_size = 1;
 		if (client_plan_send_next_cmd(client) < 0)
 			return -1;
-		ctx->startup_state = TEST_STARTUP_STATE_AUTH;
+		if (client == ctx->clients[0])
+			ctx->startup_state = TEST_STARTUP_STATE_AUTH;
 		break;
 	case LSTATE_AUTH:
 		/* the first client will delete and recreate the mailbox */
