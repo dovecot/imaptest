@@ -16,9 +16,9 @@ state: created
 3 ok status $mailbox (messages unseen recent)
 * status $mailbox (messages 1 unseen 0 recent 0)
 1 ok fetch 1 (uid flags)
-* 1 fetch (uid $uid1 flags ($!unordered \seen \flagged))
+* 1 fetch (uid $uid1 flags (\seen \flagged))
 2 ok fetch 1 (uid flags)
-* 1 fetch (uid $uid1 flags ($!unordered \seen \flagged))
+* 1 fetch (uid $uid1 flags (\seen \flagged))
 
 2 ok append
 * 2 exists

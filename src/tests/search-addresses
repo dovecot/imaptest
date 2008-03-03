@@ -1,0 +1,70 @@
+
+# full address searching
+ok search from user-from@domain.org
+* search 1 2 3 4
+ok search to user-to@domain.org
+* search 1 2 3 4
+ok search cc user-cc@domain.org
+* search 1 2 3 4 5
+ok search bcc user-bcc@domain.org
+* search 1 2 3 4
+
+# realname searching
+ok search from userfrom
+* search 3 4
+ok search to userto
+* search 3 4
+ok search cc usercc
+* search 3 4
+ok search bcc userbcc
+* search 3 4
+
+# existence searches
+ok search from ""
+* search 1 2 3 4 5
+ok search to ""
+* search 1 2 3 4 6
+ok search cc ""
+* search 1 2 3 4 5
+ok search bcc ""
+* search 1 2 3 4
+
+# substring address searches
+ok search from ser-fro
+* search 1 2 3 4 5
+ok search to ser-t
+* search 1 2 3 4
+ok search cc ser-c
+* search 1 2 3 4 5
+ok search bcc ser-bc
+* search 1 2 3 4
+
+# substring realname searches
+ok search from serfro
+* search 3 4
+ok search to sert
+* search 3 4
+ok search cc serc
+* search 3 4
+ok search bcc serbc
+* search 3 4
+
+# multiple addresses
+ok search from user-from1
+* search 5
+ok search from user-from2
+* search 5
+
+# groups
+ok search to groupname
+* search 6
+ok search to groupname2
+* search 6
+ok search to groupuser1
+* search 6
+ok search to groupuser2
+* search 6
+ok search to groupuser3
+* search 6
+ok search to groupuser4
+* search

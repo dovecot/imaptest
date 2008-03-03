@@ -63,3 +63,13 @@ ok search 8:* since 29-oct-2007
 * search 16
 ok search 8:* since 30-oct-2007
 * search
+
+# 3) Try a couple of NOTs
+ok search 1:7 not before 26-mar-2007
+* search 7
+ok search 1:7 not on 25-mar-2007
+* search 1 7
+ok search 8:* not since 28-oct-2007
+* search 8
+ok search 8:* not on 28-oct-2007
+* search 8 16

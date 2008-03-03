@@ -23,3 +23,10 @@ connections: 2
 2 ok uid store $uid4 flags \seen
 * $2 fetch (uid $uid4 flags (\seen))
 2 ok noop
+
+# Make sure CHECK works just as well as NOOP
+1 ok store 1 +flags \deleted
+1 ok expunge
+* 1 expunge
+2 ok check
+* 1 expunge

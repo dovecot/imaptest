@@ -67,5 +67,9 @@ state: auth
 2 ok list "" $mailbox${sep}%t*4
 * list (\noselect) $sep $mailbox${sep}test3${sep}test4
 
+2 ok delete $mailbox${sep}test2
+1 ok list "" $mailbox${sep}*
+! list () $sep $mailbox${sep}test2
+
 1 ok list "" inbox
 * list () $inboxsep inbox

@@ -7,6 +7,8 @@ state: created
 1 ok append
 1 ok append
 1 ok append
+# make sure the server sees the appended messages
+1 ok check
 
 2 "" delete ${mailbox}2
 2 ok create ${mailbox}2

@@ -22,7 +22,6 @@ state: auth
 
 2 ok lsub "" $mailbox${sep}%
 * lsub () $sep $mailbox${sep}test
-! lsub () $sep $mailbox${sep}test2
 * lsub (\noselect) $sep $mailbox${sep}test2
 * lsub (\noselect) $sep $mailbox${sep}test3
 ! lsub (\noselect) $sep $mailbox${sep}test2${sep}test

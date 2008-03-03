@@ -1,0 +1,44 @@
+From user@domain  Fri Feb 22 17:06:23 2008
+From: user-from@domain.org
+To: user-to@domain.org
+Cc: user-cc@domain.org
+Bcc: user-bcc@domain.org
+
+body
+
+From user@domain  Fri Feb 22 17:06:23 2008
+From: <user-from (comment)@ (comment) domain.org> (UserFrom)
+To: <user-to@domain.org>
+Cc: <user-cc@domain.org>
+Bcc: <user-bcc@domain.org>
+
+body2
+
+From user@domain  Fri Feb 22 17:06:23 2008
+From: UserFrom <user-from@domain.org>
+To: UserTo <user-to@domain.org>
+Cc: UserCc <user-cc@domain.org>
+Bcc: UserBcc <user-bcc@domain.org>
+
+body3
+
+From user@domain  Fri Feb 22 17:06:23 2008
+From: user-from@domain.org (UserFrom)
+To: user-to@domain.org (UserTo)
+Cc: user-cc@domain.org (UserCc)
+Bcc: user-bcc@domain.org (UserBcc)
+
+body4
+
+From user@domain  Fri Feb 22 17:06:23 2008
+From: user-from1@domain.org, user-from2@domain.org
+Cc: user-cc@domain.org
+
+body5
+
+From user@domain  Fri Feb 22 17:06:23 2008
+To: groupname: groupuser1@domain.org, groupuser2@domain.org;,
+  groupname2: groupuser3@domain.org;
+
+body5
+
