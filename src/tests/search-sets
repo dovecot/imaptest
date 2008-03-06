@@ -45,3 +45,10 @@ ok search *:3
 * search 3 4 5
 ok search 1,4,*
 * search 1 4 5
+
+ok search (3) uid $uid4
+* search 3
+ok search (uid $uid4) 3
+* search 3
+ok search 3 (uid $uid4)
+* search 3
