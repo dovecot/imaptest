@@ -1,0 +1,4 @@
+capabilities: THREAD=REFERENCES
+
+ok thread references us-ascii all
+* thread (1)(2)
