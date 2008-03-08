@@ -56,7 +56,6 @@ struct search_context {
 	struct client *client;
 	struct search_node root;
 
-	unsigned int build_msg_idx;
 	ARRAY_TYPE(seq_range) result;
 };
 
@@ -285,14 +284,13 @@ search_command_build(struct search_context *ctx, struct search_node *parent,
 	pool_t pool = client->search_ctx->pool;
 	struct message_metadata_static *const *ms, *m1 = NULL, *m2 = NULL;
 	struct search_node *node;
-	unsigned int i, msgs, ms_count;
+	unsigned int i, n, randstart, msgs, ms_count;
 
 	if ((rand() % 100) >= probability)
 		return NULL;
 
 	ms = array_get(&client->view->storage->static_metadata, &ms_count);
-	if (ctx->build_msg_idx >= ms_count)
-		ctx->build_msg_idx = 0;
+	randstart = ms_count == 0 ? 0 : rand() % ms_count;
 
 	node = p_new(pool, struct search_node, 1);
 again:
@@ -331,7 +329,8 @@ again:
 	case SEARCH_SMALLER:
 	case SEARCH_LARGER:
 		/* find two messages with known sizes and use their average */
-		for (i = ctx->build_msg_idx; i < ms_count; i++) {
+		for (n = 0; n < ms_count; n++) {
+			i = (randstart + n) % ms_count;
 			if (ms[i]->msg != NULL && ms[i]->msg->full_size != 0) {
 				if (m1 == NULL)
 					m1 = ms[i];
@@ -353,7 +352,8 @@ again:
 	case SEARCH_SINCE:
 		/* find two messages with known internalsizes and use their
 		   average */
-		for (i = ctx->build_msg_idx; i < ms_count; i++) {
+		for (n = 0; n < ms_count; n++) {
+			i = (randstart + n) % ms_count;
 			if (ms[i]->internaldate != 0) {
 				if (m1 == NULL)
 					m1 = ms[i];
@@ -377,7 +377,8 @@ again:
 		int tz;
 
 		/* find two messages with known dates and use their average */
-		for (i = ctx->build_msg_idx; i < ms_count; i++) {
+		for (n = 0; n < ms_count; n++) {
+			i = (randstart + n) % ms_count;
 			if (ms[i]->msg != NULL &&
 			    mailbox_global_get_sent_date(ms[i]->msg, &t, &tz) &&
 			    t != 0 && t != (time_t)-1) {
@@ -403,7 +404,8 @@ again:
 		unsigned int len, count, start;
 
 		/* find a random subject */
-		for (i = ctx->build_msg_idx; i < ms_count; i++) {
+		for (n = 0; n < ms_count; n++) {
+			i = (randstart + n) % ms_count;
 			if (ms[i]->msg != NULL &&
 			    mailbox_global_get_subject_utf8(source, ms[i]->msg,
 							    &str) &&
