@@ -309,7 +309,7 @@ static bool node_children_has_conflict(struct search_node *parent,
 	return FALSE;
 }
 
-static struct search_node *
+static bool
 search_command_build(struct search_context *ctx, struct search_node *parent,
 		     int probability)
 {
@@ -320,7 +320,7 @@ search_command_build(struct search_context *ctx, struct search_node *parent,
 	unsigned int i, n, randstart, msgs, ms_count;
 
 	if ((rand() % 100) >= probability)
-		return NULL;
+		return FALSE;
 
 	ms = array_get(&client->view->storage->static_metadata, &ms_count);
 	randstart = ms_count == 0 ? 0 : rand() % ms_count;
@@ -332,6 +332,7 @@ again:
 		/* can't add this type, try again */
 		goto again;
 	}
+
 	switch (node->type) {
 	case SEARCH_SUB:
 		if (parent->type == SEARCH_SUB)
@@ -340,9 +341,7 @@ again:
 		if (parent->type == SEARCH_OR && node->type == SEARCH_OR)
 			goto again;
 		probability -= I_MAX(probability/30, 1);
-		node->first_child =
-			search_command_build(ctx, node, probability);
-		if (node->first_child == NULL)
+		if (!search_command_build(ctx, node, probability))
 			goto again;
 		if (node->first_child->next_sibling == NULL) {
 			/* just a single child - replace the sub node by it */
@@ -502,9 +501,12 @@ again:
 		i_unreached();
 	}
 
+	if (parent->first_child != NULL)
+		node->next_sibling = parent->first_child;
+	parent->first_child = node;
+
 	probability /= 2;
-	node->next_sibling = search_command_build(ctx, parent, probability);
-	return node;
+	return search_command_build(ctx, parent, probability);
 }
 
 static bool str_need_escaping(const char *str)
@@ -612,9 +614,8 @@ void search_command_send(struct client *client)
 	client->search_ctx->pool = pool;
 	client->search_ctx->client = client;
 	client->search_ctx->root.type = SEARCH_SUB;
-	client->search_ctx->root.first_child =
-		search_command_build(client->search_ctx,
-				     &client->search_ctx->root, 100);
+	search_command_build(client->search_ctx,
+			     &client->search_ctx->root, 100);
 
 	cmd = t_str_new(256);
 	str_append(cmd, "SEARCH ");
