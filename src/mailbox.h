@@ -23,6 +23,9 @@ struct message_global {
 	int sent_date_tz;
 
 	ARRAY_TYPE(message_header) headers;
+#define MSG_MAX_BODY_WORDS 16
+	/* some random words from message body */
+	ARRAY_DEFINE(body_words, const char *);
 };
 
 struct message_metadata_static {

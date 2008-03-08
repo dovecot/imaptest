@@ -426,6 +426,46 @@ fetch_parse_header_fields(struct client *client, const struct imap_arg *args,
 	return 0;
 }
 
+static void fetch_parse_body1(struct client *client, const struct imap_arg *arg,
+			      struct message_metadata_static *ms)
+{
+	pool_t pool = client->view->storage->source->messages_pool;
+	const char *body;
+	unsigned int i, start, len;
+
+	if (array_is_created(&ms->msg->body_words)) {
+		if (array_count(&ms->msg->body_words) >= MSG_MAX_BODY_WORDS)
+			return;
+	} else {
+		p_array_init(&ms->msg->body_words, pool, MSG_MAX_BODY_WORDS);
+	}
+	if (!IMAP_ARG_TYPE_IS_STRING(arg->type))
+		return;
+	body = IMAP_ARG_STR(arg);
+	len = strlen(body);
+
+	if (len > 0) {
+		start = rand() % len;
+		len = rand() % (len - start) + 1;
+		if (len > 20)
+			len = 20;
+		/* make sure there are no non-ascii characters, since we don't
+		   currently convert them to utf-8. also don't allow control
+		   chars. */
+		for (i = 0; i < len; i++) {
+			if (body[start+i] < 32 ||
+			    (unsigned char)body[start+i] >= 0x80) {
+				len = i;
+				break;
+			}
+		}
+		if (len > 0) {
+			body = p_strndup(pool, body + start, len);
+			array_append(&ms->msg->body_words, &body, 1);
+		}
+	}
+}
+
 void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 				const struct imap_arg *args)
 {
@@ -586,8 +626,11 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 				sizep = &metadata->ms->msg->header_size;
 			else if (strcmp(name + 5, "TEXT]") == 0)
 				sizep = &metadata->ms->msg->body_size;
-			else if (strcmp(name + 5, "1]") == 0)
+			else if (strcmp(name + 5, "1]") == 0) {
+				fetch_parse_body1(client, &args[i+1],
+						  metadata->ms);
 				sizep = &metadata->ms->msg->mime1_size;
+			}
 		}
 
 		if (p != NULL && (*p == NULL || strcasecmp(*p, value) != 0)) {

@@ -36,8 +36,27 @@ enum search_arg_type {
 
 	/* string */
 	SEARCH_SUBJECT,
+	SEARCH_TEXT,
+	SEARCH_BODY,
 
 	SEARCH_TYPE_COUNT
+};
+
+static const char *imap_cmd_names[SEARCH_TYPE_COUNT] = {
+	"",
+	"",
+	"",
+	"SMALLER",
+	"LARGER",
+	"BEFORE",
+	"ON",
+	"SINCE",
+	"SENTBEFORE",
+	"SENTON",
+	"SENTSINCE",
+	"SUBJECT",
+	"TEXT",
+	"BODY"
 };
 
 struct search_node {
@@ -63,7 +82,8 @@ static int
 search_node_verify_msg(struct client *client, struct search_node *node,
 		       const struct message_metadata_static *ms)
 {
-	const char *str;
+	const char *str, *const *words;
+	unsigned int i, count;
 	time_t t;
 	int tz;
 
@@ -127,6 +147,19 @@ search_node_verify_msg(struct client *client, struct search_node *node,
 			return 0;
 		}
 		return strstr(str, node->str) != NULL;
+
+	case SEARCH_BODY:
+	case SEARCH_TEXT:
+		if (ms->msg == NULL || !array_is_created(&ms->msg->body_words))
+			break;
+
+		words = array_get(&ms->msg->body_words, &count);
+		for (i = 0; i < count; i++) {
+			if (strstr(words[i], node->str) != NULL)
+				return 1;
+		}
+		/* we can't be sure that it doesn't exist */
+		break;
 
 	case SEARCH_OR:
 	case SEARCH_SUB:
@@ -434,6 +467,37 @@ again:
 		node->str = p_strdup(pool, str);
 		break;
 	}
+	case SEARCH_TEXT:
+	case SEARCH_BODY: {
+		const char *str = NULL, *const *words;
+		unsigned int len, count, start;
+
+		/* find a random subject */
+		for (n = 0; n < ms_count; n++) {
+			i = (randstart + n) % ms_count;
+			if (ms[i]->msg != NULL &&
+			    array_is_created(&ms[i]->msg->body_words)) {
+				words = array_get(&ms[i]->msg->body_words,
+						  &count);
+				if (count > 0) {
+					str = words[rand() % count];
+					break;
+				}
+			}
+		}
+		if (str == NULL)
+			goto again;
+
+		/* get a random substring from the word */
+		len = strlen(str);
+		if (len > 1) {
+			start = rand() % (len - 1);
+			len = rand() % (len - 1 - start) + 1;
+			str = t_strndup(str + start, len);
+		}
+		node->str = p_strdup(pool, str);
+		break;
+	}
 	case SEARCH_TYPE_COUNT:
 		i_unreached();
 	}
@@ -458,6 +522,7 @@ static void search_command_append(string_t *cmd, const struct search_node *node)
 	const struct search_node *left, *right;
 	unsigned int len;
 
+	str_append(cmd, imap_cmd_names[node->type]);
 	switch (node->type) {
 	case SEARCH_OR:
 		i_assert(node->first_child != NULL);
@@ -503,10 +568,10 @@ static void search_command_append(string_t *cmd, const struct search_node *node)
 		break;
 	}
 	case SEARCH_SMALLER:
-		str_printfa(cmd, "SMALLER %"PRIuUOFF_T, node->size);
+		str_printfa(cmd, " %"PRIuUOFF_T, node->size);
 		break;
 	case SEARCH_LARGER:
-		str_printfa(cmd, "LARGER %"PRIuUOFF_T, node->size);
+		str_printfa(cmd, " %"PRIuUOFF_T, node->size);
 		break;
 	case SEARCH_BEFORE:
 	case SEARCH_ON:
@@ -514,28 +579,6 @@ static void search_command_append(string_t *cmd, const struct search_node *node)
 	case SEARCH_SENTBEFORE:
 	case SEARCH_SENTON:
 	case SEARCH_SENTSINCE:
-		switch (node->type) {
-		case SEARCH_BEFORE:
-			str_append(cmd, "BEFORE");
-			break;
-		case SEARCH_ON:
-			str_append(cmd, "ON");
-			break;
-		case SEARCH_SINCE:
-			str_append(cmd, "SINCE");
-			break;
-		case SEARCH_SENTBEFORE:
-			str_append(cmd, "SENTBEFORE");
-			break;
-		case SEARCH_SENTON:
-			str_append(cmd, "SENTON");
-			break;
-		case SEARCH_SENTSINCE:
-			str_append(cmd, "SENTSINCE");
-			break;
-		default:
-			i_unreached();
-		}
 		str_append_c(cmd, ' ');
 		len = str_len(cmd);
 		str_append(cmd, imap_to_datetime(node->date));
@@ -543,10 +586,12 @@ static void search_command_append(string_t *cmd, const struct search_node *node)
 		str_truncate(cmd, len + 11);
 		break;
 	case SEARCH_SUBJECT:
+	case SEARCH_TEXT:
+	case SEARCH_BODY:
 		if (!str_need_escaping(node->str))
-			str_printfa(cmd, "SUBJECT \"%s\"", node->str);
+			str_printfa(cmd, " \"%s\"", node->str);
 		else {
-			str_printfa(cmd, "SUBJECT {%u+}\r\n%s",
+			str_printfa(cmd, " {%u+}\r\n%s",
 				    (unsigned int)strlen(node->str), node->str);
 		}
 		break;
