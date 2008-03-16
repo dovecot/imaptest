@@ -463,8 +463,11 @@ seq_range_flags_ref(struct client *client,
 			if (update_dirty)
 				metadata_update_dirty(metadata, diff < 0);
 			if (diff < 0) {
-				i_assert(metadata->fetch_refcount > 0);
-				metadata->fetch_refcount--;
+				/* if fetch_refcount=0 the message got expunged
+				   before tagged FETCH reply. we already
+				   complained about it. */
+				if (metadata->fetch_refcount > 0)
+					metadata->fetch_refcount--;
 			} else {
 				metadata->fetch_refcount++;
 			}
