@@ -128,6 +128,8 @@ struct mailbox_view {
 	unsigned int recent_count;
 	unsigned int select_uidnext; /* UIDNEXT received on SELECT */
 
+	char *last_thread_reply;
+
 	/* all keywords used currently in a mailbox */
 	ARRAY_DEFINE(keywords, struct mailbox_keyword);
 

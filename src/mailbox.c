@@ -459,6 +459,7 @@ void mailbox_view_free(struct mailbox_view **_mailbox)
 	array_free(&view->keywords);
 
 	array_free(&view->uidmap);
+	i_free(view->last_thread_reply);
 	i_free(view);
 }
 

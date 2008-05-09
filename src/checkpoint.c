@@ -14,6 +14,7 @@
 struct mailbox_checkpoint_context {
 	unsigned int clients_left;
 	unsigned int check_sent:1;
+	unsigned int thread_sent:1;
 };
 
 struct checkpoint_context {
@@ -23,6 +24,8 @@ struct checkpoint_context {
 	uint32_t *uids;
 	unsigned int *flag_counts;
 	unsigned int count;
+
+	const char *thread_reply;
 
 	unsigned int first:1;
 	unsigned int errors:1;
@@ -92,6 +95,22 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 		i_error("Checkpoint: client %u: "
 			"Mailbox has only %u of %u messages",
 			client->global_id, count, ctx->count);
+	}
+
+	if (!view->storage->checkpoint->thread_sent) {
+		/* no THREAD checking */
+	} else if (client->view->last_thread_reply == NULL) {
+		ctx->errors = TRUE;
+		i_error("Checkpoint: client %u: Missing THREAD reply",
+			client->global_id);
+	} else if (ctx->thread_reply == NULL)
+		ctx->thread_reply = client->view->last_thread_reply;
+	else if (strcmp(client->view->last_thread_reply,
+			ctx->thread_reply) != 0) {
+		ctx->errors = TRUE;
+		i_error("Checkpoint: client %u: THREAD reply differs: %s != %s",
+			client->global_id, client->view->last_thread_reply,
+			ctx->thread_reply);
 	}
 
 	msgs = array_get(&view->messages, &count);
@@ -189,6 +208,25 @@ static void checkpoint_check_missing_recent(struct checkpoint_context *ctx,
 	}
 }
 
+static void checkpoint_send_state_cmd(struct mailbox_storage *storage,
+				      enum client_state state)
+{
+	struct client *const *c;
+	unsigned int i, count;
+
+	c = array_get(&clients, &count);
+	for (i = 0; i < count; i++) {
+		if (c[i] == NULL || c[i]->checkpointing != storage)
+			continue;
+
+		/* send the checkpoint command */
+		c[i]->plan[0] = state;
+		c[i]->plan_size = 1;
+		(void)client_plan_send_next_cmd(c[i]);
+		storage->checkpoint->clients_left++;
+	}
+}
+
 void checkpoint_neg(struct mailbox_storage *storage)
 {
 	struct checkpoint_context ctx;
@@ -207,16 +245,7 @@ void checkpoint_neg(struct mailbox_storage *storage)
 	if (!storage->checkpoint->check_sent) {
 		/* everyone's finally finished their commands. now send CHECK
 		   to make sure everyone sees each others' changes */
-		for (i = 0; i < count; i++) {
-			if (c[i] == NULL || c[i]->checkpointing != storage)
-				continue;
-
-			/* send the checkpoint command */
-			c[i]->plan[0] = STATE_CHECK;
-			c[i]->plan_size = 1;
-			(void)client_plan_send_next_cmd(c[i]);
-			storage->checkpoint->clients_left++;
-		}
+		checkpoint_send_state_cmd(storage, STATE_CHECK);
 		if (storage->checkpoint->clients_left == 0) {
 			/* there are no clients to checkpoint anymore */
 			i_free_and_null(storage->checkpoint);
@@ -224,6 +253,15 @@ void checkpoint_neg(struct mailbox_storage *storage)
 		}
 		storage->checkpoint->check_sent = TRUE;
 		return;
+	}
+	if (!storage->checkpoint->thread_sent &&
+	    states[STATE_THREAD].probability > 0) {
+		/* check that THREAD results are the same */
+		checkpoint_send_state_cmd(storage, STATE_THREAD);
+		storage->checkpoint->thread_sent = TRUE;
+
+		if (storage->checkpoint->clients_left > 0)
+			return;
 	}
 
 	/* get maximum number of messages in mailbox */

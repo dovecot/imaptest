@@ -161,7 +161,11 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 		client_capability_parse(client, imap_args_to_str(args));
 	else if (strcmp(str, "SEARCH") == 0)
 		search_result(client, args);
-	else if (strcmp(str, "OK") == 0) {
+	else if (strcmp(str, "THREAD") == 0) {
+		i_free(view->last_thread_reply);
+		view->last_thread_reply =
+			i_strdup(imap_args_to_str(args + 1));
+	} else if (strcmp(str, "OK") == 0) {
 		if (args->type != IMAP_ARG_ATOM)
 			return -1;
 		str = t_str_ucase(IMAP_ARG_STR(args));
