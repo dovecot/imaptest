@@ -48,7 +48,7 @@ struct test_exec_context {
 	unsigned int clients_waiting, disconnects_waiting;
 	unsigned int appends_left;
 
-	ARRAY_DEFINE(delete_mailboxes, const char *);
+	ARRAY_TYPE(const_string) delete_mailboxes, unsubscribe_mailboxes;
 	unsigned int delete_refcount;
 
 	struct hash_table *variables;
@@ -58,10 +58,15 @@ struct test_exec_context {
 	unsigned int failed:1;
 	unsigned int finished:1;
 	unsigned int init_finished:1;
+	unsigned int listing:1;
 };
 
 #define t_imap_quote_str(str) \
 	imap_quote(pool_datastack_create(), (const void *)str, strlen(str))
+
+static void init_callback(struct client *client, struct command *command,
+			  const struct imap_arg *args,
+			  enum command_reply reply);
 
 static void test_execute_free(struct test_exec_context *ctx);
 static void test_execute_finish(struct test_exec_context *ctx);
@@ -537,12 +542,16 @@ test_handle_untagged(struct client *client, const struct imap_arg *args)
 	if (args->type == IMAP_ARG_ATOM &&
 	    args[1].type == IMAP_ARG_LIST &&
 	    IMAP_ARG_TYPE_IS_STRING(args[2].type) &&
-	    IMAP_ARG_TYPE_IS_STRING(args[3].type) &&
-	    strcasecmp(args->_data.str, "list") == 0) {
+	    IMAP_ARG_TYPE_IS_STRING(args[3].type)) {
 		const char *name = IMAP_ARG_STR(&args[3]);
 
-		name = p_strdup(ctx->pool, name);
-		array_append(&ctx->delete_mailboxes, &name, 1);
+		if (strcasecmp(args->_data.str, "list") == 0) {
+			name = p_strdup(ctx->pool, name);
+			array_append(&ctx->delete_mailboxes, &name, 1);
+		} else if (strcasecmp(args->_data.str, "lsub") == 0) {
+			name = p_strdup(ctx->pool, name);
+			array_append(&ctx->unsubscribe_mailboxes, &name, 1);
+		}
 	}
 	return 0;
 }
@@ -705,6 +714,23 @@ static int rev_strcasecmp(const void *p1, const void *p2)
 	return -strcasecmp(*s1, *s2);
 }
 
+static unsigned int
+mailbox_foreach(struct client *client,
+		ARRAY_TYPE(const_string) *mailboxes, const char *cmd)
+{
+	const char **boxes, *str;
+	unsigned int i, count;
+
+	boxes = array_get_modifiable(mailboxes, &count);
+	qsort(boxes, count, sizeof(*boxes), rev_strcasecmp);
+	for (i = 0; i < count; i++) {
+		str = t_strdup_printf("%s %s", cmd, t_imap_quote_str(boxes[i]));
+		command_send(client, str, init_callback);
+	}
+	array_clear(mailboxes);
+	return count;
+}
+
 static void init_callback(struct client *client, struct command *command,
 			  const struct imap_arg *args,
 			  enum command_reply reply)
@@ -730,21 +756,23 @@ static void init_callback(struct client *client, struct command *command,
 			  imap_args_to_str(args));
 		return;
 	}
-	if (client->state == STATE_MDELETE &&
-	    array_count(&ctx->delete_mailboxes) > 0) {
-		const char **boxes, *str;
-		unsigned int i, count;
-
-		boxes = array_get_modifiable(&ctx->delete_mailboxes, &count);
-		qsort(boxes, count, sizeof(*boxes), rev_strcasecmp);
-		for (i = 0; i < count; i++) {
-			str = t_strdup_printf("DELETE %s",
-					      t_imap_quote_str(boxes[i]));
-			command_send(client, str, init_callback);
+	if (ctx->listing) {
+		if (array_count(&client->commands) > 0)
+			return;
+		/* both LSUB and LIST done */
+		ctx->listing = FALSE;
+		if (array_count(&ctx->delete_mailboxes) > 0 ||
+		    array_count(&ctx->unsubscribe_mailboxes) > 0) {
+			ctx->delete_refcount +=
+				mailbox_foreach(client, &ctx->delete_mailboxes,
+						"DELETE");
+			ctx->delete_refcount +=
+				mailbox_foreach(client,
+						&ctx->unsubscribe_mailboxes,
+						"UNSUBSCRIBE");
+			return;
 		}
-		ctx->delete_refcount = count;
-		array_clear(&ctx->delete_mailboxes);
-		return;
+		/* nothing to delete/unsubscribe */
 	} else if (client->state == STATE_MDELETE && ctx->delete_refcount > 0) {
 		if (--ctx->delete_refcount > 0)
 			return;
@@ -768,7 +796,7 @@ static int test_send_lstate_commands(struct client *client)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
 	struct command *cmd;
-	const char *str;
+	const char *str, *mask;
 
 	i_assert(ctx->clients_waiting > 0);
 
@@ -810,13 +838,18 @@ static int test_send_lstate_commands(struct client *client)
 
 		switch (ctx->startup_state) {
 		case TEST_STARTUP_STATE_AUTH:
-			if (ctx->delete_refcount > 0)
+			if (ctx->delete_refcount > 0 || ctx->listing)
 				return 0;
+
+			mask = t_strconcat(client->view->storage->name,
+					   "*", NULL);
+			mask = t_imap_quote_str(mask);
+
+			ctx->listing = TRUE;
 			client->state = STATE_MDELETE;
-			str = t_strconcat(client->view->storage->name,
-					  "*", NULL);
-			str = t_strdup_printf("LIST \"\" %s",
-					      t_imap_quote_str(str));
+			str = t_strdup_printf("LIST \"\" %s", mask);
+			command_send(client, str, init_callback);
+			str = t_strdup_printf("LSUB \"\" %s", mask);
 			command_send(client, str, init_callback);
 			break;
 		case TEST_STARTUP_STATE_DELETED:
@@ -878,6 +911,7 @@ static int test_execute(const struct test *test,
 	p_array_init(&ctx->added_variables, pool, 32);
 	i_array_init(&ctx->cur_seqmap, 128);
 	p_array_init(&ctx->delete_mailboxes, pool, 16);
+	p_array_init(&ctx->unsubscribe_mailboxes, pool, 16);
 	ctx->appends_left = ctx->test->message_count;
 
 	/* create clients for the test */
