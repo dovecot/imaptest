@@ -1,10 +1,11 @@
-state: created
+state: auth
 capabilities: LIST-EXTENDED
 
 # get the separator
 ok list "" ""
 * list () $sep ""
 
+ok create $mailbox${sep}
 ok create $mailbox${sep}test1
 ok create $mailbox${sep}test2${sep}
 ok create $mailbox${sep}test2${sep}test1
@@ -64,19 +65,20 @@ ok list (subscribed recursivematch) "" $mailbox${sep}test2% return (children)
 ! list (\subscribed) $sep $mailbox${sep}test2
 ! list (\subscribed) $sep $mailbox${sep}test2${sep}test1
 
+# don't test for \hasnochildren, because it may be \noinferiors instead
 ok list "" $mailbox${sep}% return (children subscribed)
-* list (\subscribed \hasnochildren) $sep $mailbox${sep}test1
+* list ($!unordered $!ban=\haschildren \subscribed) $sep $mailbox${sep}test1
 * list ($!unordered $!ban=\subscribed \haschildren) $sep $mailbox${sep}test2
-* list ($!unordered $!ban=\subscribed \hasnochildren) $sep $mailbox${sep}test3
+* list ($!unordered $!ban=\subscribed $!ban=\haschildren) $sep $mailbox${sep}test3
 * list ($!unordered $!ban=\subscribed \haschildren) $sep $mailbox${sep}test4
 * list ($!unordered $!ban=\subscribed \haschildren) $sep $mailbox${sep}test7
 * list ($!unordered $!ban=\subscribed \haschildren) $sep $mailbox${sep}test8
 
-ok list (subscribed recursivematch) "" *test7
+ok list (subscribed recursivematch) "" $mailbox*test7
 ! list () $sep $mailbox${sep}test7
 * list (\subscribed) $sep $mailbox${sep}test7${sep}test7
 
-ok list (subscribed recursivematch) "" *test8
+ok list (subscribed recursivematch) "" $mailbox*test8
 * list ($!unordered $!ban=\subscribed) $sep $mailbox${sep}test8 (childinfo ("subscribed"))
 * list (\subscribed) $sep $mailbox${sep}test8${sep}test8
 
