@@ -21,6 +21,7 @@ struct tests_execute_context {
 	const ARRAY_TYPE(test) *tests;
 	unsigned int next_test;
 	unsigned int failures;
+	unsigned int skips;
 };
 
 struct test_maybe_match {
@@ -56,6 +57,7 @@ struct test_exec_context {
 
 	enum test_startup_state startup_state;
 	unsigned int failed:1;
+	unsigned int skipped:1;
 	unsigned int finished:1;
 	unsigned int init_finished:1;
 	unsigned int listing:1;
@@ -828,6 +830,24 @@ capability_callback(struct client *client, struct command *command,
 	client_handle_tagged_resp_text_code(client, command, args, reply);
 }
 
+static bool test_have_all_capabilities(struct client *client)
+{
+	struct test_exec_context *ctx = client->test_exec_ctx;
+	const char *const *req = ctx->test->required_capabilities;
+	char **have = client->capabilities_list;
+	unsigned int i, j;
+
+	for (i = 0; req[i] != NULL; i++) {
+		for (j = 0; have[j] != NULL; j++) {
+			if (strcasecmp(req[i], have[j]) == 0)
+				break;
+		}
+		if (have[j] == NULL)
+			return FALSE;
+	}
+	return TRUE;
+}
+
 static int test_send_lstate_commands(struct client *client)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
@@ -872,15 +892,20 @@ static int test_send_lstate_commands(struct client *client)
 			break;
 		}
 
-		if (!client->postlogin_capability) {
-			command_send(client, "CAPABILITY", capability_callback);
-			return 0;
-		}
 		switch (ctx->startup_state) {
 		case TEST_STARTUP_STATE_AUTH:
 			if (ctx->delete_refcount > 0 || ctx->listing)
 				return 0;
 
+			if (!client->postlogin_capability) {
+				command_send(client, "CAPABILITY",
+					     capability_callback);
+				return 0;
+			} else if (!test_have_all_capabilities(client)) {
+				ctx->skipped = TRUE;
+				test_execute_finish(ctx);
+				return 0;
+			}
 			mask = t_strconcat(client->view->storage->name,
 					   "*", NULL);
 			mask = t_imap_quote_str(mask);
@@ -984,7 +1009,8 @@ static void tests_execute_next(struct tests_execute_context *exec_ctx)
 	if (exec_ctx->next_test != count)
 		test_execute(tests[exec_ctx->next_test++], exec_ctx);
 	else {
-		i_info("%u / %u tests failed", exec_ctx->failures, count);
+		i_info("%u tests: %u failed, %u skipped due to missing capabilities",
+		       count, exec_ctx->failures, exec_ctx->skips);
 		io_loop_stop(current_ioloop);
 	}
 }
@@ -1019,6 +1045,8 @@ static void test_execute_finish(struct test_exec_context *ctx)
 
 	if (ctx->failed)
 		ctx->exec_ctx->failures++;
+	else if (ctx->skipped)
+		ctx->exec_ctx->skips++;
 
 	/* disconnect all clients */
 	for (i = 0; i < ctx->test->connection_count; i++) {
