@@ -266,10 +266,12 @@ test_imap_match_list(struct test_exec_context *ctx,
 	buffer_t *matchbuf;
 	unsigned char *matches;
 	ARRAY_DEFINE(ignores, const char *);
+	ARRAY_DEFINE(bans, const char *);
 	int noextra = -1;
 
 	/* get $! directives */
 	t_array_init(&ignores, 8);
+	t_array_init(&bans, 8);
 	for (; match->type == IMAP_ARG_ATOM; match++) {
 		str = IMAP_ARG_STR(match);
 		if (strncmp(str, "$!", 2) != 0)
@@ -291,6 +293,9 @@ test_imap_match_list(struct test_exec_context *ctx,
 		} else if (strncmp(str, "ignore=", 7) == 0) {
 			str += 7;
 			array_append(&ignores, &str, 1);
+		} else if (strncmp(str, "ban=", 4) == 0) {
+			str += 4;
+			array_append(&bans, &str, 1);
 		} else {
 			/* we should have caught this in parser */
 			i_panic("Unknown directive: %s", str-2);
@@ -352,6 +357,26 @@ test_imap_match_list(struct test_exec_context *ctx,
 					break;
 			}
 			if (j == count)
+				return ret;
+		}
+	} else if (array_count(&bans) > 0) {
+		const char *const *s;
+		unsigned int i, count;
+
+		for (i = 0; i < arg_count; i += chain_count) {
+			if (matches[i] != 0)
+				continue;
+
+			if (!IMAP_ARG_TYPE_IS_STRING(args[i].type))
+				continue;
+
+			/* is it in our ban list? */
+			s = array_get(&bans, &count);
+			for (j = 0; j < count; j++) {
+				if (strcasecmp(s[j], args[i]._data.str) == 0)
+					break;
+			}
+			if (j != count)
 				return ret;
 		}
 	}
