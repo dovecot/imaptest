@@ -837,6 +837,9 @@ static bool test_have_all_capabilities(struct client *client)
 	char **have = client->capabilities_list;
 	unsigned int i, j;
 
+	if (req == NULL)
+		return TRUE;
+
 	for (i = 0; req[i] != NULL; i++) {
 		for (j = 0; have[j] != NULL; j++) {
 			if (strcasecmp(req[i], have[j]) == 0)
