@@ -817,6 +817,17 @@ static void init_callback(struct client *client, struct command *command,
 	}
 }
 
+static void
+capability_callback(struct client *client, struct command *command,
+		    const struct imap_arg *args, enum command_reply reply)
+{
+	struct test_exec_context *ctx = client->test_exec_ctx;
+
+	if (reply != REPLY_OK || !client->postlogin_capability)
+		test_fail(ctx, "CAPABILITY failed");
+	client_handle_tagged_resp_text_code(client, command, args, reply);
+}
+
 static int test_send_lstate_commands(struct client *client)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
@@ -861,6 +872,10 @@ static int test_send_lstate_commands(struct client *client)
 			break;
 		}
 
+		if (!client->postlogin_capability) {
+			command_send(client, "CAPABILITY", capability_callback);
+			return 0;
+		}
 		switch (ctx->startup_state) {
 		case TEST_STARTUP_STATE_AUTH:
 			if (ctx->delete_refcount > 0 || ctx->listing)

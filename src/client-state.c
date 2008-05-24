@@ -630,16 +630,22 @@ void client_handle_tagged_resp_text_code(struct client *client,
 {
 	const char *arg;
 
+	arg = args->type == IMAP_ARG_ATOM ?
+		IMAP_ARG_STR_NONULL(args) : NULL;
 	if (strncasecmp(cmd->cmdline, "select ", 7) == 0) {
-		if (reply != REPLY_OK)
-			return;
+		/* SELECT is a special case, because we want to update
+		   login_state */
+		if (reply == REPLY_OK)
+			client->login_state = LSTATE_SELECTED;
+	}
+	if (arg == NULL)
+		return;
 
-		arg = args->type == IMAP_ARG_ATOM &&
-			args[1].type == IMAP_ARG_ATOM ?
-			IMAP_ARG_STR(&args[1]) : NULL;
-		if (arg != NULL && strcasecmp(arg, "[READ-WRITE]") == 0)
-			client->view->readwrite = TRUE;
-		client->login_state = LSTATE_SELECTED;
+	if (strcasecmp(arg, "[READ-WRITE]") == 0)
+		client->view->readwrite = TRUE;
+	else if (strcasecmp(arg, "[CAPABILITY") == 0) {
+		client_capability_parse(client,
+			t_strcut(imap_args_to_str(args+1), ']'));
 	}
 }
 
@@ -651,11 +657,16 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	unsigned int i;
 
 	line = imap_args_to_str(args);
-	client_handle_tagged_resp_text_code(client, cmd, args, reply);
 	switch (reply) {
 	case REPLY_OK:
 		if (cmd->state != STATE_DISCONNECT)
 			counters[cmd->state]++;
+		if (cmd->state == STATE_AUTHENTICATE ||
+		    cmd->state == STATE_LOGIN) {
+			/* update before handling resp-text, so that
+			   postlogin_capability is set */
+			client->login_state = LSTATE_AUTH;
+		}
 		break;
 	case REPLY_NO:
 		switch (cmd->state) {
@@ -713,11 +724,12 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				   states[cmd->state].name);
 		return -1;
 	}
+	/* call after login_state has been updated */
+	client_handle_tagged_resp_text_code(client, cmd, args, reply);
 
 	switch (cmd->state) {
 	case STATE_AUTHENTICATE:
 	case STATE_LOGIN:
-		client->login_state = LSTATE_AUTH;
 		if (reply != REPLY_OK) {
 			/* authentication failed */
 			return -1;

@@ -91,12 +91,18 @@ static int client_expunge(struct client *client, unsigned int seq)
 	return 0;
 }
 
-static void client_capability_parse(struct client *client, const char *line)
+void client_capability_parse(struct client *client, const char *line)
 {
 	const char *const *tmp;
 	unsigned int i;
 
+	if (client->login_state != LSTATE_NONAUTH)
+		client->postlogin_capability = TRUE;
+
 	client->capabilities = 0;
+	if (client->capabilities_list != NULL)
+		p_strsplit_free(default_pool, client->capabilities_list);
+	client->capabilities_list = p_strsplit(default_pool, line, " ");
 
 	for (tmp = t_strsplit(line, " "); *tmp != NULL; tmp++) {
 		for (i = 0; cap_names[i].name != NULL; i++) {
@@ -595,6 +601,8 @@ bool client_unref(struct client *client, bool reconnect)
 		test_execute_cancel_by_client(client);
 	}
 
+	if (client->capabilities_list != NULL)
+		p_strsplit_free(default_pool, client->capabilities_list);
 	o_stream_unref(&client->output);
 	i_stream_unref(&client->input);
 	i_free(client->username);

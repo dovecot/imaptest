@@ -40,6 +40,7 @@ struct client {
 	enum client_state state;
 	enum login_state login_state;
 	enum imap_capability capabilities;
+	char **capabilities_list;
 
 	/* plan[0] contains always the next state we move to. */
 	enum client_state plan[STATE_COUNT];
@@ -68,6 +69,7 @@ struct client {
 	unsigned int seen_banner:1;
 	unsigned int append_unfinished:1;
 	unsigned int try_create_mailbox:1;
+	unsigned int postlogin_capability:1;
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
 
@@ -82,6 +84,7 @@ void client_disconnect(struct client *client);
 
 void client_delay(struct client *client, unsigned int msecs);
 int client_handle_untagged(struct client *client, const struct imap_arg *args);
+void client_capability_parse(struct client *client, const char *line);
 
 int client_send_more_commands(struct client *client);
 
