@@ -21,6 +21,8 @@ struct command {
 	ARRAY_TYPE(seq_range) seq_range;
 
 	command_callback_t *callback;
+
+	unsigned int expect_bad:1;
 };
 
 struct command *command_send(struct client *client, const char *cmdline,

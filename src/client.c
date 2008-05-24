@@ -260,8 +260,10 @@ client_input_args(struct client *client, const struct imap_arg *args)
 		reply = REPLY_NO;
 	else if (strcasecmp(tag_status, "BAD") == 0) {
 		reply = REPLY_BAD;
-		client_input_error(client, "BAD reply for command: %s",
-				   cmd->cmdline);
+		if (!cmd->expect_bad) {
+			client_input_error(client, "BAD reply for command: %s",
+					   cmd->cmdline);
+		}
 	} else {
 		return client_input_error(client, "Broken tagged reply");
 	}

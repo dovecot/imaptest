@@ -619,6 +619,13 @@ static void test_cmd_callback(struct client *client,
 	test_send_next_command(ctx);
 }
 
+static bool imap_arg_is_bad(const struct imap_arg *arg)
+{
+	if (!IMAP_ARG_TYPE_IS_STRING(arg->type))
+		return FALSE;
+	return strcasecmp(IMAP_ARG_STR_NONULL(arg), "bad") == 0;
+}
+
 static void test_send_next_command(struct test_exec_context *ctx)
 {
 	struct test_command *const *cmdp;
@@ -656,6 +663,8 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	} else {
 		client->state = STATE_SELECT;
 		ctx->cur_cmd = command_send(client, cmdline, test_cmd_callback);
+		if (imap_arg_is_bad((*cmdp)->reply))
+			ctx->cur_cmd->expect_bad = TRUE;
 	}
 }
 
