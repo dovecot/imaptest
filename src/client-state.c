@@ -1023,12 +1023,32 @@ int client_plan_send_next_cmd(struct client *client)
 	case STATE_SEARCH:
 		search_command_send(client);
 		break;
-	case STATE_SORT:
+	case STATE_SORT: {
+		static const char *fields[] = {
+			"ARRIVAL", "CC", "DATE", "FROM", "SIZE", "SUBJECT", "TO"
+		};
+		cmd = t_str_new(512);
+		str_append(cmd, "SORT (");
+		i = rand() % N_ELEMENTS(fields);
+		j = rand() % N_ELEMENTS(fields);
+
+		if (rand() % 3 == 0)
+			str_append(cmd, "REVERSE ");
+		str_append(cmd, fields[i]);
+		if (rand() % 3 == 0 && i != j) {
+			str_append_c(cmd, ' ');
+			if (rand() % 3 == 0)
+				str_append(cmd, "REVERSE ");
+			str_append(cmd, fields[j]);
+		}
+		str_append(cmd, ") US-ASCII ");
 		if ((rand() % 2) == 0)
-			command_send(client, "SORT (SUBJECT) US-ASCII ALL", state_callback);
+			str_append(cmd, "ALL");
 		else
-			command_send(client, "SORT (SUBJECT) US-ASCII FLAGGED", state_callback);
+			str_append(cmd, "FLAGGED");
+		command_send(client, str_c(cmd), state_callback);
 		break;
+	}
 	case STATE_THREAD:
 		command_send(client, "THREAD REFERENCES US-ASCII ALL", state_callback);
 		break;
