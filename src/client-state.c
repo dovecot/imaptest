@@ -326,12 +326,18 @@ static int client_append_more(struct client *client)
 		return 0;
 	}
 
+	/* finished this mail */
+	client->append_started = FALSE;
 	if ((client->capabilities & CAP_MULTIAPPEND) != 0 &&
 	    states[STATE_APPEND].probability_again != 0 &&
 	    client->plan_size > 0 && client->plan[0] == STATE_APPEND) {
 		/* we want to append another message.
 		   do it in the same transaction. */
-		return client_plan_send_next_cmd(client);
+		if (client_plan_send_next_cmd(client) < 0)
+			return -1;
+		if (!client->append_started)
+			return 0;
+		/* we didn't append a second message after all */
 	}
 
 	client->append_unfinished = FALSE;
@@ -353,6 +359,7 @@ int client_append(struct client *client, const char *args, bool add_datetime,
 				     &client->append_vsize_left, &t);
 	client->append_offset = source->input->v_offset;
 	client->append_skip = 0;
+	client->append_started = TRUE;
 
 	cmd = t_str_new(128);
 	if (client->append_unfinished) {
