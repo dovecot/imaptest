@@ -1049,10 +1049,18 @@ int client_plan_send_next_cmd(struct client *client)
 			str_append(cmd, fields[j]);
 		}
 		str_append(cmd, ") US-ASCII ");
-		if ((rand() % 2) == 0)
+		switch (rand() % 3) {
+		case 0:
 			str_append(cmd, "ALL");
-		else
+			break;
+		case 1:
 			str_append(cmd, "FLAGGED");
+			break;
+		case 2:
+			str_printfa(cmd, "%u:%u", (rand() % msgs) + 1,
+				    (rand() % msgs) + 1);
+			break;
+		}
 		command_send(client, str_c(cmd), state_callback);
 		break;
 	}
