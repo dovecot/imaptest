@@ -44,6 +44,10 @@ imap_args_to_str_dest(const struct imap_arg *args, string_t *str)
 			break;
 		case IMAP_ARG_LITERAL_SIZE:
 		case IMAP_ARG_LITERAL_SIZE_NONSYNC:
+			str_printfa(str, "{%"PRIuUOFF_T"}\r\n",
+				    IMAP_ARG_LITERAL_SIZE(args));
+			str_append(str, "<too large>");
+			break;
 		case IMAP_ARG_EOL:
 			i_unreached();
 		}
