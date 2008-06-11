@@ -12,6 +12,7 @@
 #include "imap-args.h"
 #include "settings.h"
 #include "mailbox.h"
+#include "mailbox-state.h"
 #include "mailbox-source.h"
 #include "checkpoint.h"
 #include "commands.h"
@@ -299,7 +300,7 @@ int client_plan_send_more_commands(struct client *client)
 
 static int client_append_more(struct client *client)
 {
-	struct mailbox_source *source = client->view->storage->source;
+	struct mailbox_source *source = client->storage->source;
 	struct istream *input, *input2;
 	off_t ret;
 	
@@ -348,7 +349,7 @@ static int client_append_more(struct client *client)
 int client_append(struct client *client, const char *args, bool add_datetime,
 		  command_callback_t *callback, struct command **cmd_r)
 {
-	struct mailbox_source *source = client->view->storage->source;
+	struct mailbox_source *source = client->storage->source;
 	string_t *cmd;
 	time_t t;
 
@@ -405,7 +406,7 @@ int client_append_full(struct client *client, const char *mailbox,
 	args = t_str_new(128);
 	if (!client->append_unfinished) {
 		str_printfa(args, "\"%s\"", mailbox != NULL ? mailbox :
-			    client->view->storage->name);
+			    client->storage->name);
 	}
 	if (flags != NULL)
 		str_printfa(args, " (%s)", flags);
@@ -435,7 +436,7 @@ int client_append_random(struct client *client)
 
 int client_append_continue(struct client *client)
 {
-	i_stream_seek(client->view->storage->source->input,
+	i_stream_seek(client->storage->source->input,
 		      client->append_offset);
 	return client_append_more(client);
 }
@@ -625,35 +626,108 @@ static void client_try_create_mailbox(struct client *client)
 	if (!client->try_create_mailbox)
 		return;
 
-	str = t_strdup_printf("CREATE \"%s\"", client->view->storage->name);
+	str = t_strdup_printf("CREATE \"%s\"", client->storage->name);
 	client->state = STATE_MCREATE;
 	command_send(client, str, state_callback);
 }
 
-void client_handle_tagged_resp_text_code(struct client *client,
-					 struct command *cmd,
-					 const struct imap_arg *args,
-					 enum command_reply reply)
+void client_handle_resp_text_code(struct client *client,
+				  const struct imap_arg *args)
+{
+	struct mailbox_view *view = client->view;
+	const char *key, *value;
+
+	if (args->type != IMAP_ARG_ATOM)
+		return;
+
+	key = IMAP_ARG_STR_NONULL(args);
+	if (*key != '[')
+		return;
+	args++;
+	key = t_strcut(t_str_ucase(key + 1), ']');
+	value = t_strcut(imap_args_to_str(args), ']');
+
+	if (strcmp(key, "READ-WRITE") == 0)
+		view->readwrite = TRUE;
+	else if (strcmp(key, "HIGHESTMODSEQ") == 0) {
+		view->highest_modseq = strtoull(value, NULL, 10);
+	} else if (strcmp(key, "CAPABILITY") == 0) {
+		client_capability_parse(client, value);
+	} else if (strcmp(key, "CLOSED") == 0) {
+		/* QRESYNC: SELECTing another mailbox in SELECTED state */
+		if (client->login_state != LSTATE_SELECTED) {
+			client_input_error(client,
+				"CLOSED code sent in non-selected state");
+		} else {
+			/* we're temporarily in AUTHENTICATED state */
+			client_mailbox_close(client);
+		}
+	} else if (strcmp(key, "PERMANENTFLAGS") == 0) {
+		if (mailbox_state_set_permanent_flags(view, args) < 0)
+			client_input_error(client, "Broken PERMANENTFLAGS");
+	} else if (strcmp(key, "UIDNEXT") == 0) {
+		if (view->select_uidnext == 0)
+			view->select_uidnext = strtoul(value, NULL, 10);
+	} else if (strcmp(key, "UIDVALIDITY") == 0) {
+		unsigned int new_uidvalidity;
+
+		new_uidvalidity = strtoul(value, NULL, 10);
+		if (new_uidvalidity != view->storage->uidvalidity) {
+			if (view->storage->uidvalidity != 0) {
+				i_error("UIVALIDITY changed: %u -> %u",
+					view->storage->uidvalidity,
+					new_uidvalidity);
+			}
+			view->storage->uidvalidity = new_uidvalidity;
+		}
+		if (client->qresync_select_cache != NULL &&
+		    client->qresync_select_cache->uidvalidity ==
+		    view->storage->uidvalidity) {
+			/* remember how many messages we currently have */
+			client->qresync_pending_exists =
+				array_count(&view->uidmap);
+			mailbox_view_restore_offline_cache(view,
+				client->qresync_select_cache);
+		}
+	}
+}
+
+void client_handle_tagged_reply(struct client *client, struct command *cmd,
+				const struct imap_arg *args,
+				enum command_reply reply)
 {
 	const char *arg;
 
+	/* command finished - we can update highest-modseq based on the
+	   received MODSEQ values. do this before anything else to make sure
+	   we can use the updated highest-modseq in e.g. view closing. */
+	if (client->view->highest_modseq < client->highest_untagged_modseq)
+		client->view->highest_modseq = client->highest_untagged_modseq;
+	client->highest_untagged_modseq = 0;
+
 	arg = args->type == IMAP_ARG_ATOM ?
 		IMAP_ARG_STR_NONULL(args) : NULL;
-	if (strncasecmp(cmd->cmdline, "select ", 7) == 0) {
-		/* SELECT is a special case, because we want to update
-		   login_state */
+	/* Keep track of login_state */
+	if (strncasecmp(cmd->cmdline, "select ", 7) == 0 ||
+	    strncasecmp(cmd->cmdline, "examine ", 8) == 0) {
 		if (reply == REPLY_OK)
 			client->login_state = LSTATE_SELECTED;
+		if (client->qresync_select_cache != NULL) {
+			/* SELECT with QRESYNC finished */
+			if (reply == REPLY_OK) {
+				client_exists(client,
+					      client->qresync_pending_exists);
+				client->qresync_pending_exists = 0;
+			}
+			mailbox_offline_cache_unref(&client->qresync_select_cache);
+		}
+	} else if (strcasecmp(cmd->cmdline, "close") == 0 ||
+		   strcasecmp(cmd->cmdline, "unselect") == 0) {
+		if (reply == REPLY_OK && client->login_state == LSTATE_SELECTED)
+			client_mailbox_close(client);
 	}
-	if (arg == NULL)
-		return;
 
-	if (strcasecmp(arg, "[READ-WRITE]") == 0)
-		client->view->readwrite = TRUE;
-	else if (strcasecmp(arg, "[CAPABILITY") == 0) {
-		client_capability_parse(client,
-			t_strcut(imap_args_to_str(args+1), ']'));
-	}
+	client_handle_resp_text_code(client, args);
 }
 
 static int client_handle_cmd_reply(struct client *client, struct command *cmd,
@@ -732,7 +806,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		return -1;
 	}
 	/* call after login_state has been updated */
-	client_handle_tagged_resp_text_code(client, cmd, args, reply);
+	client_handle_tagged_reply(client, cmd, args, reply);
 
 	switch (cmd->state) {
 	case STATE_AUTHENTICATE:
@@ -747,7 +821,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				break;
 
 			client_new(array_count(&clients),
-				   client->view->storage->source);
+				   client->storage->source);
 		}
 		break;
 	case STATE_SELECT:
@@ -774,7 +848,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		type = *p == '+' || *p == '-' ? *p++ : '\0';
 		silent = strncmp(p, "FLAGS.SILENT", 12) == 0;
 
-		if (!silent && client->view->storage->assign_flag_owners &&
+		if (!silent && client->storage->assign_flag_owners &&
 		    reply == REPLY_OK) {
 			i_assert(type != '\0');
 			i_assert(strncmp(p, "FLAGS ", 6) == 0);
@@ -847,19 +921,20 @@ bool client_get_random_seq_range(struct client *client,
 		seq = rand() % msgs + 1;
 		metadata = array_idx_modifiable(&client->view->messages,
 						seq - 1);
-		if (metadata->ms != NULL)
-			owner = metadata->ms->owner_client_idx1;
-		else {
-			if (client->view->storage->assign_msg_owners &&
-			    dirty_flags) {
+		owner = metadata->ms == NULL ? 0 :
+			metadata->ms->owner_client_idx1;
+
+		if (dirty_flags) {
+			if (owner == client->idx+1) {
+				/* we can change this */
+			} else if (owner != 0) {
+				/* someone else owns this */
+				continue;
+			} else if (client->storage->assign_msg_owners) {
 				/* not assigned to anyone yet, wait */
 				continue;
 			}
-			owner = 0;
 		}
-
-		if (dirty_flags && owner != client->idx+1 && owner != 0)
-			continue;
 
 		seq_range_array_add(range, 10, seq);
 		i++;
@@ -905,6 +980,27 @@ static void seq_range_to_imap_range(const ARRAY_TYPE(seq_range) *seq_range,
 		if (range[i].seq1 != range[i].seq2)
 			str_printfa(dest, ":%u", range[i].seq2);
 	}
+}
+
+static void client_select_qresync(struct client *client)
+{
+	struct mailbox_offline_cache *cache = client->storage->cache;
+	string_t *cmd;
+
+	if (!client->qresync_enabled)
+		command_send(client, "ENABLE QRESYNC", state_callback);
+
+	cmd = t_str_new(128);
+	str_printfa(cmd, "SELECT \"%s\"", client->storage->name);
+
+	if (cache != NULL) {
+		/* we have a cache - select using it */
+		str_printfa(cmd, " (QRESYNC (%u %llu))", cache->uidvalidity,
+			    (unsigned long long)cache->highest_modseq);
+		cache->refcount++;
+		client->qresync_select_cache = cache;
+	}
+	command_send(client, str_c(cmd), state_callback);
 }
 
 int client_plan_send_next_cmd(struct client *client)
@@ -965,10 +1061,11 @@ int client_plan_send_next_cmd(struct client *client)
 			/* already selected, don't do it agai */
 			break;
 		}
-		if (conf.qresync)
-			command_send(client, "ENABLE QRESYNC", state_callback);
-		str = t_strdup_printf("SELECT \"%s\"",
-				      client->view->storage->name);
+		if (conf.qresync) {
+			client_select_qresync(client);
+			break;
+		}
+		str = t_strdup_printf("SELECT \"%s\"", client->storage->name);
 		if ((client->capabilities & CAP_CONDSTORE) != 0)
 			str = t_strconcat(str, " (CONDSTORE)", NULL);
 		command_send(client, str, state_callback);
@@ -1105,7 +1202,7 @@ int client_plan_send_next_cmd(struct client *client)
 			str_append_c(cmd, '-');
 			break;
 		default:
-			if (client->view->storage->assign_flag_owners) {
+			if (client->storage->assign_flag_owners) {
 				/* we must not reset any flags */
 				str_append_c(cmd, '+');
 			}
@@ -1122,9 +1219,9 @@ int client_plan_send_next_cmd(struct client *client)
 		icmd->seq_range = seq_range;
 		break;
 	case STATE_STORE_DEL:
-		owner = client->view->storage->
+		owner = client->storage->
 			flags_owner_client_idx1[MAIL_FLAG_DELETED_IDX];
-		if (client->view->storage->assign_flag_owners &&
+		if (client->storage->assign_flag_owners &&
 		    owner != client->idx + 1) {
 			/* own_msgs - only one client can delete messages */
 			break;
@@ -1139,8 +1236,8 @@ int client_plan_send_next_cmd(struct client *client)
 			CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT :
 			CLIENT_RANDOM_FLAG_TYPE_STORE;
 
-		if (!client->view->storage->seen_all_recent &&
-		    !client->view->storage->assign_msg_owners &&
+		if (!client->storage->seen_all_recent &&
+		    !client->storage->assign_msg_owners &&
 		    conf.checkpoint_interval != 0 && msgs > 0) {
 			/* expunge everything so we can start checking RECENT
 			   counts */
@@ -1174,7 +1271,7 @@ int client_plan_send_next_cmd(struct client *client)
 		break;
 	case STATE_STATUS:
 		str = t_strdup_printf("STATUS \"%s\" (MESSAGES UNSEEN RECENT)",
-				      client->view->storage->name);
+				      client->storage->name);
 		command_send(client, str, state_callback);
 		break;
 	case STATE_NOOP:
@@ -1211,9 +1308,9 @@ void client_cmd_reply_finish(struct client *client)
 		if (array_count(&client->commands) > 0)
 			return;
 
-		checkpoint_neg(client->view->storage);
+		checkpoint_neg(client->storage);
 		return;
-	} else if (client->view->storage->checkpoint != NULL) {
+	} else if (client->storage->checkpoint != NULL) {
 		/* don't do anything until checkpointing is finished */
 		return;
 	} else if (client->state == STATE_LOGOUT) {

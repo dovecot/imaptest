@@ -383,7 +383,7 @@ void clients_checkpoint(struct mailbox_storage *storage)
 		if (c[i] == NULL || c[i]->login_state != LSTATE_SELECTED)
 			continue;
 
-		if (c[i]->view->storage == storage) {
+		if (c[i]->storage == storage) {
 			c[i]->checkpointing = storage;
 			if (array_count(&c[i]->commands) > 0)
 				storage->checkpoint->clients_left++;

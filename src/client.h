@@ -57,11 +57,20 @@ struct client {
 	struct search_context *search_ctx;
 	struct test_exec_context *test_exec_ctx;
 
+	struct mailbox_storage *storage;
 	struct mailbox_view *view;
 	struct mailbox_storage *checkpointing;
 	ARRAY_DEFINE(commands, struct command *);
 	struct command *last_cmd;
 	unsigned int tag_counter;
+
+	/* Highest MODSEQ seen in untagged FETCH replies. Tagged reply
+	   handler updates highest_modseq based on this and resets to 0. */
+	uint64_t highest_untagged_modseq;
+	/* non-NULL when SELECTing a mailbox using QRESYNC */
+	struct mailbox_offline_cache *qresync_select_cache;
+	/* Value of EXISTS reply */
+	unsigned int qresync_pending_exists;
 
 	int (*send_more_commands)(struct client *client);
 	int (*handle_untagged)(struct client *, const struct imap_arg *);
@@ -88,6 +97,8 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source);
 bool client_unref(struct client *client, bool reconnect);
 void client_disconnect(struct client *client);
 
+void client_exists(struct client *client, unsigned int msgs);
+void client_mailbox_close(struct client *client);
 void client_delay(struct client *client, unsigned int msecs);
 int client_handle_untagged(struct client *client, const struct imap_arg *args);
 void client_capability_parse(struct client *client, const char *line);

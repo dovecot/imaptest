@@ -75,6 +75,7 @@ struct message_metadata_dynamic {
 
 	enum flagchange_dirty_type flagchange_dirty_type;
 };
+ARRAY_DEFINE_TYPE(message_metadata_dynamic, struct message_metadata_dynamic);
 
 struct mailbox_keyword_name {
 	char *name;
@@ -87,10 +88,26 @@ struct mailbox_keyword {
 	struct mailbox_keyword_name *name;
 
 	/* number of messages containing this keyword (that we know of) */
-	unsigned int refcount;
+	unsigned int msg_refcount;
 	unsigned int flags_counter; /* should match view->flags_counter */
 
 	unsigned int permanent:1;
+};
+ARRAY_DEFINE_TYPE(mailbox_keyword, struct mailbox_keyword);
+
+struct mailbox_offline_cache {
+	struct mailbox_storage *storage;
+	int refcount;
+
+	unsigned int uidvalidity;
+	uint64_t highest_modseq;
+
+	/* all keywords used currently in a mailbox */
+	ARRAY_DEFINE(keywords, struct mailbox_keyword_name *);
+	/* seq -> uid */
+	ARRAY_DEFINE(uidmap, uint32_t);
+	/* seq -> metadata */
+	ARRAY_TYPE(message_metadata_dynamic) messages;
 };
 
 struct mailbox_storage {
@@ -103,6 +120,11 @@ struct mailbox_storage {
 	/* we assume that uidvalidity doesn't change while imaptest
 	   is running */
 	unsigned int uidvalidity;
+
+	/* Exported mailbox state for resyncing with QRESYNC extension.
+	   This is (sometimes) updated when mailbox is being closed or
+	   client gets disconnected. */
+	struct mailbox_offline_cache *cache;
 
 	/* static metadata for this mailbox. sorted by UID. */
 	ARRAY_DEFINE(static_metadata, struct message_metadata_static *);
@@ -128,16 +150,19 @@ struct mailbox_view {
 	unsigned int flags_counter;
 	unsigned int recent_count;
 	unsigned int select_uidnext; /* UIDNEXT received on SELECT */
+	uint64_t highest_modseq;
 
 	char *last_thread_reply;
 
 	/* all keywords used currently in a mailbox */
-	ARRAY_DEFINE(keywords, struct mailbox_keyword);
+	ARRAY_TYPE(mailbox_keyword) keywords;
 
 	/* seq -> uid */
 	ARRAY_DEFINE(uidmap, uint32_t);
 	/* seq -> metadata */
-	ARRAY_DEFINE(messages, struct message_metadata_dynamic);
+	ARRAY_TYPE(message_metadata_dynamic) messages;
+	/* number of non-zero UIDs in uidmap. */
+	unsigned int known_uid_count;
 
 	unsigned int readwrite:1;
 	unsigned int keywords_can_create_more:1;
@@ -153,10 +178,18 @@ void mailbox_storage_unref(struct mailbox_storage **storage);
 struct mailbox_view *mailbox_view_new(struct mailbox_storage *storage);
 void mailbox_view_free(struct mailbox_view **_mailbox);
 
+bool mailbox_view_save_offline_cache(struct mailbox_view *view);
+void mailbox_view_restore_offline_cache(struct mailbox_view *view,
+					struct mailbox_offline_cache *cache);
+void mailbox_offline_cache_unref(struct mailbox_offline_cache **cache);
+
 bool mailbox_view_keyword_find(struct mailbox_view *view, const char *name,
 			       unsigned int *idx_r);
 struct mailbox_keyword *mailbox_view_keyword_get(struct mailbox_view *view,
 						 unsigned int idx);
+struct mailbox_keyword *
+mailbox_view_keyword_get_by_name(struct mailbox_view *view,
+				 const char *name);
 void mailbox_view_keyword_add(struct mailbox_view *view, const char *name);
 void mailbox_keywords_clear(struct mailbox_view *view,
 			    struct message_metadata_dynamic *metadata);

@@ -139,8 +139,8 @@ search_node_verify_msg(struct client *client, struct search_node *node,
 	case SEARCH_SUBJECT:
 		if (ms->msg == NULL)
 			break;
-		if (!mailbox_global_get_subject_utf8(
-				client->view->storage->source, ms->msg, &str))
+		if (!mailbox_global_get_subject_utf8(client->storage->source,
+						     ms->msg, &str))
 			break;
 		if (str == NULL) {
 			/* Subject: header doesn't exist */
@@ -322,7 +322,7 @@ search_command_build(struct search_context *ctx, struct search_node *parent,
 	if ((rand() % 100) >= probability)
 		return FALSE;
 
-	ms = array_get(&client->view->storage->static_metadata, &ms_count);
+	ms = array_get(&client->storage->static_metadata, &ms_count);
 	randstart = ms_count == 0 ? 0 : rand() % ms_count;
 
 	node = p_new(pool, struct search_node, 1);
@@ -431,7 +431,7 @@ again:
 		break;
 	}
 	case SEARCH_SUBJECT: {
-		struct mailbox_source *source = client->view->storage->source;
+		struct mailbox_source *source = client->storage->source;
 		const char *str = NULL, *const *words;
 		unsigned int len, count, start;
 

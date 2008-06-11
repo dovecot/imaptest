@@ -63,7 +63,7 @@ int client_state_error(struct client *client, const char *fmt, ...)
 	return -1;
 }
 
-static void client_exists(struct client *client, unsigned int msgs)
+void client_exists(struct client *client, unsigned int msgs)
 {
 	unsigned int old_count = array_count(&client->view->uidmap);
 
@@ -123,6 +123,26 @@ static int client_expunge_uid(struct client *client, uint32_t uid)
 	return 0;
 }
 
+static void
+client_expunge_uid_range(struct client *client,
+			 const ARRAY_TYPE(seq_range) *expunged_uids)
+{
+	const struct seq_range *expunges;
+	const uint32_t *uidmap;
+	unsigned int seq, uid_count, expunge_count;
+
+	expunges = array_get(expunged_uids, &expunge_count);
+	uidmap = array_get(&client->view->uidmap, &uid_count);
+	for (seq = uid_count; seq > 0; seq--) {
+		i_assert(uidmap[seq-1] != 0);
+
+		if (seq_range_exists(expunged_uids, uidmap[seq-1])) {
+			client_expunge(client, seq);
+			uidmap = array_get(&client->view->uidmap, &uid_count);
+		}
+	}
+}
+
 static void client_enabled(struct client *client, const struct imap_arg *args)
 {
 	const char *str;
@@ -136,6 +156,7 @@ static void client_enabled(struct client *client, const struct imap_arg *args)
 
 static int client_vanished(struct client *client, const struct imap_arg *args)
 {
+	struct mailbox_view *view = client->view;
 	ARRAY_TYPE(seq_range) uids;
 	const struct seq_range *range;
 	unsigned int i, count;
@@ -148,6 +169,24 @@ static int client_vanished(struct client *client, const struct imap_arg *args)
 		return -1;
 	}
 
+	if (args->type == IMAP_ARG_LIST) {
+		const ARRAY_TYPE(imap_arg_list) *list;
+		const struct imap_arg *subargs;
+
+		list = IMAP_ARG_LIST(args);
+		subargs = array_idx(list, 0);
+		if (subargs->type == IMAP_ARG_ATOM &&
+		    subargs[1].type == IMAP_ARG_EOL &&
+		    strcmp(IMAP_ARG_STR_NONULL(subargs), "EARLIER") == 0) {
+			if (client->qresync_select_cache == NULL) {
+				/* we don't care */
+				return 0;
+			}
+			/* SELECTing with QRESYNC */
+			args++;
+		}
+	}
+
 	if (args->type != IMAP_ARG_ATOM || args[1].type != IMAP_ARG_EOL) {
 		client_input_error(client, "Invalid VANISHED parameters");
 		return -1;
@@ -158,6 +197,14 @@ static int client_vanished(struct client *client, const struct imap_arg *args)
 	if (imap_seq_set_parse(uidset, &uids) < 0) {
 		client_input_error(client, "Invalid VANISHED sequence-set");
 		return -1;
+	}
+
+	if (view->known_uid_count == array_count(&view->uidmap)) {
+		/* all UIDs are known - we can handle UIDs that are already
+		   expunged. this happens normally when doing a SELECT QRESYNC
+		   and server couldn't keep track of only the new expunges. */
+		client_expunge_uid_range(client, &uids);
+		return 0;
 	}
 
 	/* we assume that there are no extra UIDs in the reply, even though
@@ -239,6 +286,7 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 			client_input_error(client, "Unexpected BYE");
 		} else
 			counters[client->last_cmd->state]++;
+		client_mailbox_close(client);
 		client->login_state = LSTATE_NONAUTH;
 	} else if (strcmp(str, "FLAGS") == 0) {
 		if (mailbox_state_set_flags(view, args) < 0)
@@ -257,42 +305,7 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 		view->last_thread_reply =
 			i_strdup(imap_args_to_str(args + 1));
 	} else if (strcmp(str, "OK") == 0) {
-		if (args->type != IMAP_ARG_ATOM)
-			return -1;
-		str = t_str_ucase(IMAP_ARG_STR(args));
-		args++;
-		if (*str != '[')
-			return 0;
-		str++;
-
-		if (strcmp(str, "PERMANENTFLAGS") == 0) {
-			if (mailbox_state_set_permanent_flags(view, args) < 0) {
-				client_input_error(client,
-					"Broken PERMANENTFLAGS");
-			}
-		} else if (view->select_uidnext == 0 &&
-			   strcmp(str, "UIDNEXT") == 0) {
-			if (args->type != IMAP_ARG_ATOM)
-				return -1;
-			str = IMAP_ARG_STR(args);
-			view->select_uidnext =
-				strtoul(t_strcut(str, ')'), NULL, 10);
-		} else if (strcmp(str, "UIDVALIDITY") == 0) {
-			unsigned int new_uidvalidity;
-
-			if (args->type != IMAP_ARG_ATOM)
-				return -1;
-			str = IMAP_ARG_STR(args);
-			new_uidvalidity = strtoul(t_strcut(str, ')'), NULL, 10);
-			if (new_uidvalidity != view->storage->uidvalidity) {
-				if (view->storage->uidvalidity != 0) {
-					i_error("UIVALIDITY changed: %u -> %u",
-						view->storage->uidvalidity,
-						new_uidvalidity);
-				}
-				view->storage->uidvalidity = new_uidvalidity;
-			}
-		}
+		client_handle_resp_text_code(client, args);
 	} else if (strcmp(str, "NO") == 0) {
 		/*i_info("%s: %s", client->username, line + 2);*/
 	} else if (strcmp(str, "BAD") == 0) {
@@ -597,7 +610,8 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 	client->idx = idx;
 	client->global_id = ++global_id_counter;
 	mailbox = t_strdup_printf(conf.mailbox, idx);
-	client->view = mailbox_view_new(mailbox_storage_get(source, mailbox));
+	client->storage = mailbox_storage_get(source, mailbox);
+	client->view = mailbox_view_new(client->storage);
 	if (strchr(conf.mailbox, '%') != NULL)
 		client->try_create_mailbox = TRUE;
 	client->fd = fd;
@@ -644,7 +658,7 @@ void client_disconnect(struct client *client)
 
 bool client_unref(struct client *client, bool reconnect)
 {
-	struct mailbox_storage *storage = client->view->storage;
+	struct mailbox_storage *storage = client->storage;
 	unsigned int idx = client->idx;
 	struct command *const *cmds;
 	unsigned int i, count;
@@ -668,6 +682,12 @@ bool client_unref(struct client *client, bool reconnect)
 		command_free(cmds[i]);
 	array_free(&client->commands);
 
+	if (client->qresync_select_cache != NULL)
+		mailbox_offline_cache_unref(&client->qresync_select_cache);
+
+	client_mailbox_close(client);
+	mailbox_view_free(&client->view);
+
 	if (client->io != NULL)
 		io_remove(&client->io);
 	if (client->to != NULL)
@@ -676,13 +696,12 @@ bool client_unref(struct client *client, bool reconnect)
 		i_error("close(client) failed: %m");
 	if (client->rawlog_output != NULL)
 		o_stream_destroy(&client->rawlog_output);
-	mailbox_view_free(&client->view);
 	imap_parser_destroy(&client->parser);
 
 	if (client->test_exec_ctx != NULL) {
 		/* storage must be fully unreferenced before new test can
 		   begin. */
-		mailbox_storage_unref(&storage);
+		mailbox_storage_unref(&client->storage);
 		test_execute_cancel_by_client(client);
 	}
 
@@ -715,6 +734,18 @@ bool client_unref(struct client *client, bool reconnect)
 		mailbox_storage_unref(&storage);
 	}
 	return FALSE;
+}
+
+void client_mailbox_close(struct client *client)
+{
+	if (client->login_state == LSTATE_SELECTED) {
+		if (rand() % 3 == 0)
+			mailbox_view_save_offline_cache(client->view);
+
+		client->login_state = LSTATE_AUTH;
+	}
+	mailbox_view_free(&client->view);
+	client->view = mailbox_view_new(client->storage);
 }
 
 int client_send_more_commands(struct client *client)

@@ -32,7 +32,7 @@ static void client_fetch_envelope(struct client *client,
 	const ARRAY_TYPE(imap_arg_list) *list;
 	const char *message_id;
 	struct message_global *msg;
-	pool_t pool = client->view->storage->source->messages_pool;
+	pool_t pool = client->storage->source->messages_pool;
 
 	list = IMAP_ARG_LIST(args);
 	args = array_idx(list, 0);
@@ -52,7 +52,7 @@ static void client_fetch_envelope(struct client *client,
 		return;
 	}
 
-	msg = hash_lookup(client->view->storage->source->messages, message_id);
+	msg = hash_lookup(client->storage->source->messages, message_id);
 	if (msg != NULL) {
 		metadata->ms->msg = msg;
 		return;
@@ -61,7 +61,7 @@ static void client_fetch_envelope(struct client *client,
 	/* new message */
 	metadata->ms->msg = msg = p_new(pool, struct message_global, 1);
 	msg->message_id = p_strdup(pool, message_id);
-	hash_insert(client->view->storage->source->messages,
+	hash_insert(client->storage->source->messages,
 		    msg->message_id, msg);
 }
 
@@ -110,7 +110,7 @@ check_unexpected_flag_changes(struct client *client,
 			      const struct msg_old_flags *old,
 			      const struct message_metadata_dynamic *metadata)
 {
-	struct mailbox_storage *storage = client->view->storage;
+	struct mailbox_storage *storage = client->storage;
 	const struct mailbox_keyword *keywords;
 	unsigned int i, min_count, new_count, new_alloc_size;
 	const char *expunge_state;
@@ -197,8 +197,8 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 			}
 			i_assert(idx/8 < view->keyword_bitmask_alloc_size);
 			kw = array_idx_modifiable(&view->keywords, idx);
-			kw->refcount++;
-			i_assert(kw->refcount <= array_count(&view->uidmap));
+			kw->msg_refcount++;
+			i_assert(kw->msg_refcount <= array_count(&view->uidmap));
 			metadata->keyword_bitmask[idx/8] |= 1 << (idx % 8);
 		}
 
@@ -208,7 +208,8 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 
 	if ((old_flags.flags & MAIL_FLAGS_SET) == 0) {
 		/* we don't know the old flags */
-	} else if (metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_NO) {
+	} else if (metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_NO ||
+		   client->qresync_select_cache != NULL) {
 		/* we're changing the flags ourself */
 	} else if (metadata->ms == NULL) {
 		/* UID now known yet, don't do any owning checks */
@@ -217,11 +218,11 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 			client_state_error(client,
 				"Flags unexpectedly changed for owned message");
 		}
-	} else if (client->view->storage->assign_flag_owners)
+	} else if (client->storage->assign_flag_owners)
 		check_unexpected_flag_changes(client, &old_flags, metadata);
 
 	if ((flags & MAIL_RECENT) != 0 && metadata->ms != NULL &&
-	    !view->storage->dont_track_recent) {
+	    !client->storage->dont_track_recent) {
 		if (metadata->ms->recent_client_global_id == 0) {
 			if (client->view->readwrite) {
 				metadata->ms->recent_client_global_id =
@@ -234,7 +235,7 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 				metadata->ms->uid,
 				client->global_id,
 				metadata->ms->recent_client_global_id);
-			view->storage->dont_track_recent = TRUE;
+			client->storage->dont_track_recent = TRUE;
 		}
 	}
 
@@ -267,16 +268,21 @@ message_metadata_set_modseq(struct client *client, const char *value,
 				   dec2str(metadata->modseq), dec2str(modseq));
 	}
 
-	if (metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_NO) {
+	if (metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_NO ||
+	    client->qresync_select_cache != NULL) {
 		/* we're changing the flags ourself */
 	} else if (metadata->ms == NULL) {
 		/* UID now known yet, don't do any owning checks */
 	} else if (metadata->ms->owner_client_idx1 == client->idx+1 &&
 		   modseq != metadata->modseq) {
 		client_state_error(client,
-			"MODSEQ unexpectedly changed for owned message");
+			"UID=%u MODSEQ changed for owned message: %s -> %s",
+			uid, dec2str(metadata->modseq), dec2str(modseq));
 	}
 	metadata->modseq = modseq;
+
+	if (client->highest_untagged_modseq < modseq)
+		client->highest_untagged_modseq = modseq;
 }
 
 static void
@@ -337,7 +343,7 @@ static void
 headers_match(struct client *client, ARRAY_TYPE(message_header) *headers_arr,
 	      struct message_global *msg)
 {
-	pool_t pool = client->view->storage->source->messages_pool;
+	pool_t pool = client->storage->source->messages_pool;
 	const struct message_header *fetch_headers, *orig_headers;
 	struct message_header msg_header;
 	unsigned char *value;
@@ -460,7 +466,7 @@ fetch_parse_header_fields(struct client *client, const struct imap_arg *args,
 static void fetch_parse_body1(struct client *client, const struct imap_arg *arg,
 			      struct message_metadata_static *ms)
 {
-	pool_t pool = client->view->storage->source->messages_pool;
+	pool_t pool = client->storage->source->messages_pool;
 	const char *body;
 	unsigned int i, start, len;
 
@@ -525,9 +531,10 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 	if (arg != NULL && arg->type == IMAP_ARG_ATOM) {
 		value = IMAP_ARG_STR(arg);
 		uid = strtoul(value, NULL, 10);
-		if (*uidp == 0)
+		if (*uidp == 0) {
+			view->known_uid_count++;
 			*uidp = uid;
-		else if (*uidp != uid) {
+		} else if (*uidp != uid) {
 			client_input_error(client,
 				"UID changed for sequence %u: %u -> %u",
 				seq, *uidp, uid);
@@ -540,11 +547,10 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 	metadata = array_idx_modifiable(&view->messages, seq - 1);
 	if (metadata->ms == NULL && uid != 0) {
 		metadata->ms =
-			message_metadata_static_get(client->view->storage, uid);
+			message_metadata_static_get(client->storage, uid);
 	} else if (uid_changed && metadata->ms != NULL) {
 		/* who knows what it contains now, just get rid of it */
-		message_metadata_static_unref(client->view->storage,
-					      &metadata->ms);
+		message_metadata_static_unref(client->storage, &metadata->ms);
 		metadata->ms = NULL;
 	}
 
@@ -743,10 +749,10 @@ int mailbox_state_set_flags(struct mailbox_view *view,
 	keywords = array_get(&view->keywords, &count);
 	for (i = 0; i < count; i++) {
 		if (keywords[i].flags_counter != view->flags_counter &&
-		    keywords[i].refcount > 0) {
+		    keywords[i].msg_refcount > 0) {
 			i_error("Keyword '%s' dropped, but it still had "
-				"%d references", keywords[i].name->name,
-				keywords[i].refcount);
+				"%u references", keywords[i].name->name,
+				keywords[i].msg_refcount);
 			errors = TRUE;
 		}
 	}

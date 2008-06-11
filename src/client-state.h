@@ -88,10 +88,11 @@ int client_append_continue(struct client *client);
 int client_plan_send_next_cmd(struct client *client);
 int client_plan_send_more_commands(struct client *client);
 
-void client_handle_tagged_resp_text_code(struct client *client,
-					 struct command *cmd,
-					 const struct imap_arg *args,
-					 enum command_reply reply);
+void client_handle_resp_text_code(struct client *client,
+				  const struct imap_arg *args);
+void client_handle_tagged_reply(struct client *client, struct command *cmd,
+				const struct imap_arg *args,
+				enum command_reply reply);
 
 bool client_get_random_seq_range(struct client *client,
 				 ARRAY_TYPE(seq_range) *range,

@@ -109,6 +109,19 @@ message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid)
 }
 
 static void
+mailbox_keywords_ref(struct mailbox_view *view, const uint8_t *bitmask)
+{
+	struct mailbox_keyword *keywords;
+	unsigned int i, count;
+
+	keywords = array_get_modifiable(&view->keywords, &count);
+	for (i = 0; i < count; i++) {
+		if ((bitmask[i/8] & (1 << (i%8))) != 0)
+			keywords[i].msg_refcount++;
+	}
+}
+
+static void
 mailbox_keywords_drop(struct mailbox_view *view, const uint8_t *bitmask)
 {
 	struct mailbox_keyword *keywords;
@@ -117,8 +130,8 @@ mailbox_keywords_drop(struct mailbox_view *view, const uint8_t *bitmask)
 	keywords = array_get_modifiable(&view->keywords, &count);
 	for (i = 0; i < count; i++) {
 		if ((bitmask[i/8] & (1 << (i%8))) != 0) {
-			i_assert(keywords[i].refcount > 0);
-			keywords[i].refcount--;
+			i_assert(keywords[i].msg_refcount > 0);
+			keywords[i].msg_refcount--;
 		}
 	}
 }
@@ -126,6 +139,7 @@ mailbox_keywords_drop(struct mailbox_view *view, const uint8_t *bitmask)
 void mailbox_view_expunge(struct mailbox_view *view, unsigned int seq)
 {
 	struct message_metadata_dynamic *metadata;
+	const uint32_t *uidp;
 
 	metadata = array_idx_modifiable(&view->messages, seq - 1);
 	if (metadata->keyword_bitmask != NULL)
@@ -138,6 +152,9 @@ void mailbox_view_expunge(struct mailbox_view *view, unsigned int seq)
 		metadata->ms->expunged = TRUE;
 		message_metadata_static_unref(view->storage, &metadata->ms);
 	}
+	uidp = array_idx(&view->uidmap, seq-1);
+	if (*uidp != 0)
+		view->known_uid_count--;
 	array_delete(&view->uidmap, seq - 1, 1);
 	array_delete(&view->messages, seq - 1, 1);
 
@@ -166,6 +183,21 @@ struct mailbox_keyword *mailbox_view_keyword_get(struct mailbox_view *view,
 {
 	i_assert(idx < array_count(&view->keywords));
 	return array_idx_modifiable(&view->keywords, idx);
+}
+
+struct mailbox_keyword *
+mailbox_view_keyword_get_by_name(struct mailbox_view *view,
+				 const char *name)
+{
+	unsigned int idx;
+
+	if (!mailbox_view_keyword_find(view, name, &idx)) {
+		mailbox_view_keyword_add(view, name);
+		if (!mailbox_view_keyword_find(view, name, &idx))
+			i_unreached();
+	}
+
+	return mailbox_view_keyword_get(view, idx);
 }
 
 static struct mailbox_keyword_name *
@@ -375,6 +407,44 @@ const char *mailbox_view_get_random_flags(struct mailbox_view *view,
 	return str_c(str);
 }
 
+static void
+mailbox_metadata_free(struct mailbox_storage *storage,
+		      ARRAY_TYPE(message_metadata_dynamic) *messages)
+{
+	struct message_metadata_dynamic *metadata;
+	unsigned int i, count;
+
+	metadata = array_get_modifiable(messages, &count);
+	for (i = 0; i < count; i++) {
+		i_free(metadata[i].keyword_bitmask);
+		if (metadata[i].ms != NULL)
+			message_metadata_static_unref(storage, &metadata[i].ms);
+	}
+}
+
+static struct mailbox_offline_cache *
+mailbox_offline_cache_alloc(struct mailbox_storage *storage)
+{
+	struct mailbox_offline_cache *cache;
+
+	cache = i_new(struct mailbox_offline_cache, 1);
+	cache->refcount = 1;
+	cache->storage = storage;
+	i_array_init(&cache->keywords, 64);
+	i_array_init(&cache->uidmap, 128);
+	i_array_init(&cache->messages, 128);
+	return cache;
+}
+
+static void mailbox_offline_cache_free(struct mailbox_offline_cache *cache)
+{
+	mailbox_metadata_free(cache->storage, &cache->messages);
+	array_free(&cache->keywords);
+	array_free(&cache->uidmap);
+	array_free(&cache->messages);
+	i_free(cache);
+}
+
 struct mailbox_storage *
 mailbox_storage_get(struct mailbox_source *source, const char *name)
 {
@@ -419,6 +489,10 @@ void mailbox_storage_unref(struct mailbox_storage **_storage)
 		i_free(names[i]);
 	}
 
+	if (storage->cache != NULL) {
+		i_assert(storage->cache->refcount == 1);
+		mailbox_offline_cache_free(storage->cache);
+	}
 	mailbox_source_unref(&storage->source);
 	array_free(&storage->expunged_uids);
 	array_free(&storage->static_metadata);
@@ -439,22 +513,135 @@ struct mailbox_view *mailbox_view_new(struct mailbox_storage *storage)
 	return view;
 }
 
+void mailbox_offline_cache_unref(struct mailbox_offline_cache **_cache)
+{
+	struct mailbox_offline_cache *cache = *_cache;
+
+	i_assert(cache->refcount > 0);
+
+	*_cache = NULL;
+	if (--cache->refcount == 0)
+		mailbox_offline_cache_free(cache);
+}
+
+bool mailbox_view_save_offline_cache(struct mailbox_view *view)
+{
+	struct mailbox_offline_cache *cache;
+	const struct mailbox_keyword *keywords;
+	const struct message_metadata_dynamic *metadata;
+	struct message_metadata_dynamic new_metadata;
+	unsigned int i, count, keyword_bytecount;
+
+	if (view->known_uid_count != array_count(&view->uidmap)) {
+		/* some UIDs are not known, can't really handle this */
+		return FALSE;
+	}
+
+	if (view->highest_modseq == 0)
+		return FALSE;
+
+	if (view->storage->cache != NULL)
+		mailbox_offline_cache_unref(&view->storage->cache);
+
+	cache = view->storage->cache =
+		mailbox_offline_cache_alloc(view->storage);
+	cache->uidvalidity = view->storage->uidvalidity;
+	cache->highest_modseq = view->highest_modseq;
+
+	/* copy keywords */
+	array_clear(&cache->keywords);
+	keywords = array_get(&view->keywords, &count);
+	keyword_bytecount = (count + 7) / 8;
+	i_assert(keyword_bytecount <= view->keyword_bitmask_alloc_size);
+	for (i = 0; i < count; i++)
+		array_append(&cache->keywords, &keywords->name, 1);
+
+	/* copy UID map */
+	array_clear(&cache->uidmap);
+	array_append_array(&cache->uidmap, &view->uidmap);
+
+	/* copy messages */
+	array_clear(&cache->messages);
+	metadata = array_get(&view->messages, &count);
+	for (i = 0; i < count; i++) {
+		new_metadata = metadata[i];
+		if (metadata[i].keyword_bitmask != NULL) {
+			new_metadata.keyword_bitmask =
+				i_malloc(keyword_bytecount);
+			memcpy(new_metadata.keyword_bitmask,
+			       metadata[i].keyword_bitmask, keyword_bytecount);
+		}
+		if (new_metadata.ms != NULL)
+			new_metadata.ms->refcount++;
+		array_append(&cache->messages, &new_metadata, 1);
+	}
+	return TRUE;
+}
+
+void mailbox_view_restore_offline_cache(struct mailbox_view *view,
+					struct mailbox_offline_cache *cache)
+{
+	ARRAY_TYPE(mailbox_keyword) old_keywords;
+	struct mailbox_keyword_name *const *kw_names;
+	const struct mailbox_keyword *keywords;
+	struct mailbox_keyword *new_kw;
+	const struct message_metadata_dynamic *metadata;
+	struct message_metadata_dynamic new_metadata;
+	unsigned int i, count;
+
+	i_assert(array_count(&view->messages) == 0);
+
+	view->highest_modseq = cache->highest_modseq;
+
+	/* make a copy of old keywords - we need to set them back */
+	t_array_init(&old_keywords, array_count(&view->keywords) + 1);
+	array_append_array(&old_keywords, &view->keywords);
+
+	/* copy keywords */
+	array_clear(&view->keywords);
+	kw_names = array_get(&cache->keywords, &count);
+	for (i = 0; i < count; i++)
+		mailbox_view_keyword_add(view, kw_names[i]->name);
+
+	/* copy UID map */
+	array_clear(&view->uidmap);
+	array_append_array(&view->uidmap, &cache->uidmap);
+	view->known_uid_count = array_count(&cache->uidmap);
+
+	/* copy messages */
+	array_clear(&view->messages);
+	metadata = array_get(&cache->messages, &count);
+	for (i = 0; i < count; i++) {
+		new_metadata = metadata[i];
+		if (metadata[i].keyword_bitmask != NULL) {
+			new_metadata.keyword_bitmask =
+				i_malloc(view->keyword_bitmask_alloc_size);
+			memcpy(new_metadata.keyword_bitmask,
+			       metadata[i].keyword_bitmask,
+			       view->keyword_bitmask_alloc_size);
+			mailbox_keywords_ref(view, new_metadata.keyword_bitmask);
+		}
+		if (new_metadata.ms != NULL)
+			new_metadata.ms->refcount++;
+		array_append(&view->messages, &new_metadata, 1);
+	}
+
+	/* add missing keywords and update permanent state of cached keywords */
+	keywords = array_get(&old_keywords, &count);
+	for (i = 0; i < count; i++) {
+		new_kw = mailbox_view_keyword_get_by_name(view,
+							keywords[i].name->name);
+		new_kw->permanent = keywords[i].permanent;
+	}
+}
+
 void mailbox_view_free(struct mailbox_view **_mailbox)
 {
 	struct mailbox_view *view = *_mailbox;
-	struct message_metadata_dynamic *metadata;
-	unsigned int i, count;
 
 	*_mailbox = NULL;
 
-	metadata = array_get_modifiable(&view->messages, &count);
-	for (i = 0; i < count; i++) {
-		i_free(metadata[i].keyword_bitmask);
-		if (metadata[i].ms != NULL) {
-			message_metadata_static_unref(view->storage,
-						      &metadata[i].ms);
-		}
-	}
+	mailbox_metadata_free(view->storage, &view->messages);
 	array_free(&view->messages);
 	array_free(&view->keywords);
 

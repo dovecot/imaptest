@@ -604,7 +604,7 @@ static void test_cmd_callback(struct client *client,
 			test_fail(ctx, "APPEND failed");
 		return;
 	}
-	client_handle_tagged_resp_text_code(client, command, args, reply);
+	client_handle_tagged_reply(client, command, args, reply);
 
 	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
 	cmd = *cmdp;
@@ -772,7 +772,7 @@ static void init_callback(struct client *client, struct command *command,
 			test_fail(ctx, "APPEND failed");
 		return;
 	}
-	client_handle_tagged_resp_text_code(client, command, args, reply);
+	client_handle_tagged_reply(client, command, args, reply);
 
 	/* Ignore if DELETE fails. It was probably a \NoSelect mailbox. */
 	if (reply == REPLY_BAD ||
@@ -827,7 +827,7 @@ capability_callback(struct client *client, struct command *command,
 
 	if (reply != REPLY_OK || !client->postlogin_capability)
 		test_fail(ctx, "CAPABILITY failed");
-	client_handle_tagged_resp_text_code(client, command, args, reply);
+	client_handle_tagged_reply(client, command, args, reply);
 }
 
 static bool test_have_all_capabilities(struct client *client)
@@ -909,8 +909,7 @@ static int test_send_lstate_commands(struct client *client)
 				test_execute_finish(ctx);
 				return 0;
 			}
-			mask = t_strconcat(client->view->storage->name,
-					   "*", NULL);
+			mask = t_strconcat(client->storage->name, "*", NULL);
 			mask = t_imap_quote_str(mask);
 
 			ctx->listing = TRUE;
@@ -923,7 +922,7 @@ static int test_send_lstate_commands(struct client *client)
 		case TEST_STARTUP_STATE_DELETED:
 			client->state = STATE_MCREATE;
 			str = t_strdup_printf("CREATE %s",
-				t_imap_quote_str(client->view->storage->name));
+				t_imap_quote_str(client->storage->name));
 			command_send(client, str, init_callback);
 			break;
 		case TEST_STARTUP_STATE_CREATED:
@@ -942,7 +941,7 @@ static int test_send_lstate_commands(struct client *client)
 			return test_send_lstate_commands(client);
 		case TEST_STARTUP_STATE_APPENDED:
 			str = t_strdup_printf("SELECT %s",
-				t_imap_quote_str(client->view->storage->name));
+				t_imap_quote_str(client->storage->name));
 			client->state = STATE_SELECT;
 			command_send(client, str, init_callback);
 			break;
@@ -999,7 +998,7 @@ static int test_execute(const struct test *test,
 	ctx->clients_waiting = test->connection_count;
 
 	hash_insert(ctx->variables, "mailbox",
-		    ctx->clients[0]->view->storage->name);
+		    ctx->clients[0]->storage->name);
 	return 0;
 }
 
