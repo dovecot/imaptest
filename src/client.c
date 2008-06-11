@@ -5,10 +5,12 @@
 #include "array.h"
 #include "istream.h"
 #include "ostream.h"
+#include "str.h"
 #include "imap-parser.h"
 
 #include "imap-args.h"
 #include "imap-seqset.h"
+#include "imap-util.h"
 #include "settings.h"
 #include "mailbox.h"
 #include "mailbox-state.h"
@@ -736,11 +738,45 @@ bool client_unref(struct client *client, bool reconnect)
 	return FALSE;
 }
 
+void client_log_mailbox_view(struct client *client)
+{
+	const struct message_metadata_dynamic *metadata;
+	const uint32_t *uidmap;
+	unsigned int i, count, metadata_count;
+	string_t *str;
+
+	str = t_str_new(256);
+	str_printfa(str, "** view: highest_modseq=%llu\r\n",
+		    (unsigned long long)client->view->highest_modseq);
+	client_rawlog_output(client, str_c(str));
+
+	uidmap = array_get(&client->view->uidmap, &count);
+	metadata = array_get(&client->view->messages, &metadata_count);
+	i_assert(metadata_count == count);
+
+	for (i = 0; i < count; i++) {
+		str_truncate(str, 0);
+		str_printfa(str, "seq=%u uid=%u modseq=%llu flags=(",
+			    i+1, uidmap[i],
+			    (unsigned long long)metadata[i].modseq);
+		imap_write_flags(str, metadata[i].mail_flags, NULL);
+		str_append(str, ") keywords=(");
+		mailbox_view_keywords_write(client->view,
+					    metadata[i].keyword_bitmask, str);
+		str_append(str, ")\r\n");
+		client_rawlog_output(client, str_c(str));
+	}
+	client_rawlog_output(client, "**\r\n");
+}
+
 void client_mailbox_close(struct client *client)
 {
 	if (client->login_state == LSTATE_SELECTED) {
-		if (rand() % 3 == 0)
-			mailbox_view_save_offline_cache(client->view);
+		if (rand() % 3 == 0) {
+			if (mailbox_view_save_offline_cache(client->view) &&
+			    client->rawlog_output != NULL)
+				client_log_mailbox_view(client);
+		}
 
 		client->login_state = LSTATE_AUTH;
 	}

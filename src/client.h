@@ -102,6 +102,7 @@ void client_mailbox_close(struct client *client);
 void client_delay(struct client *client, unsigned int msecs);
 int client_handle_untagged(struct client *client, const struct imap_arg *args);
 void client_capability_parse(struct client *client, const char *line);
+void client_log_mailbox_view(struct client *client);
 
 int client_send_more_commands(struct client *client);
 

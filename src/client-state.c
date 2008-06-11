@@ -688,6 +688,7 @@ void client_handle_resp_text_code(struct client *client,
 				array_count(&view->uidmap);
 			mailbox_view_restore_offline_cache(view,
 				client->qresync_select_cache);
+			client_log_mailbox_view(client);
 		}
 	}
 }
