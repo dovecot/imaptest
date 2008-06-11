@@ -650,6 +650,8 @@ void client_handle_resp_text_code(struct client *client,
 	if (strcmp(key, "READ-WRITE") == 0)
 		view->readwrite = TRUE;
 	else if (strcmp(key, "HIGHESTMODSEQ") == 0) {
+		/* reset previous MODSEQ updates */
+		client->highest_untagged_modseq = 0;
 		view->highest_modseq = strtoull(value, NULL, 10);
 	} else if (strcmp(key, "CAPABILITY") == 0) {
 		client_capability_parse(client, value);

@@ -370,6 +370,9 @@ void mailbox_view_keywords_write(struct mailbox_view *view,
 	const struct mailbox_keyword *keywords;
 	unsigned int i, count;
 
+	if (bitmask == NULL)
+		return;
+
 	keywords = array_get(&view->keywords, &count);
 	for (i = 0; i < count; i++) {
 		if ((bitmask[i/8] & (1 << (i%8))) != 0) {
@@ -630,6 +633,8 @@ bool mailbox_view_save_offline_cache(struct mailbox_view *view)
 	metadata = array_get(&view->messages, &count);
 	for (i = 0; i < count; i++) {
 		new_metadata = metadata[i];
+		/* \Recent flags get dropped after a reconnection */
+		new_metadata.mail_flags &= ~MAIL_RECENT;
 		new_metadata.fetch_refcount = 0;
 		new_metadata.flagchange_dirty_type = FLAGCHANGE_DIRTY_NO;
 
