@@ -162,14 +162,8 @@ void message_metadata_static_assign_owner(struct mailbox_storage *storage,
 	/* don't assign an owner if the message is already seen as expunged
 	   in another session. it could already have had an owner and we could
 	   still receive flag updates for it. */
-	if (!seq_range_exists(&storage->expunged_uids, ms->uid)) {
-		struct client **client;
-
+	if (!seq_range_exists(&storage->expunged_uids, ms->uid))
 		ms->owner_client_idx1 = clients_get_random_idx() + 1;
-		client = array_idx_modifiable(&clients, ms->owner_client_idx1-1);
-		if (*client != NULL)
-			client_rawlog_output(*client, t_strdup_printf("** own uid %u\n", ms->uid));
-	}
 }
 
 static void
