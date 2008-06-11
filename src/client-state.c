@@ -967,6 +967,8 @@ int client_plan_send_next_cmd(struct client *client)
 		}
 		str = t_strdup_printf("SELECT \"%s\"",
 				      client->view->storage->name);
+		if ((client->capabilities & CAP_CONDSTORE) != 0)
+			str = t_strconcat(str, " (CONDSTORE)", NULL);
 		command_send(client, str, state_callback);
 		break;
 	case STATE_FETCH: {

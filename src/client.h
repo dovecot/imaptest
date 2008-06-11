@@ -8,7 +8,8 @@ struct imap_arg;
 
 enum imap_capability {
 	CAP_LITERALPLUS		= 0x01,
-	CAP_MULTIAPPEND		= 0x02
+	CAP_MULTIAPPEND		= 0x02,
+	CAP_CONDSTORE		= 0x04
 };
 
 struct imap_capability_name {
@@ -19,6 +20,7 @@ struct imap_capability_name {
 static const struct imap_capability_name cap_names[] = {
 	{ "LITERAL+", CAP_LITERALPLUS },
 	{ "MULTIAPPEND", CAP_MULTIAPPEND },
+	{ "CONDSTORE", CAP_CONDSTORE },
 
 	{ NULL, 0 }
 };
