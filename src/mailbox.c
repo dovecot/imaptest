@@ -1,6 +1,7 @@
 /* Copyright (C) 2007 Timo Sirainen */
 
 #include "lib.h"
+#include "ioloop.h"
 #include "array.h"
 #include "bsearch-insert-pos.h"
 #include "str.h"
@@ -18,6 +19,8 @@
 
 #include <stdlib.h>
 #include <ctype.h>
+
+#define MESSAGE_STATIC_REF0_KEEP_SECS 5
 
 struct hash_table *storages = NULL;
 
@@ -60,6 +63,16 @@ void message_metadata_static_unref(struct mailbox_storage *storage,
 	i_assert(ms->refcount > 0);
 	if (--ms->refcount > 0)
 		return;
+	if (!ms->expunged) {
+		/* unreferencing non-expunged messages get problematic if the
+		   message owner client changes. so delay the final free. */
+		ms->ref0_timeout = ioloop_time + MESSAGE_STATIC_REF0_KEEP_SECS;
+		if (storage->static_metadata_ref0_count++ == 0) {
+			storage->static_metadata_ref0_next_scan =
+				ioloop_time + MESSAGE_STATIC_REF0_KEEP_SECS;
+		}
+		return;
+	}
 
 	base = array_get_modifiable(&storage->static_metadata, &count);
 	if (!bsearch_insert_pos(&ms->uid, base, count, sizeof(*base),
@@ -70,6 +83,35 @@ void message_metadata_static_unref(struct mailbox_storage *storage,
 	i_free(ms);
 }
 
+static void message_metadata_static_free_old(struct mailbox_storage *storage)
+{
+	struct message_metadata_static **ms;
+	unsigned int i, count, seen = 0;
+	time_t oldest = 0;
+
+	ms = array_get_modifiable(&storage->static_metadata, &count);
+	i = 0;
+	while (i < count && seen < storage->static_metadata_ref0_count) {
+		if (ms[i]->refcount != 0) {
+			i++;
+			continue;
+		}
+		/* removed */
+		if (ioloop_time < ms[i]->ref0_timeout) {
+			if (oldest == 0 || oldest > ms[i]->ref0_timeout)
+				oldest = ms[i]->ref0_timeout;
+			i++; seen++;
+			continue;
+		}
+		storage->static_metadata_ref0_count--;
+		i_free(ms[i]);
+
+		array_delete(&storage->static_metadata, i, 1);
+		ms = array_get_modifiable(&storage->static_metadata, &count);
+	}
+	storage->static_metadata_ref0_next_scan = oldest;
+}
+
 struct message_metadata_static *
 message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid)
 {
@@ -78,11 +120,20 @@ message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid)
 	unsigned int count, idx;
 	uint32_t first_uid;
 
+	if (storage->static_metadata_ref0_count > 0 &&
+	    ioloop_time >= storage->static_metadata_ref0_next_scan)
+		message_metadata_static_free_old(storage);
+
 	base = array_get_modifiable(&storage->static_metadata, &count);
 	if (bsearch_insert_pos(&uid, base, count, sizeof(*base),
 			       metadata_static_cmp, &idx)) {
-		base[idx]->refcount++;
-		return base[idx];
+		ms = base[idx];
+		if (ms->refcount++ == 0) {
+			i_assert(storage->static_metadata_ref0_count > 0);
+			storage->static_metadata_ref0_count--;
+			ms->ref0_timeout = 0;
+		}
+		return ms;
 	}
 
 	/* see if we could compact expunged_uids array */
@@ -96,16 +147,29 @@ message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid)
 	ms = i_new(struct message_metadata_static, 1);
 	ms->uid = uid;
 	ms->refcount = 1;
-	/* don't assign an owner if the message is already seen as expunged
-	   in another session. it could already have had an owner and we could
-	   still receive flag updates for it. */
-	if (storage->assign_msg_owners &&
-	    !seq_range_exists(&storage->expunged_uids, uid))
-		ms->owner_client_idx1 = clients_get_random_idx() + 1;
 	array_insert(&storage->static_metadata, idx, &ms, 1);
 
 	base = array_idx_modifiable(&storage->static_metadata, idx);
 	return *base;
+}
+
+void message_metadata_static_assign_owner(struct mailbox_storage *storage,
+					  struct message_metadata_static *ms)
+{
+	if (ms->owner_client_idx1 != 0 || !storage->assign_msg_owners)
+		return;
+
+	/* don't assign an owner if the message is already seen as expunged
+	   in another session. it could already have had an owner and we could
+	   still receive flag updates for it. */
+	if (!seq_range_exists(&storage->expunged_uids, ms->uid)) {
+		struct client **client;
+
+		ms->owner_client_idx1 = clients_get_random_idx() + 1;
+		client = array_idx_modifiable(&clients, ms->owner_client_idx1-1);
+		if (*client != NULL)
+			client_rawlog_output(*client, t_strdup_printf("** own uid %u\n", ms->uid));
+	}
 }
 
 static void

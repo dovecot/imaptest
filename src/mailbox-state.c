@@ -709,6 +709,13 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 		}
 	}
 	t_pop();
+
+	/* assign owner only after processing FETCH so that we don't think the
+	   FETCH changes caused a change yet */
+	if (metadata->ms != NULL) {
+		message_metadata_static_assign_owner(client->storage,
+						     metadata->ms);
+	}
 }
 
 int mailbox_state_set_flags(struct mailbox_view *view,

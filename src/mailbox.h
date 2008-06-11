@@ -32,6 +32,10 @@ struct message_metadata_static {
 	uint32_t uid;
 	unsigned int refcount;
 
+	/* timestamp when this message should be removed if it still has
+	   refcount=0 */
+	time_t ref0_timeout;
+
 	time_t internaldate;
 	int internaldate_tz;
 	unsigned int owner_client_idx1;
@@ -126,6 +130,12 @@ struct mailbox_storage {
 	   client gets disconnected. */
 	struct mailbox_offline_cache *cache;
 
+	/* Number of messages in static_metadata with refcount=0 */
+	unsigned int static_metadata_ref0_count;
+	/* Timestamp when static_metadata should next be scanned for
+	   removal of old refcount=0 messages */
+	time_t static_metadata_ref0_next_scan;
+
 	/* static metadata for this mailbox. sorted by UID. */
 	ARRAY_DEFINE(static_metadata, struct message_metadata_static *);
 	ARRAY_DEFINE(keyword_names, struct mailbox_keyword_name *);
@@ -207,6 +217,8 @@ struct message_metadata_static *
 message_metadata_static_lookup_seq(struct mailbox_view *view, uint32_t seq);
 struct message_metadata_static *
 message_metadata_static_get(struct mailbox_storage *storage, uint32_t uid);
+void message_metadata_static_assign_owner(struct mailbox_storage *storage,
+					  struct message_metadata_static *ms);
 void message_metadata_static_unref(struct mailbox_storage *storage,
 				   struct message_metadata_static **ms);
 void mailbox_view_expunge(struct mailbox_view *view, unsigned int seq);
