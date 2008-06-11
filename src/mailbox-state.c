@@ -257,6 +257,10 @@ message_metadata_set_modseq(struct client *client, const char *value,
 	uint32_t uid = metadata->ms == NULL ? 0 : metadata->ms->uid;
 
 	modseq = strtoull(value, NULL, 10);
+	if (modseq == 0) {
+		client_input_error(client, "UID=%u MODSEQ 0 returned", uid);
+		return;
+	}
 	if (modseq < metadata->modseq) {
 		client_input_error(client,
 				   "UID=%u MODSEQ dropped %s -> %s", uid,
