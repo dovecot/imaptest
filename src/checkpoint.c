@@ -218,7 +218,6 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 				client->global_id, i + 1, uids[i],
 				checkpoint_keywords_to_str(ctx, keywords_remapped),
 				checkpoint_keywords_to_str(ctx, ctx->messages[i].keyword_bitmask));
-			abort();
 		}
 	}
 }
