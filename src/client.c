@@ -703,7 +703,7 @@ bool client_unref(struct client *client, bool reconnect)
 	if (client->test_exec_ctx != NULL) {
 		/* storage must be fully unreferenced before new test can
 		   begin. */
-		mailbox_storage_unref(&client->storage);
+		mailbox_storage_unref(&storage);
 		test_execute_cancel_by_client(client);
 	}
 
