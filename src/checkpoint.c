@@ -133,6 +133,21 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 			break;
 		}
 
+		if (msgs[i].modseq != 0) {
+			/* modseq set */
+			if (ctx->messages[i].modseq == 0)
+				ctx->messages[i].modseq = msgs[i].modseq;
+			else if (ctx->messages[i].modseq != msgs[i].modseq) {
+				ctx->errors = TRUE;
+				i_error("Checkpoint: client %u: "
+					"Message seq=%u UID=%u "
+					"modseqs differ: %s vs %s",
+					client->global_id, i + 1, uids[i],
+					dec2str(msgs[i].modseq),
+					dec2str(ctx->messages[i].modseq));
+			}
+		}
+
 		if ((msgs[i].mail_flags & MAIL_FLAGS_SET) == 0)
 			continue;
 
