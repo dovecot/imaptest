@@ -364,18 +364,13 @@ const char *mail_flags_to_str(enum mail_flags flags)
 	return str_c(str);
 }
 
-const char *mailbox_view_keywords_to_str(struct mailbox_view *view,
-					 const uint8_t *bitmask)
+void mailbox_view_keywords_write(struct mailbox_view *view,
+				 const uint8_t *bitmask, string_t *str)
 {
 	const struct mailbox_keyword *keywords;
-	string_t *str;
 	unsigned int i, count;
 
 	keywords = array_get(&view->keywords, &count);
-	if (count == 0)
-		return "";
-
-	str = t_str_new(128);
 	for (i = 0; i < count; i++) {
 		if ((bitmask[i/8] & (1 << (i%8))) != 0) {
 			if (str_len(str) > 0)
@@ -383,6 +378,18 @@ const char *mailbox_view_keywords_to_str(struct mailbox_view *view,
 			str_append(str, keywords[i].name->name);
 		}
 	}
+}
+
+const char *mailbox_view_keywords_to_str(struct mailbox_view *view,
+					 const uint8_t *bitmask)
+{
+	string_t *str;
+
+	if (array_count(&view->keywords) == 0)
+		return NULL;
+
+	str = t_str_new(128);
+	mailbox_view_keywords_write(view, bitmask, str);
 	return str_c(str);
 }
 
@@ -612,7 +619,7 @@ bool mailbox_view_save_offline_cache(struct mailbox_view *view)
 	keyword_bytecount = (count + 7) / 8;
 	i_assert(keyword_bytecount <= view->keyword_bitmask_alloc_size);
 	for (i = 0; i < count; i++)
-		array_append(&cache->keywords, &keywords->name, 1);
+		array_append(&cache->keywords, &keywords[i].name, 1);
 
 	/* copy UID map */
 	array_clear(&cache->uidmap);
@@ -623,6 +630,9 @@ bool mailbox_view_save_offline_cache(struct mailbox_view *view)
 	metadata = array_get(&view->messages, &count);
 	for (i = 0; i < count; i++) {
 		new_metadata = metadata[i];
+		new_metadata.fetch_refcount = 0;
+		new_metadata.flagchange_dirty_type = FLAGCHANGE_DIRTY_NO;
+
 		if (metadata[i].keyword_bitmask != NULL) {
 			new_metadata.keyword_bitmask =
 				i_malloc(keyword_bytecount);
