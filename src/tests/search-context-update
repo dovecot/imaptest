@@ -1,0 +1,23 @@
+capabilities: CONTEXT=SEARCH
+
+ok search return (update) body body seen
+* esearch (tag $tag)
+
+ok store 1,2,5 +flags \seen
+* esearch (tag $tag) addto ($pos 1:2,5)
+
+ok store 1,2 -flags \seen
+* esearch (tag $tag) removefrom ($pos2 1:2)
+
+ok store 3:6 +flags \deleted
+ok expunge
+* esearch (tag $tag) removefrom ($pos3 $5)
+* $3 expunge
+* $4 expunge
+* $5 expunge
+* $6 expunge
+
+ok cancelupdate "$tag"
+
+ok store 1 +flags \seen
+! esearch (tag $tag) addto ($pos4 1)
