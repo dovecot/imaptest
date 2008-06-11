@@ -8,6 +8,7 @@
 #include "imap-parser.h"
 
 #include "imap-args.h"
+#include "imap-seqset.h"
 #include "settings.h"
 #include "mailbox.h"
 #include "mailbox-state.h"
@@ -91,6 +92,85 @@ static int client_expunge(struct client *client, unsigned int seq)
 	return 0;
 }
 
+static int client_expunge_uid(struct client *client, uint32_t uid)
+{
+	const uint32_t *uidmap;
+	unsigned int i, count;
+
+	/* if there are unknown UIDs we don't really know which one of them
+	   we should expunge, but it doesn't matter because they contain no
+	   metadata at that point. */
+	uidmap = array_get(&client->view->uidmap, &count);
+	for (i = 0; i < count; i++) {
+		if (uid <= uidmap[i]) {
+			if (uid == uidmap[i]) {
+				/* found it */
+				client_expunge(client, i + 1);
+				return 0;
+			}
+			break;
+		}
+	}
+
+	/* there are one or more unknown messages. expunge the last one of them
+	   (none of them should have any attached metadata) */
+	if (i == 0 || uidmap[i-1] != 0) {
+		client_input_error(client, "VANISHED UID=%u not found", uid);
+		return -1;
+	}
+
+	client_expunge(client, i);
+	return 0;
+}
+
+static void client_enabled(struct client *client, const struct imap_arg *args)
+{
+	const char *str;
+
+	for (; args->type == IMAP_ARG_ATOM; args++) {
+		str = IMAP_ARG_STR_NONULL(args);
+		if (strcasecmp(str, "QRESYNC") == 0)
+			client->qresync_enabled = TRUE;
+	}
+}
+
+static int client_vanished(struct client *client, const struct imap_arg *args)
+{
+	ARRAY_TYPE(seq_range) uids;
+	const struct seq_range *range;
+	unsigned int i, count;
+	const char *uidset;
+	uint32_t uid;
+
+	if (!client->qresync_enabled) {
+		client_input_error(client,
+			"Server sent VANISHED but we hadn't enabled QRESYNC");
+		return -1;
+	}
+
+	if (args->type != IMAP_ARG_ATOM || args[1].type != IMAP_ARG_EOL) {
+		client_input_error(client, "Invalid VANISHED parameters");
+		return -1;
+	}
+	uidset = IMAP_ARG_STR_NONULL(args);
+
+	t_array_init(&uids, 16);
+	if (imap_seq_set_parse(uidset, &uids) < 0) {
+		client_input_error(client, "Invalid VANISHED sequence-set");
+		return -1;
+	}
+
+	/* we assume that there are no extra UIDs in the reply, even though
+	   it's only a SHOULD in the spec. way too difficult to handle
+	   otherwise. */
+	range = array_get(&uids, &count);
+	for (i = 0; i < count; i++) {
+		for (uid = range[i].seq1; uid <= range[i].seq2; uid++)
+			client_expunge_uid(client, uid);
+	}
+	return 0;
+}
+
 void client_capability_parse(struct client *client, const char *line)
 {
 	const char *const *tmp;
@@ -167,7 +247,12 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 		client_capability_parse(client, imap_args_to_str(args));
 	else if (strcmp(str, "SEARCH") == 0)
 		search_result(client, args);
-	else if (strcmp(str, "THREAD") == 0) {
+	else if (strcmp(str, "ENABLED") == 0)
+		client_enabled(client, args);
+	else if (strcmp(str, "VANISHED") == 0) {
+		if (client_vanished(client, args) < 0)
+			return -1;
+	} else if (strcmp(str, "THREAD") == 0) {
 		i_free(view->last_thread_reply);
 		view->last_thread_reply =
 			i_strdup(imap_args_to_str(args + 1));

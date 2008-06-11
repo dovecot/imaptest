@@ -965,6 +965,8 @@ int client_plan_send_next_cmd(struct client *client)
 			/* already selected, don't do it agai */
 			break;
 		}
+		if (conf.qresync)
+			command_send(client, "ENABLE QRESYNC", state_callback);
 		str = t_strdup_printf("SELECT \"%s\"",
 				      client->view->storage->name);
 		if ((client->capabilities & CAP_CONDSTORE) != 0)
@@ -989,10 +991,13 @@ int client_plan_send_next_cmd(struct client *client)
 		str_append(cmd, "FETCH ");
 		seq_range_to_imap_range(&seq_range, cmd);
 		str_append(cmd, " (");
-		if (conf.checkpoint_interval > 0) {
-			/* knowing UID and FLAGS improves detecting problems */
-			str_append(cmd, "UID FLAGS ");
-		}
+		/* knowing UID and FLAGS when checkpointing improves
+		   detecting problems. UID is required with QRESYNC to get
+		   VANISHED working correctly for UIDs we haven't yet seen */
+		if (conf.checkpoint_interval > 0 || client->qresync_enabled)
+			str_append(cmd, "UID ");
+		if (conf.checkpoint_interval > 0)
+			str_append(cmd, "FLAGS ");
 		for (i = (rand() % 4) + 1; i > 0; i--) {
 			if ((rand() % 4) != 0) {
 				str_append(cmd, fields[rand() %

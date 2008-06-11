@@ -398,6 +398,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			conf.own_flags = TRUE;
 			continue;
 		}
+		if (strcmp(*argv, "qresync") == 0) {
+			conf.qresync = TRUE;
+			continue;
+		}
 
 		/* pass=password */
 		if (strcmp(key, "pass") == 0) {

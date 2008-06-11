@@ -9,7 +9,8 @@ struct imap_arg;
 enum imap_capability {
 	CAP_LITERALPLUS		= 0x01,
 	CAP_MULTIAPPEND		= 0x02,
-	CAP_CONDSTORE		= 0x04
+	CAP_CONDSTORE		= 0x04,
+	CAP_QRESYNC		= 0x08
 };
 
 struct imap_capability_name {
@@ -21,6 +22,7 @@ static const struct imap_capability_name cap_names[] = {
 	{ "LITERAL+", CAP_LITERALPLUS },
 	{ "MULTIAPPEND", CAP_MULTIAPPEND },
 	{ "CONDSTORE", CAP_CONDSTORE },
+	{ "QRESYNC", CAP_QRESYNC },
 
 	{ NULL, 0 }
 };
@@ -73,6 +75,7 @@ struct client {
 	unsigned int append_started:1;
 	unsigned int try_create_mailbox:1;
 	unsigned int postlogin_capability:1;
+	unsigned int qresync_enabled:1;
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
 

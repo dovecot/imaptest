@@ -518,6 +518,10 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 	}
 
 	arg = fetch_list_get(args, "UID");
+	if (arg == NULL && client->qresync_enabled) {
+		client_input_error(client,
+			"FETCH didn't UID while QRESYNC was enabled");
+	}
 	if (arg != NULL && arg->type == IMAP_ARG_ATOM) {
 		value = IMAP_ARG_STR(arg);
 		uid = strtoul(value, NULL, 10);
