@@ -1,9 +1,9 @@
 /* Copyright (C) 2007 Timo Sirainen */
 
 #include "lib.h"
+#include "str.h"
 #include "array.h"
 #include "mail-types.h"
-
 #include "settings.h"
 #include "mailbox.h"
 #include "client.h"
@@ -77,6 +77,28 @@ static void keywords_remap(struct checkpoint_context *ctx,
 	}
 }
 
+static const char *
+checkpoint_keywords_to_str(struct checkpoint_context *ctx,
+			   const uint8_t *bitmask)
+{
+	const char *const *keywords;
+	string_t *str;
+	unsigned int i, count;
+
+	keywords = array_get(&ctx->all_keywords, &count);
+	if (count == 0)
+		return "";
+
+	str = t_str_new(128);
+	for (i = 0; i < count; i++) {
+		if ((bitmask[i/8] & (1 << (i%8))) != 0) {
+			if (str_len(str) > 0)
+				str_append_c(str, ' ');
+			str_append(str, keywords[i]);
+		}
+	}
+	return str_c(str);
+}
 static void
 checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 {
@@ -194,8 +216,9 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 			i_error("Checkpoint: client %u: Message seq=%u UID=%u "
 				"keywords differ: (%s) vs (%s)",
 				client->global_id, i + 1, uids[i],
-				mailbox_view_keywords_to_str(view, msgs[i].keyword_bitmask),
-				mailbox_view_keywords_to_str(view, ctx->messages[i].keyword_bitmask));
+				checkpoint_keywords_to_str(ctx, keywords_remapped),
+				checkpoint_keywords_to_str(ctx, ctx->messages[i].keyword_bitmask));
+			abort();
 		}
 	}
 }
