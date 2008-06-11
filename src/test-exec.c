@@ -14,6 +14,7 @@
 #include "test-parser.h"
 #include "test-exec.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 
@@ -94,11 +95,11 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 
 	va_start(args, fmt);
 	if (!ctx->init_finished) {
-		i_error("Test %s initialization failed: %s",
-			ctx->test->name, t_strdup_vprintf(fmt, args));
+		printf("*** Test %s initialization failed: %s\n",
+		       ctx->test->name, t_strdup_vprintf(fmt, args));
 	} else {
 		str = t_str_new(256);
-		str_printfa(str, "Test %s command %u/%u (line %u) failed: %s\n"
+		str_printfa(str, "*** Test %s command %u/%u (line %u)\n - failed: %s\n"
 			    " - Command", ctx->test->name, ctx->cur_cmd_idx+1,
 			    array_count(&ctx->test->commands),
 			    (*cmdp)->linenum, t_strdup_vprintf(fmt, args));
@@ -107,7 +108,7 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 				    client->global_id, ctx->cur_cmd->tag);
 		}
 		str_printfa(str, ": %s", (*cmdp)->command);
-		i_error("%s", str_c(str));
+		printf("%s\n\n", str_c(str));
 	}
 	va_end(args);
 
