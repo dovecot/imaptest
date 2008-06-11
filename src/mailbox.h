@@ -62,6 +62,7 @@ enum flagchange_dirty_type {
 
 struct message_metadata_dynamic {
 #define MAIL_FLAGS_SET 0x40000000
+	uint64_t modseq;
 	/* flags and keywords are set only if MAIL_FLAGS_SET is set */
 	enum mail_flags mail_flags;
 	uint8_t *keyword_bitmask; /* [view->keyword_bitmask_alloc_size] */

@@ -206,9 +206,10 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 	}
 	metadata->mail_flags = flags | MAIL_FLAGS_SET;
 
-	if ((old_flags.flags & MAIL_FLAGS_SET) == 0 ||
-	    metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_NO) {
+	if ((old_flags.flags & MAIL_FLAGS_SET) == 0) {
 		/* we don't know the old flags */
+	} else if (metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_NO) {
+		/* we're changing the flags ourself */
 	} else if (metadata->ms == NULL) {
 		/* UID now known yet, don't do any owning checks */
 	} else if (metadata->ms->owner_client_idx1 == client->idx+1) {
@@ -246,6 +247,32 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 		}
 	} else if (metadata->flagchange_dirty_type == FLAGCHANGE_DIRTY_YES)
 		metadata->flagchange_dirty_type = FLAGCHANGE_DIRTY_WAITING;
+}
+
+static void
+message_metadata_set_modseq(struct client *client, const char *value,
+			    struct message_metadata_dynamic *metadata)
+{
+	uint64_t modseq;
+	uint32_t uid = metadata->ms == NULL ? 0 : metadata->ms->uid;
+
+	modseq = strtoull(value, NULL, 10);
+	if (modseq < metadata->modseq) {
+		client_input_error(client,
+				   "UID=%u MODSEQ dropped %s -> %s", uid,
+				   dec2str(metadata->modseq), dec2str(modseq));
+	}
+
+	if (metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_NO) {
+		/* we're changing the flags ourself */
+	} else if (metadata->ms == NULL) {
+		/* UID now known yet, don't do any owning checks */
+	} else if (metadata->ms->owner_client_idx1 == client->idx+1 &&
+		   modseq != metadata->modseq) {
+		client_state_error(client,
+			"MODSEQ unexpectedly changed for owned message");
+	}
+	metadata->modseq = modseq;
 }
 
 static void
@@ -550,6 +577,11 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 			}
 			message_metadata_set_flags(client, array_idx(list, 0),
 						   metadata);
+			continue;
+		}
+
+		if (strcmp(name, "MODSEQ") == 0) {
+			message_metadata_set_modseq(client, value, metadata);
 			continue;
 		}
 
