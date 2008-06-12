@@ -321,6 +321,8 @@ static int client_append_more(struct client *client)
 	client->append_vsize_left -= ret;
 	client->append_skip += ret;
 
+	client_rawlog_output(client, t_strdup_printf("<%"PRIuUOFF_T" bytes>\n", ret));
+
 	if (client->append_vsize_left > 0) {
 		/* unfinished */
 		o_stream_set_flush_pending(client->output, TRUE);
@@ -336,13 +338,16 @@ static int client_append_more(struct client *client)
 		   do it in the same transaction. */
 		if (client_plan_send_next_cmd(client) < 0)
 			return -1;
-		if (!client->append_started)
+		if (client->append_started || !client->append_unfinished) {
+			/* multiappend started / finished */
 			return 0;
+		}
 		/* we didn't append a second message after all */
 	}
 
 	client->append_unfinished = FALSE;
 	o_stream_send_str(client->output, "\r\n");
+	client_rawlog_output(client, "\r\n");
 	return 0;
 }
 
@@ -380,6 +385,7 @@ int client_append(struct client *client, const char *args, bool add_datetime,
 	if (client->append_unfinished) {
 		/* continues the last APPEND call */
 		str_append(cmd, "\r\n");
+		client_rawlog_output(client, str_c(cmd));
 		o_stream_send_str(client->output, str_c(cmd));
 	} else {
 		client->state = STATE_APPEND;
