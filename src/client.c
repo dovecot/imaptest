@@ -82,6 +82,18 @@ void client_exists(struct client *client, unsigned int msgs)
 static int client_expunge(struct client *client, unsigned int seq)
 {
 	struct message_metadata_dynamic *metadata;
+	unsigned int count = array_count(&client->view->uidmap);
+
+	if (seq == 0) {
+		client_input_error(client, "Tried to expunge sequence 0");
+		return -1;
+	}
+	if (seq > count) {
+		client_input_error(client,
+			"Tried to expunge sequence %u with only %u msgs",
+			seq, count);
+		return -1;
+	}
 
 	metadata = array_idx_modifiable(&client->view->messages, seq - 1);
 	if (metadata->fetch_refcount > 0) {
