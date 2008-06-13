@@ -789,8 +789,13 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 			/* fall through */
 		case STATE_STORE:
 		case STATE_STORE_DEL:
-			if (strcmp(line, "NO Cannot store on expunged messages") == 0) {
+			if (strcmp(line, "Cannot store on expunged messages") == 0) {
 				/* Archiveopteryx */
+				break;
+			}
+			if (strcmp(line, "STORE completed") == 0 ||
+			    strcmp(line, "STORE failed") == 0) {
+				/* Zimbra */
 				break;
 			}
 			if (strstr(line, "have been deleted") != NULL) {
