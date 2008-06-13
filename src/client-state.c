@@ -361,12 +361,13 @@ int client_append(struct client *client, const char *args, bool add_datetime,
 	struct mailbox_source *source = client->storage->source;
 	string_t *cmd;
 	time_t t;
+	int tz;
 
 	*cmd_r = NULL;
 
 	i_assert(client->append_vsize_left == 0);
 	mailbox_source_get_next_size(source, &client->append_psize,
-				     &client->append_vsize_left, &t);
+				     &client->append_vsize_left, &t, &tz);
 	client->append_offset = source->input->v_offset;
 	client->append_skip = 0;
 	client->append_started = TRUE;
@@ -379,7 +380,7 @@ int client_append(struct client *client, const char *args, bool add_datetime,
 	}
 	str_append(cmd, args);
 	if (add_datetime)
-		str_printfa(cmd, " \"%s\"", imap_to_datetime(t));
+		str_printfa(cmd, " \"%s\"", imap_to_datetime_tz(t, tz));
 
 	str_printfa(cmd, " {%"PRIuUOFF_T, client->append_vsize_left);
 	if ((client->capabilities & CAP_LITERALPLUS) != 0)

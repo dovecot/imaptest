@@ -54,13 +54,14 @@ bool mailbox_source_eof(struct mailbox_source *source)
 
 void mailbox_source_get_next_size(struct mailbox_source *source,
 				  uoff_t *psize_r, uoff_t *vsize_r,
-				  time_t *time_r)
+				  time_t *time_r, int *tz_offset_r)
 {
 	const char *line;
 	char *sender;
 	uoff_t offset, last_offset, vsize;
 	time_t next_time;
 	unsigned int linelen;
+	int next_tz;
 
 	i_stream_seek(source->input, source->next_offset);
 
@@ -70,14 +71,15 @@ void mailbox_source_get_next_size(struct mailbox_source *source,
 			i_fatal("Empty mbox file: %s", source->path);
 
 		source->next_offset = 0;
-		mailbox_source_get_next_size(source, psize_r, vsize_r, time_r);
+		mailbox_source_get_next_size(source, psize_r, vsize_r,
+					     time_r, tz_offset_r);
 		return;
 	}
 
 	/* should be From-line */
 	if (strncmp(line, "From ", 5) != 0 ||
 	    mbox_from_parse((const unsigned char *)line+5, strlen(line+5),
-			    time_r, &sender) < 0) {
+			    time_r, tz_offset_r, &sender) < 0) {
 		if (source->input->v_offset == 0)
 			i_fatal("Not a valid mbox file: %s", source->path);
 		i_panic("From-line not found at %"PRIuUOFF_T,
@@ -91,7 +93,8 @@ void mailbox_source_get_next_size(struct mailbox_source *source,
 		linelen = strlen(line);
 		if (strncmp(line, "From ", 5) == 0 &&
 		    mbox_from_parse((const unsigned char *)line+5,
-				    linelen-5, &next_time, &sender) == 0) {
+				    linelen-5, &next_time, &next_tz,
+				    &sender) == 0) {
 			i_free(sender);
 			if (offset != last_offset)
                                 break;
