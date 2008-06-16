@@ -691,7 +691,7 @@ bool client_unref(struct client *client, bool reconnect)
 	array_idx_clear(&clients, idx);
 
 	cmds = array_get(&client->commands, &count);
-	checkpoint = client->checkpointing != NULL;
+	checkpoint = client->checkpointing != NULL && count > 0;
 	for (i = 0; i < count; i++)
 		command_free(cmds[i]);
 	array_free(&client->commands);
