@@ -757,6 +757,9 @@ void client_log_mailbox_view(struct client *client)
 	unsigned int i, count, metadata_count;
 	string_t *str;
 
+	if (client->rawlog_output == NULL)
+		return;
+
 	str = t_str_new(256);
 	str_printfa(str, "** view: highest_modseq=%llu\r\n",
 		    (unsigned long long)client->view->highest_modseq);
@@ -783,7 +786,7 @@ void client_log_mailbox_view(struct client *client)
 
 void client_mailbox_close(struct client *client)
 {
-	if (client->login_state == LSTATE_SELECTED) {
+	if (client->login_state == LSTATE_SELECTED && conf.qresync) {
 		if (rand() % 3 == 0) {
 			if (mailbox_view_save_offline_cache(client->view) &&
 			    client->rawlog_output != NULL)
