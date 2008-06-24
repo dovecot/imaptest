@@ -1053,9 +1053,13 @@ int client_plan_send_next_cmd(struct client *client)
 		command_send(client, "AUTHENTICATE plain", auth_plain_callback);
 		break;
 	case STATE_LOGIN:
+		o_stream_cork(client->output);
 		str = t_strdup_printf("LOGIN \"%s\" \"%s\"",
 				      client->username, conf.password);
 		command_send(client, str, state_callback);
+		if (conf.qresync)
+			command_send(client, "ENABLE QRESYNC", state_callback);
+		o_stream_uncork(client->output);
 		break;
 	case STATE_LIST:
 		//str = t_strdup_printf("LIST \"\" * RETURN (X-STATUS (MESSAGES))");
