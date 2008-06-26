@@ -44,3 +44,4 @@ Makefile.in
 **/Makefile.in
 
 src/imaptest
+src/rawlog.*
