@@ -1,0 +1,6 @@
+See AUTHORS file for list of copyright holders.
+
+Everything is LGPLv2.1 (see COPYING.LGPL).
+
+Note that imaptest also links to libraries from Dovecot. They're either MIT
+or LGPLv2.1 at the time I'm writing this.

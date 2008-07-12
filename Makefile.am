@@ -1,7 +1,8 @@
 SUBDIRS = src
 
 EXTRA_DIST = \
-	ChangeLog
+	ChangeLog \
+	COPYING.LGPL
 
 if MAINTAINER_MODE
 ChangeLog: .hg/dirstate

@@ -24,7 +24,6 @@ install-sh
 missing
 mkinstalldirs
 ABOUT-NLS
-COPYING
 INSTALL
 build-stamp
 configure-stamp
