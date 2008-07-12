@@ -1,4 +1,4 @@
-/* Copyright (C) 2007 Timo Sirainen */
+/* Copyright (c) 2007-2008 Timo Sirainen */
 
 #include "lib.h"
 #include "lib-signals.h"
