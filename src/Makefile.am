@@ -1,5 +1,7 @@
 bin_PROGRAMS = imaptest
 
+SUBDIRS = tests
+
 AM_CPPFLAGS = \
 	-I$(dovecot_incdir) \
 	-I$(dovecot_incdir)/src/lib \

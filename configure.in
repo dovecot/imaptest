@@ -39,6 +39,7 @@ AC_SUBST(dovecot_incdir)
 AC_CONFIG_FILES([
 Makefile
 src/Makefile
+src/tests/Makefile
 stamp.h])
 
 AC_OUTPUT
