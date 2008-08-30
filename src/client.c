@@ -316,7 +316,8 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 			return -1;
 	} else if (strcmp(str, "THREAD") == 0) {
 		i_free(view->last_thread_reply);
-		view->last_thread_reply =
+		view->last_thread_reply = args->type == IMAP_ARG_EOL ?
+			i_strdup("") :
 			i_strdup(imap_args_to_str(args + 1));
 	} else if (strcmp(str, "OK") == 0) {
 		client_handle_resp_text_code(client, args);
