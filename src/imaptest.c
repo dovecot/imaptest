@@ -469,6 +469,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 
 	if (conf.username_template == NULL)
 		i_fatal("Missing username");
+	if (testdir != NULL && strchr(conf.username_template, '%') != NULL) {
+		printf("Don't use %% in username with tests\n");
+		return 1;
+	}
 
 	if ((ret = net_gethostbyname(conf.host, &ips, &count)) != 0) {
 		i_error("net_gethostbyname(%s) failed: %s",
