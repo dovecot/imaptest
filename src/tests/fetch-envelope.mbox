@@ -1,7 +1,7 @@
 From user@domain  Fri Feb 22 17:06:23 2008
 Message-ID: <msg@id>
 In-Reply-To: <reply@to.id>
-Date: Thu, 01 Feb 2007 01:02:03 +0200
+Date: Thu, 15 Feb 2007 01:02:03 +0200
 Subject: subject header
 From: From Real <fromuser@fromdomain.org>
 To: To Real <touser@todomain.org>
@@ -13,26 +13,26 @@ Reply-To: ReplyTo Real <replytouser@replytodomain.org>
 body
 
 From user@domain  Fri Feb 22 17:06:23 2008
-Date: Thu, 01 Feb 2007 01:02:03 +0200
+Date: Thu, 15 Feb 2007 01:02:03 +0200
 From: user@domain
 
 body
 
 From user@domain  Fri Feb 22 17:06:23 2008
-Date: Thu, 01 Feb 2007 01:02:03 +0200
+Date: Thu, 15 Feb 2007 01:02:03 +0200
 From: user@domain
 
 body
 
 From user@domain  Fri Feb 22 17:06:23 2008
-Date: Thu, 01 Feb 2007 01:02:03 +0200
+Date: Thu, 15 Feb 2007 01:02:03 +0200
 From: user@domain (Real Name)
 To: group: g1@d1.org, g2@d2.org;, group2: g3@d3.org;
 
 body
 
 From user@domain  Fri Feb 22 17:06:23 2008
-Date: Thu, 01 Feb 2007 01:02:03 +0200
+Date: Thu, 15 Feb 2007 01:02:03 +0200
 From: user@domain (Real Name)
 Sender: 
 Reply-To: 
@@ -40,7 +40,7 @@ Reply-To:
 body
 
 From user@domain  Fri Feb 22 17:06:23 2008
-Date: Thu, 01 Feb 2007 01:02:03 +0200
+Date: Thu, 15 Feb 2007 01:02:03 +0200
 From: <@route:user@domain>
 
 body
