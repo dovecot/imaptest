@@ -35,16 +35,19 @@ ok search *
 * search 5
 ok search uid *
 * search 5
-ok search 6:*
-* search 5
-ok search *:6
-* search 5
 ok search uid $uidnext:*
 * search 5
 ok search *:3
 * search 3 4 5
 ok search 1,4,*
 * search 1 4 5
+
+# These are in a bit of a grey area. Most servers allow them, but it's not
+# explicitly defined in the RFC that they're legal:
+#ok search 6:*
+#* search 5
+#ok search *:6
+#* search 5
 
 ok search (3) uid $uid4
 * search 3
