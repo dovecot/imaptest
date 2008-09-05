@@ -684,7 +684,7 @@ bool client_unref(struct client *client, bool reconnect)
 		return TRUE;
 
 	total_disconnects++;
-	if (conf.disconnect_quit)
+	if (conf.disconnect_quit && client->login_state != LSTATE_NONAUTH)
 		exit(1);
 
 	if (--clients_count == 0)

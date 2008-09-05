@@ -911,6 +911,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 			   shouldn't get here. */
 			client_state_error(client, "Server didn't send BYE");
 		}
+		client->login_state = LSTATE_NONAUTH;
 		return -1;
 	case STATE_DISCONNECT:
 		return -1;
