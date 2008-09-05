@@ -1,7 +1,7 @@
 
 # full address searching
 ok search from user-from@domain.org
-* search 1 2 3 4
+* search 1 2 3 4 6 7
 ok search to user-to@domain.org
 * search 1 2 3 4
 ok search cc user-cc@domain.org
@@ -11,7 +11,7 @@ ok search bcc user-bcc@domain.org
 
 # realname searching
 ok search from realfrom
-* search 2 4
+* search 2 4 6 7
 ok search to realto
 * search 2 4
 ok search cc realcc
@@ -21,9 +21,9 @@ ok search bcc realbcc
 
 # existence searches
 ok search header from ""
-* search 1 2 3 4 5
+* search 1 2 3 4 5 6 7
 ok search header to ""
-* search 1 2 3 4 6
+* search 1 2 3 4 6 7
 ok search header cc ""
 * search 1 2 3 4 5
 ok search header bcc ""
@@ -31,7 +31,7 @@ ok search header bcc ""
 
 # substring address searches
 ok search from ser-fro
-* search 1 2 3 4 5
+* search 1 2 3 4 5 6 7
 ok search to ser-t
 * search 1 2 3 4
 ok search cc ser-c
@@ -41,7 +41,7 @@ ok search bcc ser-bc
 
 # substring realname searches
 ok search from ealfro
-* search 2 4
+* search 2 4 6 7
 ok search to ealt
 * search 2 4
 ok search cc ealc
@@ -57,7 +57,7 @@ ok search from user-from2
 
 # groups
 ok search to groupname
-* search 6
+* search 6 7
 ok search to groupname2
 * search 6
 ok search to groupuser1
