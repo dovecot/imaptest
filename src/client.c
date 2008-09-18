@@ -637,7 +637,7 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 		const char *rawlog_path;
 
 		rawlog_path = t_strdup_printf("rawlog.%u", client->global_id);
-		log_fd = open(rawlog_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+		log_fd = open(rawlog_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 		if (log_fd == -1)
 			i_fatal("creat(%s) failed: %m", rawlog_path);
 		client->rawlog_output = o_stream_create_fd(log_fd, 0, TRUE);
