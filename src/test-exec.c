@@ -21,8 +21,10 @@
 struct tests_execute_context {
 	const ARRAY_TYPE(test) *tests;
 	unsigned int next_test;
-	unsigned int failures;
-	unsigned int skips;
+	unsigned int base_failures, base_tests;
+	unsigned int ext_failures, ext_tests;
+	unsigned int group_failures;
+	unsigned int group_skips;
 };
 
 struct test_maybe_match {
@@ -112,6 +114,10 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 	}
 	va_end(args);
 
+	if (ctx->test->required_capabilities == NULL)
+		ctx->exec_ctx->base_failures++;
+	else
+		ctx->exec_ctx->ext_failures++;
 	ctx->failed = TRUE;
 }
 
@@ -653,6 +659,10 @@ static void test_cmd_callback(struct client *client,
 
 	ctx->cur_cmd = NULL;
 	ctx->cur_cmd_idx++;
+	if (ctx->test->required_capabilities == NULL)
+		ctx->exec_ctx->base_tests++;
+	else
+		ctx->exec_ctx->ext_tests++;
 	test_send_next_command(ctx);
 }
 
@@ -1012,8 +1022,12 @@ static void tests_execute_next(struct tests_execute_context *exec_ctx)
 	if (exec_ctx->next_test != count)
 		test_execute(tests[exec_ctx->next_test++], exec_ctx);
 	else {
-		i_info("%u tests: %u failed, %u skipped due to missing capabilities",
-		       count, exec_ctx->failures, exec_ctx->skips);
+		i_info("%u test groups: %u failed, %u skipped due to missing capabilities",
+		       count, exec_ctx->group_failures, exec_ctx->group_skips);
+		i_info("base protocol: %u/%u individual commands failed",
+		       exec_ctx->base_failures, exec_ctx->base_tests);
+		i_info("extensions: %u/%u individual commands failed",
+		       exec_ctx->ext_failures, exec_ctx->ext_tests);
 		io_loop_stop(current_ioloop);
 	}
 }
@@ -1032,7 +1046,7 @@ struct tests_execute_context *tests_execute(const ARRAY_TYPE(test) *tests)
 bool tests_execute_done(struct tests_execute_context **_ctx)
 {
 	struct tests_execute_context *ctx = *_ctx;
-	bool ret = ctx->failures == 0;
+	bool ret = ctx->group_failures == 0;
 
 	*_ctx = NULL;
 	i_free(ctx);
@@ -1047,9 +1061,9 @@ static void test_execute_finish(struct test_exec_context *ctx)
 	ctx->finished = TRUE;
 
 	if (ctx->failed)
-		ctx->exec_ctx->failures++;
+		ctx->exec_ctx->group_failures++;
 	else if (ctx->skipped)
-		ctx->exec_ctx->skips++;
+		ctx->exec_ctx->group_skips++;
 
 	/* disconnect all clients */
 	for (i = 0; i < ctx->test->connection_count; i++) {
