@@ -563,7 +563,8 @@ test_handle_untagged(struct client *client, const struct imap_arg *args)
 	if (client_handle_untagged(client, args) < 0)
 		return -1;
 
-	test_handle_untagged_match(client, args);
+	if (ctx->startup_state >= TEST_STARTUP_STATE_DELETED)
+		test_handle_untagged_match(client, args);
 
 	if (args->type == IMAP_ARG_ATOM && args[1].type == IMAP_ARG_ATOM &&
 	    strcasecmp(args[1]._data.str, "expunge") == 0) {
