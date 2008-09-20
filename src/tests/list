@@ -3,9 +3,9 @@ state: auth
 
 # get the separator
 1 ok list "" ""
-* list () $sep ""
+* list () $sep $root
 # it should be \noselect, but don't fail everything if it doesn't exist
-* list (\noselect) $sep ""
+* list (\noselect) $sep $root
 
 1 ok create $mailbox${sep}
 1 ok create $mailbox${sep}test

@@ -3,7 +3,7 @@ state: auth
 
 # get the separator
 1 ok list "" ""
-* list () $sep ""
+* list () $sep $root
 
 1 "" unsubscribe $mailbox${sep}test
 1 "" unsubscribe $mailbox${sep}test2
