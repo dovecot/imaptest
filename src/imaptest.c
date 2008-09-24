@@ -473,6 +473,11 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		printf("Don't use %% in username with tests\n");
 		return 1;
 	}
+	if (!conf.no_tracking && strchr(conf.username_template, '%') != NULL) {
+		printf("State tracking is broken currently if you use %% in username.\n"
+		       "Either drop it or add no_tracking parameter.\n");
+		return 1;
+	}
 
 	if ((ret = net_gethostbyname(conf.host, &ips, &count)) != 0) {
 		i_error("net_gethostbyname(%s) failed: %s",
