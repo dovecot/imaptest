@@ -711,6 +711,10 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	} else {
 		client->state = STATE_SELECT;
 		ctx->cur_cmd = command_send(client, cmdline, test_cmd_callback);
+		if ((*cmdp)->linenum == 0) {
+			/* sending the logout command */
+			ctx->cur_cmd->state = STATE_LOGOUT;
+		}
 		if (imap_arg_is_bad((*cmdp)->reply))
 			ctx->cur_cmd->expect_bad = TRUE;
 	}

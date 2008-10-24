@@ -505,6 +505,16 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 	return TRUE;
 }
 
+static void test_add_logout(struct test_parser *parser, struct test *test)
+{
+	struct test_command *cmd;
+
+	cmd = p_new(parser->pool, struct test_command, 1);
+	cmd->reply = parser->reply_ok;
+	cmd->command = "logout";
+	array_append(&test->commands, &cmd, 1);
+}
+
 static int
 test_parser_read_test(struct test_parser *parser, const char *fname,
 		      const struct test **test_r)
@@ -556,6 +566,8 @@ test_parser_read_test(struct test_parser *parser, const char *fname,
 		i_error("close(%s) failed: %m", test->path);
 		return -1;
 	}
+	test_add_logout(parser, test);
+
 	*test_r = test;
 	return ret < 0 ? -1 : 1;
 }
