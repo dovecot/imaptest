@@ -542,18 +542,29 @@ static void client_input(struct client *client)
 		client_unref(client, TRUE);
 }
 
-static void client_delay_timeout(void *context)
+void client_input_stop(struct client *client)
 {
-	struct client *client = context;
+	if (client->io != NULL)
+		io_remove(&client->io);
+}
 
+void client_input_continue(struct client *client)
+{
+	if (client->io == NULL) {
+		client->io = io_add(i_stream_get_fd(client->input),
+				    IO_READ, client_input, client);
+	}
+}
+
+static void client_delay_timeout(struct client *client)
+{
 	i_assert(client->io == NULL);
 
 	client->delayed = FALSE;
 	client->last_io = ioloop_time;
 
 	timeout_remove(&client->to);
-	client->io = io_add(i_stream_get_fd(client->input),
-			    IO_READ, client_input, client);
+	client_input_continue(client);
 }
 
 void client_delay(struct client *client, unsigned int msecs)

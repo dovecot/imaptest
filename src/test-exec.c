@@ -680,6 +680,7 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	struct client *client;
 	const char *cmdline;
 	uint32_t seq;
+	unsigned int i;
 
 	i_assert(ctx->cur_cmd == NULL);
 
@@ -717,6 +718,18 @@ static void test_send_next_command(struct test_exec_context *ctx)
 		}
 		if (imap_arg_is_bad((*cmdp)->reply))
 			ctx->cur_cmd->expect_bad = TRUE;
+	}
+
+	/* if we're using multiple connections, stop reading input from the
+	   other ones. otherwise if the server sends untagged events
+	   immediately to us they'll get added to the current command's
+	   untagged queue list, rather than the next command's on the
+	   connection where they came from. */
+	for (i = 0; i < ctx->test->connection_count; i++) {
+		if (i == (*cmdp)->connection_idx)
+			client_input_continue(ctx->clients[i]);
+		else
+			client_input_stop(ctx->clients[i]);
 	}
 }
 

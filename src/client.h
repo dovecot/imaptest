@@ -97,6 +97,9 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source);
 bool client_unref(struct client *client, bool reconnect);
 void client_disconnect(struct client *client);
 
+void client_input_stop(struct client *client);
+void client_input_continue(struct client *client);
+
 void client_exists(struct client *client, unsigned int msgs);
 void client_mailbox_close(struct client *client);
 void client_delay(struct client *client, unsigned int msecs);
