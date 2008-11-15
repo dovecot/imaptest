@@ -58,5 +58,5 @@ ok search 3 (uid $uid4)
 
 ok uid search uid 1:4294967295
 * search $uid1 $uid3 $uid4 $uid5 $uid6
-ok uid search uid $uid6:4294967295
-* search
+ok uid search uid $uidnext:4294967295
+* search 
