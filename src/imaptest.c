@@ -136,13 +136,13 @@ static void print_timeout(void *context ATTR_UNUSED)
 		struct hash_iterate_context *iter;
 		void *key, *value;
 
-		iter = hash_iterate_init(storages);
-		while (hash_iterate(iter, &key, &value)) {
+		iter = hash_table_iterate_init(storages);
+		while (hash_table_iterate(iter, &key, &value)) {
 			struct mailbox_storage *storage = value;
 
 			clients_checkpoint(storage);
 		}
-		hash_iterate_deinit(&iter);
+		hash_table_iterate_deinit(&iter);
 		next_checkpoint_time = ioloop_time + conf.checkpoint_interval;
 	}
 }

@@ -52,7 +52,7 @@ static void client_fetch_envelope(struct client *client,
 		return;
 	}
 
-	msg = hash_lookup(client->storage->source->messages, message_id);
+	msg = hash_table_lookup(client->storage->source->messages, message_id);
 	if (msg != NULL) {
 		metadata->ms->msg = msg;
 		return;
@@ -61,8 +61,8 @@ static void client_fetch_envelope(struct client *client,
 	/* new message */
 	metadata->ms->msg = msg = p_new(pool, struct message_global, 1);
 	msg->message_id = p_strdup(pool, message_id);
-	hash_insert(client->storage->source->messages,
-		    msg->message_id, msg);
+	hash_table_insert(client->storage->source->messages,
+			  msg->message_id, msg);
 }
 
 static const struct imap_arg *

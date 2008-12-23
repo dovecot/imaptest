@@ -178,7 +178,8 @@ test_expand_all(struct test_exec_context *ctx, const char *str,
 				var_value = test_expand_relative_seq(ctx,
 								     atoi(str));
 			} else {
-				var_value = hash_lookup(ctx->variables, var_name);
+				var_value = hash_table_lookup(ctx->variables,
+							      var_name);
 				if (var_value == NULL && !skip_uninitialized) {
 					test_fail(ctx,
 						  "Uninitialized variable: %s",
@@ -231,7 +232,7 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 			/* relative sequence */
 			value = test_expand_relative_seq(ctx, atoi(var_name));
 		} else {
-			value = hash_lookup(ctx->variables, var_name);
+			value = hash_table_lookup(ctx->variables, var_name);
 			if (value == NULL) {
 				/* find how far we want to expand.
 				   FIXME: for now we just check the first
@@ -245,7 +246,7 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 
 				key = p_strdup(ctx->pool, var_name);
 				value2 = p_strdup_until(ctx->pool, input, p);
-				hash_insert(ctx->variables, key, value2);
+				hash_table_insert(ctx->variables, key, value2);
 
 				ckey = key;
 				value = value2;
@@ -548,7 +549,7 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 		/* if any variables were added, revert them */
 		vars = array_get(&ctx->added_variables, &var_count);
 		for (j = 0; j < var_count; j++)
-			hash_remove(ctx->variables, vars[j]);
+			hash_table_remove(ctx->variables, vars[j]);
 		array_clear(&ctx->added_variables);
 	}
 	if (!found_some)
@@ -1002,8 +1003,8 @@ static int test_execute(const struct test *test,
 	ctx->cur_received_untagged =
 		buffer_create_dynamic(default_pool, 128);
 	i_array_init(&ctx->cur_maybe_matches, 32);
-	ctx->variables = hash_create(default_pool, pool, 0, str_hash,
-				     (hash_cmp_callback_t *)strcmp);
+	ctx->variables = hash_table_create(default_pool, pool, 0, str_hash,
+					   (hash_cmp_callback_t *)strcmp);
 	p_array_init(&ctx->added_variables, pool, 32);
 	i_array_init(&ctx->cur_seqmap, 128);
 	p_array_init(&ctx->delete_mailboxes, pool, 16);
@@ -1026,8 +1027,8 @@ static int test_execute(const struct test *test,
 	ctx->startup_state = TEST_STARTUP_STATE_NONAUTH;
 	ctx->clients_waiting = test->connection_count;
 
-	hash_insert(ctx->variables, "mailbox",
-		    ctx->clients[0]->storage->name);
+	hash_table_insert(ctx->variables, "mailbox",
+			  ctx->clients[0]->storage->name);
 	return 0;
 }
 
@@ -1094,7 +1095,7 @@ static void test_execute_finish(struct test_exec_context *ctx)
 static void test_execute_free(struct test_exec_context *ctx)
 {
 	array_free(&ctx->cur_seqmap);
-	hash_destroy(&ctx->variables);
+	hash_table_destroy(&ctx->variables);
 	mailbox_source_unref(&ctx->source);
 	buffer_free(&ctx->cur_received_untagged);
 	array_free(&ctx->cur_maybe_matches);

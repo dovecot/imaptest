@@ -24,8 +24,9 @@ struct mailbox_source *mailbox_source_new(const char *path)
 	source->input = i_stream_create_fd(source->fd, (size_t)-1, FALSE);
 
 	source->messages_pool = pool_alloconly_create("messages", 1024*1024);
-	source->messages = hash_create(default_pool, default_pool, 0, str_hash,
-				       (hash_cmp_callback_t *)strcmp);
+	source->messages =
+		hash_table_create(default_pool, default_pool, 0, str_hash,
+				  (hash_cmp_callback_t *)strcmp);
 	return source;
 }
 
@@ -37,7 +38,7 @@ void mailbox_source_unref(struct mailbox_source **_source)
 	if (--source->refcount > 0)
 		return;
 
-	hash_destroy(&source->messages);
+	hash_table_destroy(&source->messages);
 	pool_unref(&source->messages_pool);
 	i_stream_unref(&source->input);
 	(void)close(source->fd);
