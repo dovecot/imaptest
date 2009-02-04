@@ -488,7 +488,7 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 	struct test_command *const *cmdp;
 	const struct test_untagged *untagged;
 	struct test_maybe_match *maybes;
-	const char *const *vars;
+	const char *const *vars, *tag;
 	unsigned char *found;
 	unsigned int i, count, j, var_count, match_count;
 	bool prefix = FALSE, found_some;
@@ -514,6 +514,8 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 		}
 	}
 
+	tag = ctx->cur_cmd == NULL ? NULL :
+		t_strdup_printf("%u.%u", client->global_id, ctx->cur_cmd->tag);
 	array_clear(&ctx->added_variables);
 	found = buffer_get_space_unsafe(ctx->cur_received_untagged, 0, count);
 	(void)array_idx_modifiable(&ctx->cur_maybe_matches, count-1);
@@ -523,8 +525,13 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 		if (found[i] != 0)
 			continue;
 
+		if (tag != NULL)
+			hash_table_insert(ctx->variables, "tag", t_strdup_noconst(tag));
 		match_count = test_imap_match_args(ctx, untagged[i].args, args,
 						   -1U, prefix);
+		if (tag != NULL)
+			hash_table_remove(ctx->variables, "tag");
+
 		if (match_count == -1U) {
 			if (untagged[i].not_found) {
 				test_fail(ctx, "Unexpected untagged match:\n"
@@ -602,7 +609,8 @@ static void test_cmd_callback(struct client *client,
 	const struct test_command *cmd;
 	const struct test_untagged *ut;
 	const unsigned char *found;
-	unsigned int i, first_missing_idx, missing_count, ut_count;
+	const char *tag;
+	unsigned int i, first_missing_idx, missing_count, ut_count, match_count;
 
 	i_assert(ctx->init_finished);
 	i_assert(ctx->cur_cmd == command);
@@ -618,7 +626,12 @@ static void test_cmd_callback(struct client *client,
 	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
 	cmd = *cmdp;
 
-	if (test_imap_match_args(ctx, cmd->reply, args, -1U, TRUE) != -1U) {
+	tag = t_strdup_printf("%u.%u", client->global_id, command->tag);
+	hash_table_insert(ctx->variables, "tag", t_strdup_noconst(tag));
+	match_count = test_imap_match_args(ctx, cmd->reply, args, -1U, TRUE);
+	hash_table_remove(ctx->variables, "tag");
+
+	if (match_count != -1U) {
 		test_fail(ctx, "Expected tagged reply '%s', got '%s'",
 			  imap_args_to_str(cmd->reply),
 			  imap_args_to_str(args));
