@@ -1,0 +1,18 @@
+capabilities: CONTEXT=SORT
+
+ok sort (arrival) us-ascii return (partial 1:1) all
+* esearch (tag $tag) partial (1:1 1)
+ok sort (arrival) us-ascii return (partial 2:4) all
+* esearch (tag $tag) partial (2:4 2:4)
+ok sort (arrival) us-ascii return (partial 4:2) all
+* esearch (tag $tag) partial (2:4 2:4)
+ok sort (reverse arrival) us-ascii return (partial 2:4) all
+* esearch (tag $tag) partial (2:4 3:4,2)
+ok sort (arrival) us-ascii return (partial 1:6) all
+* esearch (tag $tag) partial (1:6 1:5)
+ok sort (reverse arrival) us-ascii return (partial 1:6) all
+* esearch (tag $tag) partial (1:6 5,3:4,2,1)
+
+bad sort (arrival) us-ascii return (partial 1) all
+bad sort (arrival) us-ascii return (partial 1:*) all
+bad sort (arrival) us-ascii return (partial *:1) all

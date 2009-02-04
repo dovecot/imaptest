@@ -1,0 +1,14 @@
+capabilities: CONTEXT=SEARCH
+
+ok search return (partial 1:1) all
+* esearch (tag $tag) partial (1:1 1)
+ok search return (partial 2:4) all
+* esearch (tag $tag) partial (2:4 2:4)
+ok search return (partial 4:2) all
+* esearch (tag $tag) partial (2:4 2:4)
+ok search return (partial 1:6) all
+* esearch (tag $tag) partial (1:6 1:5)
+
+bad search return (partial 1) all
+bad search return (partial 1:*) all
+bad search return (partial *:1) all
