@@ -550,7 +550,7 @@ void client_input_stop(struct client *client)
 
 void client_input_continue(struct client *client)
 {
-	if (client->io == NULL) {
+	if (client->io == NULL && !client->input->closed) {
 		client->io = io_add(i_stream_get_fd(client->input),
 				    IO_READ, client_input, client);
 	}
