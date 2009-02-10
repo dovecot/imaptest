@@ -7,9 +7,9 @@
 #include "istream-crlf.h"
 #include "ostream.h"
 #include "imap-date.h"
+#include "imap-util.h"
 #include "imap-parser.h"
 
-#include "imap-args.h"
 #include "settings.h"
 #include "mailbox.h"
 #include "mailbox-state.h"

@@ -10,7 +10,7 @@
    case the username gets randomized at each connection. */
 //#define USERNAME_TEMPLATE "u%04d@d%04d.domain.org"
 //#define USERNAME_TEMPLATE "cras%d"
-#define USERNAME_TEMPLATE getenv("USER")
+#define USERNAME_TEMPLATE "tss"
 #define USER_RAND 99
 #define DOMAIN_RAND 99
 /* Password (for all users) */

@@ -12,7 +12,6 @@ imaptest_SOURCES = \
 	client-state.c \
 	commands.c \
 	imaptest.c \
-	imap-args.c \
 	mailbox.c \
 	mailbox-source.c \
 	mailbox-state.c \
@@ -25,7 +24,6 @@ noinst_HEADERS = \
 	client.h \
 	client-state.h \
 	commands.h \
-	imap-args.h \
 	mailbox.h \
 	mailbox-source.h \
 	mailbox-state.h \

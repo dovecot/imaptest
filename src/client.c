@@ -8,7 +8,6 @@
 #include "str.h"
 #include "imap-parser.h"
 
-#include "imap-args.h"
 #include "imap-seqset.h"
 #include "imap-util.h"
 #include "settings.h"

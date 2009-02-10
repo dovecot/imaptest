@@ -5,12 +5,12 @@
 #include "hash.h"
 #include "str.h"
 #include "imap-quote.h"
+#include "imap-util.h"
 #include "imap-parser.h"
 #include "mailbox.h"
 #include "mailbox-source.h"
 #include "client.h"
 #include "commands.h"
-#include "imap-args.h"
 #include "test-parser.h"
 #include "test-exec.h"
 

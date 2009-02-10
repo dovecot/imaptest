@@ -4,12 +4,12 @@
 #include "hash.h"
 #include "istream.h"
 #include "imap-date.h"
+#include "imap-util.h"
 #include "imap-parser.h"
 #include "message-size.h"
 #include "message-header-parser.h"
 
 #include "settings.h"
-#include "imap-args.h"
 #include "client.h"
 #include "mailbox.h"
 #include "mailbox-source.h"
