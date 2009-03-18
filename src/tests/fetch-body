@@ -6,9 +6,15 @@ ok fetch 1 body.peek[header]
 * 1 fetch (body[header] $hdr1)
 
 ok fetch 1 (flags body.peek[text])
-* 1 fetch (flags () body[text] $body1)
+* 1 fetch (flags () body[text] "body1 {{{
+
+")
+}}}
 ok fetch 1 rfc822.text
-* 1 fetch (rfc822.text $body1)
+* 1 fetch (rfc822.text "body1 {{{
+
+")
+}}}
 * 1 fetch (flags (\seen))
 
 ok fetch 2 (flags body.peek[])
@@ -35,3 +41,34 @@ ok fetch 3 body.peek[text]<0.1>
 ok fetch 3 body.peek[text]<5.1>
 * 3 fetch (body[text]<5> "3")
 
+# header fields
+ok fetch 1 body.peek[header.fields (from)]
+* 1 fetch (body[header.fields (from)] "From: user1@domain.org {{{
+
+")
+}}}
+
+ok fetch 1 (body.peek[header.fields (from)])
+* 1 fetch (body[header.fields (from)] "From: user1@domain.org {{{
+
+")
+}}}
+
+ok fetch 1 body.peek[header.fields (from subject)]
+* 1 fetch (body[header.fields (from subject)] "From: user1@domain.org {{{
+Subject: s1
+
+")
+}}}
+
+ok fetch 1 body.peek[header.fields.not (date)]
+* 1 fetch (body[header.fields.not (date)] "From: user1@domain.org {{{
+Subject: s1
+
+")
+}}}
+
+ok fetch 1 body.peek[header.fields (xyz)]
+* 1 fetch (body[header.fields (xyz)] " {{{
+")
+}}}
