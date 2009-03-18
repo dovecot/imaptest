@@ -1,6 +1,7 @@
 /* Copyright (c) 2007-2008 Timo Sirainen */
 
 #include "lib.h"
+#include "str.h"
 #include "istream.h"
 #include "imap-parser.h"
 #include "test-parser.h"
@@ -137,7 +138,8 @@ test_parse_imap_args(struct test_parser *parser, const char *line,
 	input = i_stream_create_from_data(line, strlen(line));
 	imap_parser = imap_parser_create(input, NULL, (size_t)-1);
 	ret = imap_parser_finish_line(imap_parser, 0,
-				      IMAP_PARSE_FLAG_ATOM_ALLCHARS, &args);
+				      IMAP_PARSE_FLAG_ATOM_ALLCHARS |
+				      IMAP_PARSE_FLAG_MULTILINE_STR, &args);
 	if (ret < 0) {
 		dup_args = NULL;
 		if (ret == -2)
@@ -462,18 +464,39 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 			    struct istream *input)
 {
 	const char *line, *error;
-	unsigned int linenum = 0;
-	bool ret, header = TRUE;
+	string_t *multiline;
+	unsigned int len, linenum = 0;
+	bool ret, header = TRUE, continues = FALSE;
 
+	multiline = t_str_new(256);
 	parser->cur_cmd = NULL;
 	while ((line = i_stream_read_next_line(input)) != NULL) {
 		linenum++;
-		if (*line == '\0') {
-			header = FALSE;
-			continue;
+		if (continues) {
+			if (strcmp(line, "}}}") == 0) {
+				continues = FALSE;
+				line = str_c(multiline);
+			} else {
+				str_append(multiline, "\r\n");
+				str_append(multiline, line);
+				continue;
+			}
+		} else {
+			if (*line == '\0') {
+				header = FALSE;
+				continue;
+			}
+			if (*line == '#')
+				continue;
+
+			len = strlen(line);
+			if (len >= 4 && strcmp(line + len-4, " {{{") == 0) {
+				str_truncate(multiline, 0);
+				str_append_n(multiline, line, len-4);
+				continues = TRUE;
+				continue;
+			}
 		}
-		if (*line == '#')
-			continue;
 
 		T_BEGIN {
 			if (header) {
