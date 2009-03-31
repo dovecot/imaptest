@@ -6,7 +6,7 @@ Content-Type: multipart/mixed; boundary="foo
  bar"
 
 --foo bar
-Content-Type: text/html; charset=us-ascii
+Content-Type: text/x-myown; charset=us-ascii
 
 hello
 

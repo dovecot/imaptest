@@ -1,3 +1,3 @@
 
 ok fetch 1:* body
-* 1 FETCH (BODY (("TEXT" "HTML" ("CHARSET" "us-ascii") NIL NIL "7BIT" 7 1) "MIXED"))
+* 1 FETCH (BODY (("TEXT" "x-MYOWN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 7 1) "MIXED"))

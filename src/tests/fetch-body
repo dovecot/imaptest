@@ -43,26 +43,27 @@ ok fetch 3 body.peek[text]<5.1>
 
 # header fields
 ok fetch 1 body.peek[header.fields (from)]
-* 1 fetch (body[header.fields (from)] "From: user1@domain.org {{{
+* 1 fetch (body[header.fields (from)] "From: User1 <user1@domain.org> {{{
 
 ")
 }}}
 
 ok fetch 1 (body.peek[header.fields (from)])
-* 1 fetch (body[header.fields (from)] "From: user1@domain.org {{{
+* 1 fetch (body[header.fields (from)] "From: User1 <user1@domain.org> {{{
 
 ")
 }}}
 
 ok fetch 1 body.peek[header.fields (from subject)]
-* 1 fetch (body[header.fields (from subject)] "From: user1@domain.org {{{
+* 1 fetch (body[header.fields (from subject)] "From: User1 <user1@domain.org> {{{
 Subject: s1
 
 ")
 }}}
 
 ok fetch 1 body.peek[header.fields.not (date)]
-* 1 fetch (body[header.fields.not (date)] "From: user1@domain.org {{{
+! 1 fetch (body[header.fields.not (date)] "From: User1 <user1@domain.org> {{{
+Date: Sat, 24 Mar 2007 23:00:00 +0200
 Subject: s1
 
 ")
