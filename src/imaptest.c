@@ -191,7 +191,7 @@ static void fix_probabilities(void)
 		i_fatal("Invalid probabilities");
 }
 
-static void sig_die(int signo ATTR_UNUSED, void *context ATTR_UNUSED)
+static void sig_die(const siginfo_t *si ATTR_UNUSED, void *context ATTR_UNUSED)
 {
 	if (!disconnect_clients) {
 		/* try a nice way first by letting the clients
