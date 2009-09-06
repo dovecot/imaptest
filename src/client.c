@@ -568,6 +568,10 @@ static void client_delay_timeout(struct client *client)
 
 void client_delay(struct client *client, unsigned int msecs)
 {
+	if (client->input->closed) {
+		/* we're already disconnected and client->to is set */
+		return;
+	}
 	i_assert(client->to == NULL);
 
 	client->delayed = TRUE;
