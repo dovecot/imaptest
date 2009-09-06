@@ -647,17 +647,33 @@ void client_handle_resp_text_code(struct client *client,
 				  const struct imap_arg *args)
 {
 	struct mailbox_view *view = client->view;
-	const char *key, *value;
+	const char *key, *value, *p;
 
-	if (args->type != IMAP_ARG_ATOM)
+	if (args->type != IMAP_ARG_ATOM) {
+		client_input_error(client, "Invalid resp-text");
 		return;
+	}
 
-	key = IMAP_ARG_STR_NONULL(args);
-	if (*key != '[')
+	value = imap_args_to_str(args);
+	if (*value != '[') {
+		if (*value == '\0')
+			client_input_error(client, "Missing text in resp-text");
 		return;
-	args++;
-	key = t_strcut(t_str_ucase(key + 1), ']');
-	value = t_strcut(imap_args_to_str(args), ']');
+	}
+	p = strchr(value, ']');
+	if (p == NULL) {
+		client_input_error(client, "Missing ']' in resp-text");
+		return;
+	}
+	if (p[1] == '\0' || p[1] != ' ' || p[2] == '\0')
+		client_input_error(client, "Missing text in resp-text");
+	key = t_strdup_until(value + 1, p);
+
+	value = strchr(key, ' ');
+	if (value == NULL)
+		value = "";
+	else
+		key = t_strdup_until(key, value++);
 
 	if (strcmp(key, "READ-WRITE") == 0)
 		view->readwrite = TRUE;
@@ -677,7 +693,7 @@ void client_handle_resp_text_code(struct client *client,
 			client_mailbox_close(client);
 		}
 	} else if (strcmp(key, "PERMANENTFLAGS") == 0) {
-		if (mailbox_state_set_permanent_flags(view, args) < 0)
+		if (mailbox_state_set_permanent_flags(view, args + 1) < 0)
 			client_input_error(client, "Broken PERMANENTFLAGS");
 	} else if (strcmp(key, "UIDNEXT") == 0) {
 		if (view->select_uidnext == 0)
