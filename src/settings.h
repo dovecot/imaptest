@@ -37,6 +37,8 @@ struct settings {
 	const char *mailbox, *copy_dest, *mbox_path;
 	unsigned int port;
 
+	ARRAY_TYPE(const_string) usernames;
+
 	unsigned int clients_count;
 	unsigned int message_count_threshold;
 	unsigned int checkpoint_interval;

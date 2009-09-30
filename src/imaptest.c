@@ -6,6 +6,7 @@
 #include "array.h"
 #include "str.h"
 #include "hash.h"
+#include "istream.h"
 #include "home-expand.h"
 
 #include "settings.h"
@@ -18,6 +19,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 struct settings conf;
 
@@ -276,13 +279,37 @@ static void imaptest_run_tests(const char *dir)
 	test_parser_deinit(&test_parser);
 }
 
+static void conf_read_usernames(const char *path)
+{
+	struct istream *input;
+	int fd;
+	const char *line;
+
+	i_array_init(&conf.usernames, 32);
+	fd = open(path, O_RDONLY);
+	if (fd == -1)
+		i_fatal("open(%s) failed: %m", path);
+	input = i_stream_create_fd(fd, (size_t)-1, TRUE);
+	i_stream_set_return_partial_line(input, TRUE);
+	while ((line = i_stream_read_next_line(input)) != NULL) {
+		if (*line != '\0' && *line != ':') {
+			line = i_strdup(line);
+			array_append(&conf.usernames, &line, 1);
+		}
+	}
+	i_stream_destroy(&input);
+
+	if (array_count(&conf.usernames) == 0)
+		i_fatal("No usernames in file %s", path);
+}
+
 static void print_help(void)
 {
 	printf(
-"imaptest [user=USER] [host=HOST] [port=PORT] [pass=PASSWORD] [mbox=MBOX] "
-"         [master=USER] [clients=CC] [msgs=NMSG] [box=MAILBOX] [copybox=DESTBOX]\n"
-"         [-] [<state>[=<n%%>[,<m%%>]]] [random] [no_pipelining] [no_tracking] "
-"         [checkpoint=<secs>] "
+"imaptest [user=USER] [userfile=FILE] [master=USER] [pass=PASSWORD]\n"
+"         [host=HOST] [port=PORT] [mbox=MBOX] [clients=CC] [msgs=NMSG]\n"
+"         [box=MAILBOX] [copybox=DESTBOX] [-] [<state>[=<n%%>[,<m%%>]]]\n"
+"         [random] [no_pipelining] [no_tracking] [checkpoint=<secs>]\n"
 "\n"
 " USER = template for username. \"u%%04d\" will generate users \"u0001\" to\n"
 "        \"u0099\". \"u%%04d@d%%04d\" will generate also \"d0001\" to \"d0099\".\n"
@@ -453,6 +480,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		}
 		if (strcmp(key, "user") == 0) {
 			conf.username_template = value;
+			continue;
+		}
+		if (strcmp(key, "userfile") == 0) {
+			conf_read_usernames(value);
 			continue;
 		}
 		if (strcmp(key, "master") == 0) {

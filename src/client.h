@@ -77,7 +77,7 @@ struct client {
 
         time_t last_io;
 
-	char *username;
+	char *username, *password;
 	unsigned int delayed:1;
 	unsigned int seen_banner:1;
 	unsigned int append_unfinished:1;

@@ -614,6 +614,32 @@ static void client_wait_connect(void *context)
 	client->io = io_add(fd, IO_READ, client_input, client);
 }
 
+static void client_set_random_user(struct client *client)
+{
+	const char *const *userp, *p;
+	unsigned int i;
+
+	if (array_is_created(&conf.usernames)) {
+		i = rand() % array_count(&conf.usernames);
+		userp = array_idx(&conf.usernames, i);
+		p = strchr(*userp, ':');
+		if (p == NULL) {
+			client->username = i_strdup(*userp);
+			client->password = i_strdup(conf.password);
+		} else {
+			client->username = i_strdup_until(*userp, p);
+			client->password = i_strdup(p + 1);
+		}
+		i_assert(*client->username != '\0');
+	} else {
+		client->username =
+			i_strdup_printf(conf.username_template,
+					(int)(random() % USER_RAND + 1),
+					(int)(random() % DOMAIN_RAND + 1));
+		client->password = i_strdup(conf.password);
+	}
+}
+
 struct client *client_new(unsigned int idx, struct mailbox_source *source)
 {
 	struct client *client;
@@ -658,9 +684,7 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 	}
 	client->parser = imap_parser_create(client->input, NULL, (size_t)-1);
 	client->io = io_add(fd, IO_READ, client_wait_connect, client);
-	client->username = i_strdup_printf(conf.username_template,
-					   (int)(random() % USER_RAND + 1),
-					   (int)(random() % DOMAIN_RAND + 1));
+	client_set_random_user(client);
         client->last_io = ioloop_time;
 	i_array_init(&client->commands, 16);
 	o_stream_set_flush_callback(client->output, client_output, client);
@@ -739,6 +763,7 @@ bool client_unref(struct client *client, bool reconnect)
 	o_stream_unref(&client->output);
 	i_stream_unref(&client->input);
 	i_free(client->username);
+	i_free(client->password);
 
 	if (clients_count == 0 && disconnect_clients)
 		io_loop_stop(current_ioloop);

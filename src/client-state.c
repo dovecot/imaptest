@@ -89,7 +89,7 @@ static void auth_plain_callback(struct client *client, struct command *cmd,
 		str_append(buf, client->username);
 	}
 	str_append_c(buf, '\0');
-	str_append(buf, conf.password);
+	str_append(buf, client->password);
 
 	str = t_str_new(512);
 	base64_encode(buf->data, buf->used, str);
@@ -1078,7 +1078,7 @@ int client_plan_send_next_cmd(struct client *client)
 	case STATE_LOGIN:
 		o_stream_cork(client->output);
 		str = t_strdup_printf("LOGIN \"%s\" \"%s\"",
-				      client->username, conf.password);
+				      client->username, client->password);
 		command_send(client, str, state_callback);
 		if (conf.qresync)
 			command_send(client, "ENABLE QRESYNC", state_callback);
