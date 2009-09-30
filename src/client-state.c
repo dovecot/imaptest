@@ -80,8 +80,14 @@ static void auth_plain_callback(struct client *client, struct command *cmd,
 	counters[cmd->state]++;
 
 	buf = t_str_new(512);
-	str_append_c(buf, '\0');
-	str_append(buf, client->username);
+	if (conf.master_user != NULL) {
+		str_append(buf, client->username);
+		str_append_c(buf, '\0');
+		str_append(buf, conf.master_user);
+	} else {
+		str_append_c(buf, '\0');
+		str_append(buf, client->username);
+	}
 	str_append_c(buf, '\0');
 	str_append(buf, conf.password);
 

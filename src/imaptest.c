@@ -175,7 +175,10 @@ static void fix_probabilities(void)
 	else
 		states[STATE_CHECKPOINT].probability = 100;
 
-	if (states[STATE_LOGIN].probability != 100) {
+	if (conf.master_user != NULL) {
+		states[STATE_AUTHENTICATE].probability = 100;
+		states[STATE_LOGIN].probability = 0;
+	} else if (states[STATE_LOGIN].probability != 100) {
 		states[STATE_AUTHENTICATE].probability =
 			100 - states[STATE_LOGIN].probability;
 	} else if (states[STATE_AUTHENTICATE].probability != 0) {
@@ -277,7 +280,7 @@ static void print_help(void)
 {
 	printf(
 "imaptest [user=USER] [host=HOST] [port=PORT] [pass=PASSWORD] [mbox=MBOX] "
-"         [clients=CC] [msgs=NMSG] [box=MAILBOX] [copybox=DESTBOX]\n"
+"         [master=USER] [clients=CC] [msgs=NMSG] [box=MAILBOX] [copybox=DESTBOX]\n"
 "         [-] [<state>[=<n%%>[,<m%%>]]] [random] [no_pipelining] [no_tracking] "
 "         [checkpoint=<secs>] "
 "\n"
@@ -450,6 +453,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		}
 		if (strcmp(key, "user") == 0) {
 			conf.username_template = value;
+			continue;
+		}
+		if (strcmp(key, "master") == 0) {
+			conf.master_user = value;
 			continue;
 		}
 		if (strcmp(key, "host") == 0) {
