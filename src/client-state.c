@@ -3,6 +3,7 @@
 #include "lib.h"
 #include "base64.h"
 #include "str.h"
+#include "strescape.h"
 #include "istream.h"
 #include "istream-crlf.h"
 #include "ostream.h"
@@ -1078,7 +1079,8 @@ int client_plan_send_next_cmd(struct client *client)
 	case STATE_LOGIN:
 		o_stream_cork(client->output);
 		str = t_strdup_printf("LOGIN \"%s\" \"%s\"",
-				      client->username, client->password);
+				      str_escape(client->username),
+				      str_escape(client->password));
 		command_send(client, str, state_callback);
 		if (conf.qresync)
 			command_send(client, "ENABLE QRESYNC", state_callback);
