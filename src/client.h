@@ -112,6 +112,8 @@ int client_send_more_commands(struct client *client);
 
 int client_input_error(struct client *client, const char *fmt, ...)
 	ATTR_FORMAT(2, 3);
+int client_input_warn(struct client *client, const char *fmt, ...)
+	ATTR_FORMAT(2, 3);
 int client_state_error(struct client *client, const char *fmt, ...)
 	ATTR_FORMAT(2, 3);
 void client_rawlog_output(struct client *client, const char *line);

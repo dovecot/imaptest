@@ -50,6 +50,17 @@ int client_input_error(struct client *client, const char *fmt, ...)
 	return -1;
 }
 
+int client_input_warn(struct client *client, const char *fmt, ...)
+{
+	va_list va;
+
+	va_start(va, fmt);
+	i_error("%s[%u]: %s: %s", client->username, client->global_id,
+		t_strdup_vprintf(fmt, va), imap_args_to_str(client->cur_args));
+	va_end(va);
+	return -1;
+}
+
 int client_state_error(struct client *client, const char *fmt, ...)
 {
 	va_list va;
@@ -277,7 +288,7 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 
                 if (num > array_count(&view->uidmap) &&
 		    client->last_cmd->state > STATE_SELECT) {
-			client_input_error(client,
+			client_input_warn(client,
 				"seq too high (%u > %u, state=%s)",
 				num, array_count(&view->uidmap),
                                 states[client->last_cmd->state].name);
@@ -296,7 +307,7 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 		    client->last_cmd->state != STATE_LOGOUT) {
 			str = args->type != IMAP_ARG_ATOM ? NULL :
 				IMAP_ARG_STR(args);
-			client_input_error(client, "Unexpected BYE");
+			client_input_warn(client, "Unexpected BYE");
 		} else
 			counters[client->last_cmd->state]++;
 		client_mailbox_close(client);
@@ -323,7 +334,7 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 	} else if (strcmp(str, "NO") == 0) {
 		/*i_info("%s: %s", client->username, line + 2);*/
 	} else if (strcmp(str, "BAD") == 0) {
-		client_input_error(client, "BAD received");
+		client_input_warn(client, "BAD received");
 	}
 	return 0;
 }
@@ -343,7 +354,7 @@ client_input_args(struct client *client, const struct imap_arg *args)
 	if (strcmp(tag, "+") == 0) {
 		if (client->last_cmd == NULL) {
 			return client_input_error(client,
-				"Unexpected command contination");
+				"Unexpected command continuation");
 		}
 		client->last_cmd->callback(client, client->last_cmd,
 					   args, REPLY_CONT);

@@ -224,11 +224,11 @@ static void search_verify_result(struct client *client)
 		ret = search_node_verify(client, &ctx->root, seq, FALSE);
 		found = seq_range_exists(&ctx->result, seq);
 		if (ret > 0 && !found) {
-			client_input_error(client,
+			client_input_warn(client,
 				"SEARCH result missing seq %u (uid %u)",
 				seq, uids[seq-1]);
 		} else if (ret == 0 && found) {
-			client_input_error(client,
+			client_input_warn(client,
 				"SEARCH result has extra seq %u (uid %u)",
 				seq, uids[seq-1]);
 		}
@@ -242,9 +242,9 @@ static void search_callback(struct client *client, struct command *cmd,
 	i_assert(client->search_ctx != NULL);
 
 	if (reply != REPLY_OK)
-		client_input_error(client, "SEARCH failed");
+		client_input_warn(client, "SEARCH failed");
 	else if (!array_is_created(&client->search_ctx->result))
-		client_input_error(client, "Missing untagged SEARCH");
+		client_input_warn(client, "Missing untagged SEARCH");
 	else {
 		counters[cmd->state]++;
 		search_verify_result(client);

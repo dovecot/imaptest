@@ -46,7 +46,7 @@ static void client_fetch_envelope(struct client *client,
 		if (strcmp(metadata->ms->msg->message_id, message_id) == 0)
 			return;
 
-		client_input_error(client,
+		client_input_warn(client,
 			"UID %u changed Message-Id: %s -> %s",
 			uid, metadata->ms->msg->message_id, message_id);
 		return;
@@ -263,9 +263,9 @@ message_metadata_set_modseq(struct client *client, const char *value,
 		return;
 	}
 	if (modseq < metadata->modseq) {
-		client_input_error(client,
-				   "UID=%u MODSEQ dropped %s -> %s", uid,
-				   dec2str(metadata->modseq), dec2str(modseq));
+		client_input_warn(client,
+				  "UID=%u MODSEQ dropped %s -> %s", uid,
+				  dec2str(metadata->modseq), dec2str(modseq));
 	}
 
 	if (metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_NO ||

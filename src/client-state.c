@@ -838,8 +838,8 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		break;
 
 	case REPLY_BAD:
-		client_input_error(client, "%s replied BAD",
-				   states[cmd->state].name);
+		client_input_warn(client, "%s replied BAD",
+				  states[cmd->state].name);
 		return -1;
 	case REPLY_CONT:
 		if (cmd->state == STATE_APPEND)
