@@ -85,6 +85,7 @@ struct client {
 	unsigned int try_create_mailbox:1;
 	unsigned int postlogin_capability:1;
 	unsigned int qresync_enabled:1;
+	unsigned int disconnected:1;
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
 

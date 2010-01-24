@@ -699,6 +699,8 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 
 void client_disconnect(struct client *client)
 {
+	client->disconnected = TRUE;
+
 	i_stream_close(client->input);
 	o_stream_close(client->output);
 

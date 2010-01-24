@@ -740,10 +740,12 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	   untagged queue list, rather than the next command's on the
 	   connection where they came from. */
 	for (i = 0; i < ctx->test->connection_count; i++) {
-		if (i == (*cmdp)->connection_idx)
-			client_input_continue(ctx->clients[i]);
-		else
+		if (i == (*cmdp)->connection_idx) {
+			if (!ctx->clients[i]->disconnected)
+				client_input_continue(ctx->clients[i]);
+		} else {
 			client_input_stop(ctx->clients[i]);
+		}
 	}
 }
 
