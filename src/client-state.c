@@ -693,8 +693,9 @@ void client_handle_resp_text_code(struct client *client,
 	} else if (strcmp(key, "CLOSED") == 0) {
 		/* QRESYNC: SELECTing another mailbox in SELECTED state */
 		if (client->login_state != LSTATE_SELECTED) {
-			client_input_error(client,
-				"CLOSED code sent in non-selected state");
+			client_input_warn(client,
+				"CLOSED code sent in non-selected state %d",
+				client->login_state);
 		} else {
 			/* we're temporarily in AUTHENTICATED state */
 			client_mailbox_close(client);
