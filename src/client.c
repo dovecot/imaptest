@@ -41,7 +41,8 @@ int client_input_error(struct client *client, const char *fmt, ...)
 
 	va_start(va, fmt);
 	i_error("%s[%u]: %s: %s", client->username, client->global_id,
-		t_strdup_vprintf(fmt, va), imap_args_to_str(client->cur_args));
+		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
+		imap_args_to_str(client->cur_args));
 	va_end(va);
 
 	client_disconnect(client);
@@ -56,7 +57,8 @@ int client_input_warn(struct client *client, const char *fmt, ...)
 
 	va_start(va, fmt);
 	i_error("%s[%u]: %s: %s", client->username, client->global_id,
-		t_strdup_vprintf(fmt, va), imap_args_to_str(client->cur_args));
+		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
+		imap_args_to_str(client->cur_args));
 	va_end(va);
 	return -1;
 }
@@ -67,7 +69,8 @@ int client_state_error(struct client *client, const char *fmt, ...)
 
 	va_start(va, fmt);
 	i_error("%s[%u]: %s: %s", client->username, client->global_id,
-		t_strdup_vprintf(fmt, va), imap_args_to_str(client->cur_args));
+		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
+		imap_args_to_str(client->cur_args));
 	va_end(va);
 
 	if (conf.error_quit)
