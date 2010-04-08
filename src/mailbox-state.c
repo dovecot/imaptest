@@ -5,7 +5,7 @@
 #include "istream.h"
 #include "imap-date.h"
 #include "imap-util.h"
-#include "imap-parser.h"
+#include "imap-arg.h"
 #include "message-size.h"
 #include "message-header-parser.h"
 
@@ -27,19 +27,14 @@
 
 static void client_fetch_envelope(struct client *client,
 				  struct message_metadata_dynamic *metadata,
-				  const struct imap_arg *args, uint32_t uid)
+				  const struct imap_arg *args,
+				  unsigned int list_count, uint32_t uid)
 {
-	const ARRAY_TYPE(imap_arg_list) *list;
 	const char *message_id;
 	struct message_global *msg;
 	pool_t pool = client->storage->source->messages_pool;
 
-	list = IMAP_ARG_LIST(args);
-	args = array_idx(list, 0);
-	message_id = args[9].type != IMAP_ARG_STRING ? NULL :
-		IMAP_ARG_STR(&args[9]);
-
-	if (message_id == NULL)
+	if (list_count < 9 || !imap_arg_get_astring(&args[9], &message_id))
 		return;
 
 	if (metadata->ms->msg != NULL) {
@@ -66,22 +61,15 @@ static void client_fetch_envelope(struct client *client,
 }
 
 static const struct imap_arg *
-fetch_list_get(const struct imap_arg *list_arg, const char *name)
+fetch_list_get(const struct imap_arg *args, const char *name)
 {
-	const ARRAY_TYPE(imap_arg_list) *list;
-	const struct imap_arg *args;
 	const char *str;
-	unsigned int i, count;
 
-	list = IMAP_ARG_LIST(list_arg);
-	args = array_get(list, &count);
-	for (i = 0; i+1 < count; i += 2) {
-		if (args[i].type != IMAP_ARG_ATOM)
-			continue;
-
-		str = IMAP_ARG_STR(&args[i]);
-		if (strcasecmp(name, str) == 0)
-			return &args[i+1];
+	while (!IMAP_ARG_IS_EOL(args) && !IMAP_ARG_IS_EOL(&args[1])) {
+		if (imap_arg_get_atom(args, &str) &&
+		    strcasecmp(name, str) == 0)
+			return &args[1];
+		args += 2;
 	}
 	return NULL;
 }
@@ -168,14 +156,13 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 	}
 
 	mailbox_keywords_clear(view, metadata);
-	while (args->type != IMAP_ARG_EOL) {
-		if (args->type != IMAP_ARG_ATOM) {
+	while (!IMAP_ARG_IS_EOL(args)) {
+		if (!imap_arg_get_atom(args, &atom)) {
 			client_input_error(client,
 				"Flags list contains non-atoms.");
 			return;
 		}
 
-		atom = IMAP_ARG_STR(args);
 		if (*atom == '\\') {
 			/* system flag */
 			flag = mail_flag_parse(atom + 1);
@@ -257,9 +244,9 @@ message_metadata_set_modseq(struct client *client, const char *value,
 	uint64_t modseq;
 	uint32_t uid = metadata->ms == NULL ? 0 : metadata->ms->uid;
 
-	modseq = strtoull(value, NULL, 10);
-	if (modseq == 0) {
-		client_input_error(client, "UID=%u MODSEQ 0 returned", uid);
+	if (str_to_uint64(value, &modseq) < 0 || modseq == 0) {
+		client_input_error(client, "UID=%u Invalid MODSEQ %s returned",
+				   uid, value);
 		return;
 	}
 	if (modseq < metadata->modseq) {
@@ -392,28 +379,25 @@ headers_match(struct client *client, ARRAY_TYPE(message_header) *headers_arr,
 
 static int
 fetch_parse_header_fields(struct client *client, const struct imap_arg *args,
-			  unsigned int args_idx,
 			  struct message_metadata_static *ms)
 {
-	const ARRAY_TYPE(imap_arg_list) *list;
 	const struct imap_arg *header_args, *arg;
-	const char *header;
+	const char *header, *atom;
 	struct message_header msg_header;
 	struct istream *input;
 	ARRAY_TYPE(message_header) headers;
 	const struct message_header *fetch_headers = NULL;
 	unsigned int i, fetch_count = 0;
 
-	t_array_init(&headers, 8);
-	list = IMAP_ARG_LIST(&args[args_idx]);
-	header_args = array_idx(list, 0);
-	for (arg = header_args; arg->type != IMAP_ARG_EOL; arg++) {
-		if (arg->type != IMAP_ARG_ATOM && arg->type != IMAP_ARG_STRING)
-			return -1;
+	if (!imap_arg_get_list(args, &header_args))
+		return -1;
 
+	t_array_init(&headers, 8);
+	for (arg = header_args; !IMAP_ARG_IS_EOL(arg); arg++) {
 		memset(&msg_header, 0, sizeof(msg_header));
-		msg_header.name = IMAP_ARG_STR(arg);
 		msg_header.missing = TRUE;
+		if (!imap_arg_get_astring(arg, &msg_header.name))
+			return -1;
 
 		/* drop duplicates */
 		for (i = 0; i < fetch_count; i++) {
@@ -433,23 +417,18 @@ fetch_parse_header_fields(struct client *client, const struct imap_arg *args,
 	msg_header.missing = TRUE;
 	array_append(&headers, &msg_header, 1);
 
-	args_idx++;
-	if (args[args_idx].type != IMAP_ARG_ATOM)
+	args++;
+	if (!imap_arg_get_atom(args, &atom) || strcmp(atom, "]") != 0)
 		return -1;
+	args++;
 
-	if (strcmp(IMAP_ARG_STR_NONULL(&args[args_idx]), "]") != 0)
+	if (!imap_arg_get_nstring(args, &header))
 		return -1;
-	args_idx++;
-
-	if (args[args_idx].type == IMAP_ARG_NIL) {
+	if (header == NULL) {
 		/* expunged? */
 		return 0;
 	}
-	if (!IMAP_ARG_TYPE_IS_STRING(args[args_idx].type))
-		return -1;
-
-	header = IMAP_ARG_STR(&args[args_idx]);
-	if (*header == '\0' && args[args_idx].type == IMAP_ARG_STRING) {
+	if (*header == '\0' && args->type == IMAP_ARG_STRING) {
 		/* Cyrus: expunged */
 		return 0;
 	}
@@ -476,9 +455,8 @@ static void fetch_parse_body1(struct client *client, const struct imap_arg *arg,
 	} else {
 		p_array_init(&ms->msg->body_words, pool, MSG_MAX_BODY_WORDS);
 	}
-	if (!IMAP_ARG_TYPE_IS_STRING(arg->type))
+	if (!imap_arg_get_astring(arg, &body))
 		return;
-	body = IMAP_ARG_STR(arg);
 	len = strlen(body);
 
 	if (len > 0) {
@@ -508,8 +486,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 {
 	struct mailbox_view *view = client->view;
 	struct message_metadata_dynamic *metadata;
-	const ARRAY_TYPE(imap_arg_list) *list;
-	const struct imap_arg *arg;
+	const struct imap_arg *arg, *listargs;
 	const char *name, *value, **p;
 	uoff_t value_size, *sizep;
 	uint32_t uid, *uidp;
@@ -518,7 +495,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 
 	uidp = array_idx_modifiable(&view->uidmap, seq-1);
 
-	if (args->type != IMAP_ARG_LIST) {
+	if (!imap_arg_get_list_full(args, &args, &list_count)) {
 		client_input_error(client, "FETCH didn't return a list");
 		return;
 	}
@@ -526,12 +503,13 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 	arg = fetch_list_get(args, "UID");
 	if (arg == NULL && client->qresync_enabled) {
 		client_input_error(client,
-			"FETCH didn't UID while QRESYNC was enabled");
+			"FETCH didn't return UID while QRESYNC was enabled");
 	}
-	if (arg != NULL && arg->type == IMAP_ARG_ATOM) {
-		value = IMAP_ARG_STR(arg);
-		uid = strtoul(value, NULL, 10);
-		if (*uidp == 0) {
+	if (arg != NULL && imap_arg_get_atom(arg, &value)) {
+		if (str_to_uint32(value, &uid) < 0 || uid == 0)
+			client_input_error(client, "Invalid UID number %s",
+					   value);
+		else if (*uidp == 0) {
 			view->known_uid_count++;
 			*uidp = uid;
 		} else if (*uidp != uid) {
@@ -558,39 +536,36 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 		i_assert(metadata->ms->uid == uid);
 		/* Get Message-ID from envelope if it exists. */
 		arg = fetch_list_get(args, "ENVELOPE");
-		if (arg != NULL && arg->type == IMAP_ARG_LIST)
-			client_fetch_envelope(client, metadata, arg, uid);
+		if (arg != NULL) {
+			client_fetch_envelope(client, metadata,
+					      args, list_count, uid);
+		}
 	}
 
 	/* the message is known, verify that everything looks ok */
-	list = IMAP_ARG_LIST(args);
-	args = array_get(list, &list_count);
-
 	t_push();
 	for (i = 0; i+1 < list_count; i += 2) {
-		if (args[i].type != IMAP_ARG_ATOM)
+		if (!imap_arg_get_atom(&args[i], &name))
 			continue;
 
-		name = t_str_ucase(IMAP_ARG_STR(&args[i]));
-		list = NULL;
-		if (IMAP_ARG_TYPE_IS_STRING(args[i+1].type))
-			value = IMAP_ARG_STR(&args[i+1]);
-		else if (args[i+1].type == IMAP_ARG_LITERAL_SIZE)
-			value = dec2str(IMAP_ARG_LITERAL_SIZE(&args[i+1]));
-		else if (args[i+1].type == IMAP_ARG_LIST) {
-			list = IMAP_ARG_LIST(&args[i+1]);
-			value = imap_args_to_str(array_idx(list, 0));
-		} else
+		name = t_str_ucase(name);
+		listargs = NULL;
+		if (imap_arg_get_astring(&args[i+1], &value))
+			;
+		else if (imap_arg_get_literal_size(&args[i+1], &value_size))
+			value = dec2str(value_size);
+		else if (imap_arg_get_list(&args[i+1], &listargs))
+			value = imap_args_to_str(listargs);
+		else
 			continue;
 
 		if (strcmp(name, "FLAGS") == 0) {
-			if (list == NULL) {
+			if (listargs == NULL) {
 				client_input_error(client,
 						   "FLAGS reply isn't a list");
 				continue;
 			}
-			message_metadata_set_flags(client, array_idx(list, 0),
-						   metadata);
+			message_metadata_set_flags(client, listargs, metadata);
 			continue;
 		}
 
@@ -661,8 +636,8 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 				sizep = &metadata->ms->msg->body_size;
 		} else if (strncmp(name, "BODY[", 5) == 0) {
 			if (strcmp(name + 5, "HEADER.FIELDS") == 0) {
-				if (fetch_parse_header_fields(client, args, i+1,
-							metadata->ms) < 0) {
+				if (fetch_parse_header_fields(client,
+						args + i+1, metadata->ms) < 0) {
 					client_input_error(client,
 						"Broken HEADER.FIELDS");
 				}
@@ -721,24 +696,20 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 int mailbox_state_set_flags(struct mailbox_view *view,
 			    const struct imap_arg *args)
 {
-	const ARRAY_TYPE(imap_arg_list) *list;
 	const struct mailbox_keyword *keywords;
 	struct mailbox_keyword *kw;
 	unsigned int idx, i, count;
 	const char *atom;
 	bool errors = FALSE;
 
-	if (args->type != IMAP_ARG_LIST)
+	if (!imap_arg_get_list(args, &args))
 		return -1;
-	list = IMAP_ARG_LIST(args);
-	args = array_idx(list, 0);
 
 	view->flags_counter++;
-	while (args->type != IMAP_ARG_EOL) {
-		if (args->type != IMAP_ARG_ATOM)
+	while (!IMAP_ARG_IS_EOL(args)) {
+		if (!imap_arg_get_atom(args, &atom))
 			return -1;
 
-		atom = IMAP_ARG_STR(args);
 		if (*atom == '\\') {
 			/* system flag */
 			if (mail_flag_parse(atom + 1) == 0)
@@ -772,27 +743,23 @@ int mailbox_state_set_flags(struct mailbox_view *view,
 int mailbox_state_set_permanent_flags(struct mailbox_view *view,
 				      const struct imap_arg *args)
 {
-	const ARRAY_TYPE(imap_arg_list) *list;
 	struct mailbox_keyword *keywords, *kw;
 	unsigned int idx, i, count;
 	const char *atom;
 	bool errors = FALSE;
 
-	if (args->type != IMAP_ARG_LIST)
+	if (!imap_arg_get_list(args, &args))
 		return -1;
-	list = IMAP_ARG_LIST(args);
-	args = array_idx(list, 0);
 
 	keywords = array_get_modifiable(&view->keywords, &count);
 	for (i = 0; i < count; i++)
 		keywords[i].permanent = FALSE;
 
 	view->keywords_can_create_more = FALSE;
-	while (args->type != IMAP_ARG_EOL) {
-		if (args->type != IMAP_ARG_ATOM)
+	while (!IMAP_ARG_IS_EOL(args)) {
+		if (!imap_arg_get_atom(args, &atom))
 			return -1;
 
-		atom = IMAP_ARG_STR(args);
 		if (*atom == '\\') {
 			if (strcmp(atom, "\\*") == 0)
 				view->keywords_can_create_more = TRUE;

@@ -174,8 +174,7 @@ static void client_enabled(struct client *client, const struct imap_arg *args)
 {
 	const char *str;
 
-	for (; args->type == IMAP_ARG_ATOM; args++) {
-		str = IMAP_ARG_STR_NONULL(args);
+	for (; imap_arg_get_atom(args, &str); args++) {
 		if (strcasecmp(str, "QRESYNC") == 0)
 			client->qresync_enabled = TRUE;
 	}
@@ -184,6 +183,7 @@ static void client_enabled(struct client *client, const struct imap_arg *args)
 static int client_vanished(struct client *client, const struct imap_arg *args)
 {
 	struct mailbox_view *view = client->view;
+	const struct imap_arg *subargs;
 	ARRAY_TYPE(seq_range) uids;
 	const struct seq_range *range;
 	unsigned int i, count;
@@ -196,15 +196,9 @@ static int client_vanished(struct client *client, const struct imap_arg *args)
 		return -1;
 	}
 
-	if (args->type == IMAP_ARG_LIST) {
-		const ARRAY_TYPE(imap_arg_list) *list;
-		const struct imap_arg *subargs;
-
-		list = IMAP_ARG_LIST(args);
-		subargs = array_idx(list, 0);
-		if (subargs->type == IMAP_ARG_ATOM &&
-		    subargs[1].type == IMAP_ARG_EOL &&
-		    strcmp(IMAP_ARG_STR_NONULL(subargs), "EARLIER") == 0) {
+	if (imap_arg_get_list(args, &subargs)) {
+		if (imap_arg_atom_equals(&subargs[0], "EARLIER") &&
+		    IMAP_ARG_IS_EOL(&subargs[1])) {
 			if (client->qresync_select_cache == NULL) {
 				/* we don't care */
 				return 0;
@@ -214,11 +208,11 @@ static int client_vanished(struct client *client, const struct imap_arg *args)
 		}
 	}
 
-	if (args->type != IMAP_ARG_ATOM || args[1].type != IMAP_ARG_EOL) {
+	if (!imap_arg_get_atom(&args[0], &uidset) ||
+	    !IMAP_ARG_IS_EOL(&args[1])) {
 		client_input_error(client, "Invalid VANISHED parameters");
 		return -1;
 	}
-	uidset = IMAP_ARG_STR_NONULL(args);
 
 	t_array_init(&uids, 16);
 	if (imap_seq_set_parse(uidset, &uids) < 0) {
@@ -272,18 +266,17 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 {
 	struct mailbox_view *view = client->view;
 	const char *str;
+	unsigned int num;
 
-	if (args->type != IMAP_ARG_ATOM)
+	if (!imap_arg_get_atom(args, &str))
 		return -1;
-	str = t_str_ucase(IMAP_ARG_STR(args));
+	str = t_str_ucase(str);
 	args++;
 
-	if (is_numeric(str, '\0')) {
-		unsigned int num = strtoul(str, NULL, 10);
-
-		if (args->type != IMAP_ARG_ATOM)
+	if (str_to_uint(str, &num) == 0) {
+		if (!imap_arg_get_atom(args, &str))
 			return -1;
-		str = t_str_ucase(IMAP_ARG_STR(args));
+		str = t_str_ucase(str);
 		args++;
 
 		if (strcmp(str, "EXISTS") == 0)
@@ -307,11 +300,9 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 			mailbox_state_handle_fetch(client, num, args);
 	} else if (strcmp(str, "BYE") == 0) {
 		if (client->last_cmd == NULL ||
-		    client->last_cmd->state != STATE_LOGOUT) {
-			str = args->type != IMAP_ARG_ATOM ? NULL :
-				IMAP_ARG_STR(args);
+		    client->last_cmd->state != STATE_LOGOUT)
 			client_input_warn(client, "Unexpected BYE");
-		} else
+		else
 			counters[client->last_cmd->state]++;
 		client_mailbox_close(client);
 		client->login_state = LSTATE_NONAUTH;
@@ -329,7 +320,7 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 			return -1;
 	} else if (strcmp(str, "THREAD") == 0) {
 		i_free(view->last_thread_reply);
-		view->last_thread_reply = args->type == IMAP_ARG_EOL ?
+		view->last_thread_reply = IMAP_ARG_IS_EOL(args) ?
 			i_strdup("") :
 			i_strdup(imap_args_to_str(args + 1));
 	} else if (strcmp(str, "OK") == 0) {
@@ -349,9 +340,8 @@ client_input_args(struct client *client, const struct imap_arg *args)
 	struct command *cmd;
 	enum command_reply reply;
 
-	if (args->type != IMAP_ARG_ATOM)
+	if (!imap_arg_get_atom(args, &tag))
 		return client_input_error(client, "Broken tag");
-	tag = IMAP_ARG_STR(args);
 	args++;
 
 	if (strcmp(tag, "+") == 0) {
@@ -372,10 +362,8 @@ client_input_args(struct client *client, const struct imap_arg *args)
 	}
 
 	/* tagged reply */
-	if (args->type != IMAP_ARG_ATOM) {
+	if (!imap_arg_get_atom(args, &tag_status))
 		return client_input_error(client, "Broken tagged reply");
-	}
-	tag_status = IMAP_ARG_STR(args);
 
 	p = strchr(tag, '.');
 	cmd = p != NULL &&

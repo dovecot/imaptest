@@ -1,10 +1,6 @@
 bin_PROGRAMS = imaptest
 
-AM_CPPFLAGS = \
-	-I$(dovecot_incdir) \
-	-I$(dovecot_incdir)/src/lib \
-	-I$(dovecot_incdir)/src/lib-mail \
-	-I$(dovecot_incdir)/src/lib-imap
+AM_CPPFLAGS = $(LIBDOVECOT_INCLUDE)
 
 imaptest_SOURCES = \
 	checkpoint.c \
@@ -32,13 +28,7 @@ noinst_HEADERS = \
 	test-exec.h \
 	test-parser.h
 
-imaptest_LDADD = \
-	$(LIBICONV) \
-	$(RAND_LIBS) \
-	$(dovecotdir)/src/lib-imap/libimap.a \
-	$(dovecotdir)/src/lib-mail/libmail.a \
-	$(dovecotdir)/src/lib-charset/libcharset.a \
-	$(dovecotdir)/src/lib/liblib.a
+imaptest_LDADD = $(LIBDOVECOT)
 
 EXTRA_DIST = \
 	tests/append \

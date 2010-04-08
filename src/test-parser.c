@@ -185,15 +185,16 @@ list_parse_directives(struct list_directives_context *ctx,
 {
 	const char *str;
 
-	while (args->type == IMAP_ARG_ATOM &&
-	       strncmp(args->_data.str, "$!", 2) == 0) {
-		str = args->_data.str + 2;
+	while (imap_arg_get_atom(args, &str) &&
+	       strncmp(str, "$!", 2) == 0) {
+		str += 2;
 
 		if (strncmp(str, "unordered", 9) == 0) {
 			if (str[9] == '\0')
 				;
-			else if (str[9] == '=' && is_numeric(str+10, '\0'))
-				ctx->chain_count = strtoul(str+10, NULL, 10);
+			else if (str[9] == '=' &&
+				 str_to_uint(str + 10, &ctx->chain_count) == 0)
+				;
 			else {
 				*error_r = "Broken $!unordered directive";
 				return FALSE;
@@ -301,8 +302,8 @@ test_parse_untagged_handle_directives(struct list_directives_context *ctx,
 	}
 
 	for (i = 0; args->type != IMAP_ARG_EOL; args++, i++) {
-		if (args->type == IMAP_ARG_ATOM)
-			prev_atom = t_str_lcase(IMAP_ARG_STR(args));
+		if (imap_arg_get_atom(args, &prev_atom))
+			prev_atom = t_str_lcase(prev_atom);
 		if (args->type != IMAP_ARG_LIST)
 			continue;
 
@@ -346,14 +347,11 @@ test_parse_command_untagged(struct test_parser *parser,
 	memset(&directives_ctx, 0, sizeof(directives_ctx));
 	directives_ctx.parser = parser;
 	directives_ctx.chain_count = 1;
-	if (args->type == IMAP_ARG_ATOM) {
-		str = IMAP_ARG_STR(args);
+	if (imap_arg_get_atom(args, &str)) {
 		if (*str == '$' || (*str >= '0' && *str <= '9')) {
 			/* <seq> <reply> */
-			if (args[1].type != IMAP_ARG_ATOM)
+			if (!imap_arg_get_atom(&args[1], &str))
 				str = "";
-			else
-				str = IMAP_ARG_STR(&args[1]);
 		}
 	}
 	directives_ctx.reply_name = str;
@@ -435,12 +433,12 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 	cmd->linenum = linenum;
 	if (test->connection_count > 1) {
 		/* begins with connection index */
-		if (!is_numeric(line, ' ') || *line == '0') {
+		if (str_to_uint(t_strcut(line, ' '), &cmd->connection_idx) < 0 ||
+		    cmd->connection_idx == 0) {
 			*error_r = "Missing client index";
 			return FALSE;
 		}
 
-		cmd->connection_idx = strtoul(line, NULL, 10);
 		i_assert(cmd->connection_idx > 0);
 		if (test->connection_count < cmd->connection_idx)
 			test->connection_count = cmd->connection_idx;

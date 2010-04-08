@@ -6,7 +6,7 @@
 #include "strescape.h"
 #include "utc-mktime.h"
 #include "imap-date.h"
-#include "imap-parser.h"
+#include "imap-arg.h"
 #include "commands.h"
 #include "mailbox.h"
 #include "client.h"
@@ -631,7 +631,7 @@ void search_command_send(struct client *client)
 void search_result(struct client *client, const struct imap_arg *args)
 {
 	const char *str;
-	unsigned long num;
+	uint32_t num;
 	unsigned int msgs_count;
 
 	if (client->search_ctx == NULL)
@@ -645,21 +645,19 @@ void search_result(struct client *client, const struct imap_arg *args)
 	msgs_count = array_count(&client->view->uidmap);
 	p_array_init(&client->search_ctx->result, client->search_ctx->pool, 64);
 	for (; args->type != IMAP_ARG_EOL; args++) {
-		if (args->type != IMAP_ARG_ATOM) {
+		if (!imap_arg_get_atom(args, &str)) {
 			client_input_error(client,
 					   "SEARCH reply contains non-atoms");
 			return;
 		}
-		str = IMAP_ARG_STR(args);
-		num = strtoul(str, NULL, 10);
-		if (!is_numeric(str, '\0') || num == 0 || num > (uint32_t)-1) {
+		if (str_to_uint32(str, &num) < 0 || num == 0) {
 			client_input_error(client,
 				"SEARCH reply contains invalid numbers");
 			return;
 		}
 		if (num > msgs_count) {
 			client_input_error(client,
-					   "SEARCH reply seq %lu > %u EXISTS",
+					   "SEARCH reply seq %u > %u EXISTS",
 					   num, msgs_count);
 			break;
 		}

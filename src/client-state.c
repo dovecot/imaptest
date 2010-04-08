@@ -9,7 +9,7 @@
 #include "ostream.h"
 #include "imap-date.h"
 #include "imap-util.h"
-#include "imap-parser.h"
+#include "imap-arg.h"
 
 #include "settings.h"
 #include "mailbox.h"
@@ -687,7 +687,10 @@ void client_handle_resp_text_code(struct client *client,
 	else if (strcmp(key, "HIGHESTMODSEQ") == 0) {
 		/* reset previous MODSEQ updates */
 		client->highest_untagged_modseq = 0;
-		view->highest_modseq = strtoull(value, NULL, 10);
+		if (str_to_uint64(value, &view->highest_modseq) < 0) {
+			client_input_warn(client,
+					  "Invalid HIGHESTMODSEQ %s", value);
+		}
 	} else if (strcmp(key, "CAPABILITY") == 0) {
 		client_capability_parse(client, value);
 	} else if (strcmp(key, "CLOSED") == 0) {
@@ -744,8 +747,9 @@ void client_handle_tagged_reply(struct client *client, struct command *cmd,
 		client->view->highest_modseq = client->highest_untagged_modseq;
 	client->highest_untagged_modseq = 0;
 
-	arg = args->type == IMAP_ARG_ATOM ?
-		IMAP_ARG_STR_NONULL(args) : NULL;
+	if (!imap_arg_get_atom(args, &arg))
+		arg = NULL;
+
 	/* Keep track of login_state */
 	if (strncasecmp(cmd->cmdline, "select ", 7) == 0 ||
 	    strncasecmp(cmd->cmdline, "examine ", 8) == 0) {
@@ -907,10 +911,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	}
 	case STATE_COPY:
 		if (reply == REPLY_NO) {
-			const char *arg = args->type == IMAP_ARG_ATOM ?
-				IMAP_ARG_STR(args) : NULL;
-			if (arg != NULL &&
-			    strcasecmp(arg, "[TRYCREATE]") == 0) {
+			if (imap_arg_atom_equals(args, "[TRYCREATE]")) {
 				str = t_strdup_printf("CREATE \"%s\"",
 						      conf.copy_dest);
 				client->state = STATE_COPY;

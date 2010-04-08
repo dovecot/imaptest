@@ -6,7 +6,7 @@
 #include "str.h"
 #include "imap-quote.h"
 #include "imap-util.h"
-#include "imap-parser.h"
+#include "imap-arg.h"
 #include "mailbox.h"
 #include "mailbox-source.h"
 #include "client.h"
@@ -67,7 +67,7 @@ struct test_exec_context {
 };
 
 #define t_imap_quote_str(str) \
-	imap_quote(pool_datastack_create(), (const void *)str, strlen(str))
+	imap_quote(pool_datastack_create(), (const void *)str, strlen(str), FALSE)
 
 static void init_callback(struct client *client, struct command *command,
 			  const struct imap_arg *args,
@@ -144,6 +144,7 @@ test_expand_all(struct test_exec_context *ctx, const char *str,
 {
 	string_t *value;
 	const char *p, *var_name, *var_value;
+	uint32_t seq;
 
 	p = strchr(str, '$');
 	if (p == NULL)
@@ -173,10 +174,9 @@ test_expand_all(struct test_exec_context *ctx, const char *str,
 				var_name = t_strdup_until(str, p);
 			}
 
-			if (is_numeric(var_name, '\0')) {
+			if (str_to_uint32(var_name, &seq) == 0) {
 				/* relative sequence */
-				var_value = test_expand_relative_seq(ctx,
-								     atoi(str));
+				var_value = test_expand_relative_seq(ctx, seq);
 			} else {
 				var_value = hash_table_lookup(ctx->variables,
 							      var_name);
@@ -203,6 +203,7 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 	const char *p, *ckey, *value, *var_name, *tmp_str;
 	char *key, *value2;
 	string_t *output;
+	uint32_t seq;
 
 	output = t_str_new(128);
 	for (; *str != '\0'; ) {
@@ -228,9 +229,9 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 			str = p;
 		}
 
-		if (is_numeric(var_name, '\0')) {
+		if (str_to_uint32(var_name, &seq) == 0) {
 			/* relative sequence */
-			value = test_expand_relative_seq(ctx, atoi(var_name));
+			value = test_expand_relative_seq(ctx, seq);
 		} else {
 			value = hash_table_lookup(ctx->variables, var_name);
 			if (value == NULL) {
@@ -282,8 +283,7 @@ test_imap_match_list(struct test_exec_context *ctx,
 	/* get $! directives */
 	t_array_init(&ignores, 8);
 	t_array_init(&bans, 8);
-	for (; match->type == IMAP_ARG_ATOM; match++) {
-		str = IMAP_ARG_STR(match);
+	for (; imap_arg_get_atom(match, &str); match++) {
 		if (strncmp(str, "$!", 2) != 0)
 			break;
 
@@ -357,13 +357,13 @@ test_imap_match_list(struct test_exec_context *ctx,
 			if (matches[i] != 0)
 				continue;
 
-			if (!IMAP_ARG_TYPE_IS_STRING(args[i].type))
-				return ret;
+			if (!imap_arg_get_astring(&args[i], &str))
+				continue;
 
 			/* is it in our ignore list? */
 			s = array_get(&ignores, &count);
 			for (j = 0; j < count; j++) {
-				if (strcasecmp(s[j], args[i]._data.str) == 0)
+				if (strcasecmp(s[j], str) == 0)
 					break;
 			}
 			if (j == count)
@@ -377,13 +377,13 @@ test_imap_match_list(struct test_exec_context *ctx,
 			if (matches[i] != 0)
 				continue;
 
-			if (!IMAP_ARG_TYPE_IS_STRING(args[i].type))
+			if (!imap_arg_get_astring(&args[i], &str))
 				continue;
 
 			/* is it in our ban list? */
 			s = array_get(&bans, &count);
 			for (j = 0; j < count; j++) {
-				if (strcasecmp(s[j], args[i]._data.str) == 0)
+				if (strcasecmp(s[j], str) == 0)
 					break;
 			}
 			if (j != count)
@@ -399,6 +399,7 @@ test_imap_match_args(struct test_exec_context *ctx,
 		     const struct imap_arg *args,
 		     unsigned int max, bool prefix)
 {
+	const struct imap_arg *listargs;
 	const char *mstr, *astr;
 	unsigned int subret, ret = 0;
 
@@ -417,10 +418,9 @@ test_imap_match_args(struct test_exec_context *ctx,
 					"contain literal size");
 			}
 
-			if (!IMAP_ARG_TYPE_IS_STRING(args->type))
+			if (!imap_arg_get_astring(args, &astr))
 				return ret;
-			astr = IMAP_ARG_STR(args);
-			mstr = test_expand_input(ctx, IMAP_ARG_STR(match),
+			mstr = test_expand_input(ctx, imap_arg_as_astring(match),
 						 astr);
 			if (mstr == NULL)
 				return ret;
@@ -433,11 +433,10 @@ test_imap_match_args(struct test_exec_context *ctx,
 			}
 			break;
 		case IMAP_ARG_LIST:
-			if (args->type != IMAP_ARG_LIST)
+			if (!imap_arg_get_list(args, &listargs))
 				return ret;
-			subret = test_imap_match_list(ctx,
-						      IMAP_ARG_LIST_ARGS(match),
-						      IMAP_ARG_LIST_ARGS(args));
+			subret = test_imap_match_list(ctx, imap_arg_as_list(match),
+						      listargs);
 			if (subret != -1U)
 				return ret + subret;
 			break;
@@ -488,7 +487,7 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 	struct test_command *const *cmdp;
 	const struct test_untagged *untagged;
 	struct test_maybe_match *maybes;
-	const char *const *vars, *tag;
+	const char *const *vars, *tag, *str;
 	unsigned char *found;
 	unsigned int i, count, j, var_count, match_count;
 	bool prefix = FALSE, found_some;
@@ -502,9 +501,7 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 	untagged = array_get(&(*cmdp)->untagged, &count);
 	i_assert(count > 0);
 
-	if (args->type == IMAP_ARG_ATOM) {
-		const char *str = IMAP_ARG_STR(args);
-
+	if (imap_arg_get_atom(args, &str)) {
 		if (strcasecmp(str, "ok") == 0 ||
 		    strcasecmp(str, "no") == 0 ||
 		    strcasecmp(str, "bad") == 0) {
@@ -567,6 +564,7 @@ static int
 test_handle_untagged(struct client *client, const struct imap_arg *args)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
+	const char *str, *reply, *mailbox;
 
 	if (client_handle_untagged(client, args) < 0)
 		return -1;
@@ -574,26 +572,24 @@ test_handle_untagged(struct client *client, const struct imap_arg *args)
 	if (ctx->startup_state >= TEST_STARTUP_STATE_DELETED)
 		test_handle_untagged_match(client, args);
 
-	if (args->type == IMAP_ARG_ATOM && args[1].type == IMAP_ARG_ATOM &&
-	    strcasecmp(args[1]._data.str, "expunge") == 0) {
+	if (imap_arg_get_atom(&args[0], &str) &&
+	    imap_arg_atom_equals(&args[1], "EXPUNGE")) {
 		/* expunge: update sequence mapping. do this after matching
 		   expunges above. */
-		uint32_t seq = strtoul(args->_data.str, NULL, 10);
+		uint32_t seq = strtoul(str, NULL, 10);
 
 		test_handle_expunge(client->test_exec_ctx, seq);
 	}
-	if (args->type == IMAP_ARG_ATOM &&
+	if (imap_arg_get_atom(&args[0], &reply) &&
 	    args[1].type == IMAP_ARG_LIST &&
-	    IMAP_ARG_TYPE_IS_STRING(args[2].type) &&
-	    IMAP_ARG_TYPE_IS_STRING(args[3].type)) {
-		const char *name = IMAP_ARG_STR(&args[3]);
-
-		if (strcasecmp(args->_data.str, "list") == 0) {
-			name = p_strdup(ctx->pool, name);
-			array_append(&ctx->delete_mailboxes, &name, 1);
-		} else if (strcasecmp(args->_data.str, "lsub") == 0) {
-			name = p_strdup(ctx->pool, name);
-			array_append(&ctx->unsubscribe_mailboxes, &name, 1);
+	    IMAP_ARG_IS_NSTRING(&args[2]) &&
+	    imap_arg_get_astring(&args[3], &mailbox)) {
+		if (strcasecmp(reply, "list") == 0) {
+			mailbox = p_strdup(ctx->pool, mailbox);
+			array_append(&ctx->delete_mailboxes, &mailbox, 1);
+		} else if (strcasecmp(reply, "lsub") == 0) {
+			mailbox = p_strdup(ctx->pool, mailbox);
+			array_append(&ctx->unsubscribe_mailboxes, &mailbox, 1);
 		}
 	}
 	return 0;
@@ -683,9 +679,11 @@ static void test_cmd_callback(struct client *client,
 
 static bool imap_arg_is_bad(const struct imap_arg *arg)
 {
-	if (!IMAP_ARG_TYPE_IS_STRING(arg->type))
+	const char *str;
+
+	if (!imap_arg_get_atom(arg, &str))
 		return FALSE;
-	return strcasecmp(IMAP_ARG_STR_NONULL(arg), "bad") == 0;
+	return strcasecmp(str, "bad") == 0;
 }
 
 static void test_send_next_command(struct test_exec_context *ctx)
