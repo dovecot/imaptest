@@ -10,31 +10,9 @@ AC_PROG_CC
 AC_PROG_CPP
 AM_PROG_LIBTOOL
 
-AC_ARG_WITH(dovecot,
-[  --with-dovecot[=DIR]    Dovecot base directory (../dovecot)],
-	dovecotdir="$withval",
-	dovecotdir=../dovecot
-)
-old=`pwd`
-cd $dovecotdir
-dovecotdir=`pwd`
-cd $old
-AC_SUBST(dovecotdir)
-
-if ! test -f "$dovecotdir/dovecot-config"; then
-  echo
-  echo "dovecot-config not found from $dovecotdir, use --with-dovecot=PATH"
-  echo "to give path to compiled Dovecot sources."
-  AC_MSG_ERROR([dovecot-config not found])
-fi
-
-dnl replace relative ../ paths in the file with full paths
-eval `cat $dovecotdir/dovecot-config|sed 's,\$(top_builddir)/,$dovecotdir/,g'`
-dovecot_incdir="$dovecotdir"
-
-AC_SUBST(LIBICONV)
-AC_SUBST(RAND_LIBS)
-AC_SUBST(dovecot_incdir)
+DC_DOVECOT
+CFLAGS="$DOVECOT_CFLAGS"
+LIBS="$DOVECOT_LIBS"
 
 AC_CONFIG_FILES([
 Makefile
