@@ -847,8 +847,12 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				  states[cmd->state].name);
 		return -1;
 	case REPLY_CONT:
-		if (cmd->state == STATE_APPEND)
-			break;
+		if (cmd->state == STATE_APPEND) {
+			/* finish appending */
+			if (client_append_continue(client) < 0)
+				return -1;
+			return 0;
+		}
 
 		client_input_error(client, "%s: Unexpected continuation",
 				   states[cmd->state].name);
@@ -923,13 +927,8 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		}
 		break;
 	case STATE_APPEND:
-		if (reply == REPLY_CONT) {
-			/* finish appending */
-			if (client_append_continue(client) < 0)
-				return -1;
-		} else if (reply == REPLY_NO) {
+		if (reply == REPLY_NO)
 			client_try_create_mailbox(client);
-		}
 		break;
 	case STATE_LOGOUT:
 		if (client->login_state != LSTATE_NONAUTH) {
