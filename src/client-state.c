@@ -714,7 +714,8 @@ void client_handle_resp_text_code(struct client *client,
 
 		new_uidvalidity = strtoul(value, NULL, 10);
 		if (new_uidvalidity != view->storage->uidvalidity) {
-			if (view->storage->uidvalidity != 0) {
+			if (view->storage->uidvalidity != 0 &&
+			    !conf.no_tracking) {
 				i_error("UIVALIDITY changed: %u -> %u",
 					view->storage->uidvalidity,
 					new_uidvalidity);
