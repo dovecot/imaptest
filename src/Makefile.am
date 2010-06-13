@@ -39,6 +39,7 @@ EXTRA_DIST = \
 	tests/expunge2 \
 	tests/fetch \
 	tests/fetch-body \
+	tests/fetch-body.mbox \
 	tests/fetch-envelope \
 	tests/fetch-envelope.mbox \
 	tests/list \
