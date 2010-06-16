@@ -32,3 +32,5 @@ ok search header x-extra "hello beautiful"
 * search 2
 ok search header x-extra "eautiful head"
 * search 2
+ok search header x-extra "another"
+* search 2
