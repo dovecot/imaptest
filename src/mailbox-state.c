@@ -6,6 +6,7 @@
 #include "imap-date.h"
 #include "imap-util.h"
 #include "imap-arg.h"
+#include "message-id.h"
 #include "message-size.h"
 #include "message-header-parser.h"
 
@@ -30,12 +31,19 @@ static void client_fetch_envelope(struct client *client,
 				  const struct imap_arg *args,
 				  unsigned int list_count, uint32_t uid)
 {
-	const char *message_id;
+	const char *str, *message_id;
 	struct message_global *msg;
 	pool_t pool = client->storage->source->messages_pool;
 
-	if (list_count < 9 || !imap_arg_get_astring(&args[9], &message_id))
+	if (list_count < 9 || !imap_arg_get_astring(&args[9], &str))
 		return;
+
+	message_id = message_id_get_next(&str);
+	if (message_id == NULL || message_id_get_next(&str) == NULL) {
+		client_input_warn(client, "UID %u has invalid Message-Id: %s",
+				  uid, str);
+		message_id = str;
+	}
 
 	if (metadata->ms->msg != NULL) {
 		if (strcmp(metadata->ms->msg->message_id, message_id) == 0)
@@ -538,7 +546,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 		arg = fetch_list_get(args, "ENVELOPE");
 		if (arg != NULL) {
 			client_fetch_envelope(client, metadata,
-					      args, list_count, uid);
+					      arg, list_count, uid);
 		}
 	}
 
