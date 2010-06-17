@@ -55,8 +55,8 @@ EXTRA_DIST = \
 	tests/search-flags \
 	tests/search-header \
 	tests/search-header.mbox \
-	tests/search-intdate \
-	tests/search-intdate.mbox \
+	tests/broken/search-intdate \
+	tests/broken/search-intdate.mbox \
 	tests/search-sets \
 	tests/search-size \
 	tests/search-size.mbox \
