@@ -618,6 +618,7 @@ static void client_wait_connect(void *context)
 
 static void client_set_random_user(struct client *client)
 {
+	static int prev_user = 0, prev_domain = 0;
 	const char *const *userp, *p;
 	unsigned int i;
 
@@ -634,10 +635,15 @@ static void client_set_random_user(struct client *client)
 		}
 		i_assert(*client->username != '\0');
 	} else {
+		if (rand() % 2 == 0 && prev_user != 0) {
+			/* continue with same user */
+		} else {
+			prev_user = random() % USER_RAND + 1;
+			prev_domain = random() % DOMAIN_RAND + 1;
+		}
 		client->username =
 			i_strdup_printf(conf.username_template,
-					(int)(random() % USER_RAND + 1),
-					(int)(random() % DOMAIN_RAND + 1));
+					prev_user, prev_domain);
 		client->password = i_strdup(conf.password);
 	}
 }
