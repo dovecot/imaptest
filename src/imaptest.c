@@ -327,10 +327,9 @@ static void print_help(void)
 int main(int argc ATTR_UNUSED, char *argv[])
 {
 	struct timeout *to_stop;
-	struct ip_addr *ips;
 	struct state *state;
 	const char *key, *value, *testdir = NULL;
-	unsigned int i, count;
+	unsigned int i;
 	int ret;
 
 	lib_init();
@@ -517,12 +516,12 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		return 1;
 	}
 
-	if ((ret = net_gethostbyname(conf.host, &ips, &count)) != 0) {
+	if ((ret = net_gethostbyname(conf.host, &conf.ips,
+				     &conf.ips_count)) != 0) {
 		i_error("net_gethostbyname(%s) failed: %s",
 			conf.host, net_gethosterror(ret));
 		return 1;
 	}
-	conf.ip = ips[0];
 
 	fix_probabilities();
 	mailboxes_init();

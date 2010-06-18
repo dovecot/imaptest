@@ -645,6 +645,7 @@ static void client_set_random_user(struct client *client)
 struct client *client_new(unsigned int idx, struct mailbox_source *source)
 {
 	struct client *client;
+	const struct ip_addr *ip;
 	const char *mailbox;
 	int fd;
 
@@ -655,7 +656,11 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 		return NULL;
 	}*/
 
-	fd = net_connect_ip(&conf.ip, conf.port, NULL);
+	ip = &conf.ips[conf.ip_idx];
+	fd = net_connect_ip(ip, conf.port, NULL);
+	if (++conf.ip_idx == conf.ips_count)
+		conf.ip_idx = 0;
+
 	if (fd < 0) {
 		i_error("connect() failed: %m");
 		return NULL;
