@@ -31,18 +31,20 @@ static void client_fetch_envelope(struct client *client,
 				  const struct imap_arg *args,
 				  unsigned int list_count, uint32_t uid)
 {
-	const char *str, *message_id;
+	const char *str, *message_id, *orig_str;
 	struct message_global *msg;
 	pool_t pool = client->storage->source->messages_pool;
 
 	if (list_count < 9 || !imap_arg_get_astring(&args[9], &str))
 		return;
+	orig_str = str;
 
 	message_id = message_id_get_next(&str);
-	if (message_id == NULL || message_id_get_next(&str) == NULL) {
+	if (message_id == NULL || message_id_get_next(&str) != NULL) {
 		client_input_warn(client, "UID %u has invalid Message-Id: %s",
-				  uid, str);
-		message_id = str;
+				  uid, orig_str);
+		message_id = orig_str;
+		abort();
 	}
 
 	if (metadata->ms->msg != NULL) {
@@ -545,8 +547,18 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 		/* Get Message-ID from envelope if it exists. */
 		arg = fetch_list_get(args, "ENVELOPE");
 		if (arg != NULL) {
+			const struct imap_arg *env_args;
+			unsigned int env_list_count;
+
+			if (!imap_arg_get_list_full(arg, &env_args,
+						    &env_list_count)) {
+				client_input_error(client,
+					"FETCH ENVELOPE didn't return a list");
+				return;
+			}
+
 			client_fetch_envelope(client, metadata,
-					      arg, list_count, uid);
+					      env_args, env_list_count, uid);
 		}
 	}
 
