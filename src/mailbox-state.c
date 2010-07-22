@@ -44,7 +44,6 @@ static void client_fetch_envelope(struct client *client,
 		client_input_warn(client, "UID %u has invalid Message-Id: %s",
 				  uid, orig_str);
 		message_id = orig_str;
-		abort();
 	}
 
 	if (metadata->ms->msg != NULL) {
