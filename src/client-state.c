@@ -1280,6 +1280,10 @@ int client_plan_send_next_cmd(struct client *client)
 
 		if (msgs > conf.message_count_threshold + 5) {
 			count = rand() % (msgs - conf.message_count_threshold);
+			if (count > 1000) {
+				/* avoid "command line too long" errors */
+				count = 1000;
+			}
 		} else {
 			count = rand() % 5;
 		}
