@@ -4,7 +4,7 @@ ACLOCAL_AMFLAGS = -I m4
 
 EXTRA_DIST = \
 	ChangeLog \
-	COPYING.LGPL
+	COPYING.MIT
 
 if MAINTAINER_MODE
 ChangeLog: .hg/dirstate
