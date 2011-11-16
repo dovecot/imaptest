@@ -154,11 +154,9 @@ static void
 client_expunge_uid_range(struct client *client,
 			 const ARRAY_TYPE(seq_range) *expunged_uids)
 {
-	const struct seq_range *expunges;
 	const uint32_t *uidmap;
-	unsigned int seq, uid_count, expunge_count;
+	unsigned int seq, uid_count;
 
-	expunges = array_get(expunged_uids, &expunge_count);
 	uidmap = array_get(&client->view->uidmap, &uid_count);
 	for (seq = uid_count; seq > 0; seq--) {
 		i_assert(uidmap[seq-1] != 0);
@@ -400,13 +398,12 @@ client_input_args(struct client *client, const struct imap_arg *args)
 
 static bool client_skip_literal(struct client *client)
 {
-	const unsigned char *data;
 	size_t size;
 
 	if (client->literal_left == 0)
 		return TRUE;
 
-	data = i_stream_get_data(client->input, &size);
+	(void)i_stream_get_data(client->input, &size);
 	if (size < client->literal_left) {
 		client->literal_left -= size;
 		i_stream_skip(client->input, size);

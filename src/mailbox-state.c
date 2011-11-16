@@ -109,7 +109,7 @@ check_unexpected_flag_changes(struct client *client,
 {
 	struct mailbox_storage *storage = client->storage;
 	const struct mailbox_keyword *keywords;
-	unsigned int i, min_count, new_count, new_alloc_size;
+	unsigned int i, new_count, new_alloc_size;
 	const char *expunge_state;
 	bool old_set, new_set;
 
@@ -129,7 +129,6 @@ check_unexpected_flag_changes(struct client *client,
 	/* check keywords */
 	new_alloc_size = client->view->keyword_bitmask_alloc_size;
 	keywords = array_get(&client->view->keywords, &new_count);
-	min_count = I_MIN(old->kw_alloc_size, new_alloc_size);
 	for (i = 0; i < new_alloc_size; i++) {
 		old_set = i >= old->kw_alloc_size ? FALSE :
 			(old->keyword_bitmask[i/8] & (1 << (i%8))) != 0;
