@@ -1095,16 +1095,22 @@ int client_plan_send_next_cmd(struct client *client)
 		break;
 	case STATE_MCREATE:
 		if (rand() % 2)
-			str = t_strdup_printf("CREATE \"test/%d\"", rand() % 20);
+			str = t_strdup_printf("CREATE \"test%c%d\"", 
+					      IMAP_HIERARCHY_SEP, rand() % 20);
 		else
-			str = t_strdup_printf("CREATE \"test/%d/%d\"", rand() % 20, rand() % 20);
+			str = t_strdup_printf("CREATE \"test%c%d%c%d\"", 
+					      IMAP_HIERARCHY_SEP, rand() % 20,
+					      IMAP_HIERARCHY_SEP, rand() % 20);
 		command_send(client, str, state_callback);
 		break;
 	case STATE_MDELETE:
 		if (rand() % 2)
-			str = t_strdup_printf("DELETE \"test/%d\"", rand() % 20);
+			str = t_strdup_printf("DELETE \"test%c%d\"", 
+					      IMAP_HIERARCHY_SEP, rand() % 20);
 		else
-			str = t_strdup_printf("DELETE \"test/%d/%d\"", rand() % 20, rand() % 20);
+			str = t_strdup_printf("DELETE \"test%c%d%c%d\"", 
+					      IMAP_HIERARCHY_SEP, rand() % 20,
+					      IMAP_HIERARCHY_SEP, rand() % 20);
 		command_send(client, str, state_callback);
 		break;
 	case STATE_SELECT:

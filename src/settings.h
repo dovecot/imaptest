@@ -24,6 +24,8 @@
 #define MESSAGE_COUNT_THRESHOLD 30
 /* Append messages from this mbox file to mailboxes */
 #define MBOX_PATH "~/mail/dovecot-crlf"
+/* FIXME: we should just look this up with LIST "" "" */
+#define IMAP_HIERARCHY_SEP '/'
 
 /* Add random keywords with max. length n */
 //#define RAND_KEYWORDS 40
