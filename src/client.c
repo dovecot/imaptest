@@ -761,7 +761,7 @@ bool client_unref(struct client *client, bool reconnect)
 		i_error("close(client) failed: %m");
 	if (client->rawlog_output != NULL)
 		o_stream_destroy(&client->rawlog_output);
-	imap_parser_destroy(&client->parser);
+	imap_parser_unref(&client->parser);
 
 	if (client->test_exec_ctx != NULL) {
 		/* storage must be fully unreferenced before new test can

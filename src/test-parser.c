@@ -151,7 +151,7 @@ test_parse_imap_args(struct test_parser *parser, const char *line,
 	} else {
 		dup_args = test_parse_imap_args_dup(parser->pool, args);
 	}
-	imap_parser_destroy(&imap_parser);
+	imap_parser_unref(&imap_parser);
 	i_stream_unref(&input);
 	return dup_args;
 }
