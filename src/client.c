@@ -653,7 +653,7 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 	int fd;
 
 	i_assert(idx >= array_count(&clients) ||
-		 *array_idx(&clients, idx) == NULL);
+		 *(struct client **)array_idx(&clients, idx) == NULL);
 	/*if (stalled) {
 		array_append(&stalled_clients, &idx, 1);
 		return NULL;
