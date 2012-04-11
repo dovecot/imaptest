@@ -183,9 +183,13 @@ extern struct hash_table *storages;
 extern const char *mail_flag_names[]; /* enum mail_flags names */
 
 struct mailbox_storage *
+mailbox_storage_lookup(struct mailbox_source *source, const char *username,
+		       const char *mailbox);
+struct mailbox_storage *
 mailbox_storage_get(struct mailbox_source *source, const char *username,
 		    const char *mailbox);
 void mailbox_storage_unref(struct mailbox_storage **storage);
+void mailbox_storage_reset(struct mailbox_storage *storage);
 
 struct mailbox_view *mailbox_view_new(struct mailbox_storage *storage);
 void mailbox_view_free(struct mailbox_view **_mailbox);

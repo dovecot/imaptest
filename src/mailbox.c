@@ -514,6 +514,22 @@ static void mailbox_offline_cache_free(struct mailbox_offline_cache *cache)
 }
 
 struct mailbox_storage *
+mailbox_storage_lookup(struct mailbox_source *source, const char *username,
+		       const char *mailbox)
+{
+	struct mailbox_storage *storage;
+	const char *guid;
+
+	guid = t_strconcat(username, "\t", mailbox, NULL);
+	storage = hash_table_lookup(storages, guid);
+	if (storage == NULL)
+		return NULL;
+
+	i_assert(storage->source == source);
+	return storage;
+}
+
+struct mailbox_storage *
 mailbox_storage_get(struct mailbox_source *source, const char *username,
 		    const char *mailbox)
 {
@@ -545,8 +561,6 @@ mailbox_storage_get(struct mailbox_source *source, const char *username,
 void mailbox_storage_unref(struct mailbox_storage **_storage)
 {
 	struct mailbox_storage *storage = *_storage;
-	struct mailbox_keyword_name **names;
-	unsigned int i, count;
 
 	*_storage = NULL;
 
@@ -554,17 +568,8 @@ void mailbox_storage_unref(struct mailbox_storage **_storage)
 		return;
 
 	hash_table_remove(storages, storage->guid);
+	mailbox_storage_reset(storage);
 
-	names = array_get_modifiable(&storage->keyword_names, &count);
-	for (i = 0; i < count; i++) {
-		i_free(names[i]->name);
-		i_free(names[i]);
-	}
-
-	if (storage->cache != NULL) {
-		i_assert(storage->cache->refcount == 1);
-		mailbox_offline_cache_free(storage->cache);
-	}
 	mailbox_source_unref(&storage->source);
 	array_free(&storage->expunged_uids);
 	array_free(&storage->static_metadata);
@@ -572,6 +577,45 @@ void mailbox_storage_unref(struct mailbox_storage **_storage)
 	i_free(storage->name);
 	i_free(storage->guid);
 	i_free(storage);
+}
+
+void mailbox_storage_reset(struct mailbox_storage *storage)
+{
+	struct mailbox_keyword_name **names;
+	struct message_metadata_static **ms;
+	unsigned int i, count;
+
+	if (storage->cache != NULL) {
+		i_assert(storage->cache->refcount == 1);
+		mailbox_offline_cache_free(storage->cache);
+		storage->cache = NULL;
+	}
+
+	names = array_get_modifiable(&storage->keyword_names, &count);
+	for (i = 0; i < count; i++) {
+		i_free(names[i]->name);
+		i_free(names[i]);
+	}
+	array_clear(&storage->keyword_names);
+
+	ms = array_get_modifiable(&storage->static_metadata, &count);
+	for (i = 0; i < count; i++)
+		i_free(ms[i]);
+	array_clear(&storage->static_metadata);
+
+	array_clear(&storage->expunged_uids);
+
+	storage->uidvalidity = 0;
+	storage->static_metadata_ref0_count = 0;
+	storage->static_metadata_ref0_next_scan = 0;
+
+	memset(storage->flags_owner_client_idx1, 0,
+	       sizeof(storage->flags_owner_client_idx1));
+	storage->assign_msg_owners = FALSE;
+	storage->assign_flag_owners = FALSE;
+	storage->flag_owner_clients_assigned = FALSE;
+	storage->seen_all_recent = FALSE;
+	storage->dont_track_recent = FALSE;
 }
 
 struct mailbox_view *mailbox_view_new(struct mailbox_storage *storage)
