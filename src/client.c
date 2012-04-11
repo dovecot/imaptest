@@ -674,8 +674,10 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 	client->tag_counter = 1;
 	client->idx = idx;
 	client->global_id = ++global_id_counter;
+	client_set_random_user(client);
+
 	mailbox = t_strdup_printf(conf.mailbox, idx);
-	client->storage = mailbox_storage_get(source, mailbox);
+	client->storage = mailbox_storage_get(source, client->username, mailbox);
 	client->view = mailbox_view_new(client->storage);
 	if (strchr(conf.mailbox, '%') != NULL)
 		client->try_create_mailbox = TRUE;
@@ -694,7 +696,6 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 	}
 	client->parser = imap_parser_create(client->input, NULL, (size_t)-1);
 	client->io = io_add(fd, IO_READ, client_wait_connect, client);
-	client_set_random_user(client);
         client->last_io = ioloop_time;
 	i_array_init(&client->commands, 16);
 	o_stream_set_flush_callback(client->output, client_output, client);

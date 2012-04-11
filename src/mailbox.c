@@ -514,14 +514,18 @@ static void mailbox_offline_cache_free(struct mailbox_offline_cache *cache)
 }
 
 struct mailbox_storage *
-mailbox_storage_get(struct mailbox_source *source, const char *name)
+mailbox_storage_get(struct mailbox_source *source, const char *username,
+		    const char *mailbox)
 {
 	struct mailbox_storage *storage;
+	const char *guid;
 
-	storage = hash_table_lookup(storages, name);
+	guid = t_strconcat(username, "\t", mailbox, NULL);
+	storage = hash_table_lookup(storages, guid);
 	if (storage == NULL) {
 		storage = i_new(struct mailbox_storage, 1);
-		storage->name = i_strdup(name);
+		storage->guid = i_strdup(guid);
+		storage->name = i_strdup(mailbox);
 		storage->refcount = 1;
 		storage->source = source;
 		storage->assign_msg_owners = conf.own_msgs;
@@ -529,7 +533,7 @@ mailbox_storage_get(struct mailbox_source *source, const char *name)
 		i_array_init(&storage->expunged_uids, 128);
 		i_array_init(&storage->static_metadata, 128);
 		i_array_init(&storage->keyword_names, 64);
-		hash_table_insert(storages, storage->name, storage);
+		hash_table_insert(storages, storage->guid, storage);
 		source->refcount++;
 	} else {
 		i_assert(storage->source == source);
@@ -549,7 +553,7 @@ void mailbox_storage_unref(struct mailbox_storage **_storage)
 	if (--storage->refcount > 0)
 		return;
 
-	hash_table_remove(storages, storage->name);
+	hash_table_remove(storages, storage->guid);
 
 	names = array_get_modifiable(&storage->keyword_names, &count);
 	for (i = 0; i < count; i++) {
@@ -566,6 +570,7 @@ void mailbox_storage_unref(struct mailbox_storage **_storage)
 	array_free(&storage->static_metadata);
 	array_free(&storage->keyword_names);
 	i_free(storage->name);
+	i_free(storage->guid);
 	i_free(storage);
 }
 

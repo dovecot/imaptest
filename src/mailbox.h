@@ -117,6 +117,7 @@ struct mailbox_offline_cache {
 struct mailbox_storage {
 	struct mailbox_source *source;
 	int refcount;
+	char *guid;
 	char *name;
 
 	struct mailbox_checkpoint_context *checkpoint;
@@ -182,7 +183,8 @@ extern struct hash_table *storages;
 extern const char *mail_flag_names[]; /* enum mail_flags names */
 
 struct mailbox_storage *
-mailbox_storage_get(struct mailbox_source *source, const char *name);
+mailbox_storage_get(struct mailbox_source *source, const char *username,
+		    const char *mailbox);
 void mailbox_storage_unref(struct mailbox_storage **storage);
 
 struct mailbox_view *mailbox_view_new(struct mailbox_storage *storage);
