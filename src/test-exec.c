@@ -1054,11 +1054,11 @@ static void tests_execute_next(struct tests_execute_context *exec_ctx)
 	if (exec_ctx->next_test != count)
 		test_execute(tests[exec_ctx->next_test++], exec_ctx);
 	else {
-		i_info("%u test groups: %u failed, %u skipped due to missing capabilities",
+		printf("%u test groups: %u failed, %u skipped due to missing capabilities\n",
 		       count, exec_ctx->group_failures, exec_ctx->group_skips);
-		i_info("base protocol: %u/%u individual commands failed",
+		printf("base protocol: %u/%u individual commands failed\n",
 		       exec_ctx->base_failures, exec_ctx->base_tests);
-		i_info("extensions: %u/%u individual commands failed",
+		printf("extensions: %u/%u individual commands failed\n",
 		       exec_ctx->ext_failures, exec_ctx->ext_tests);
 		io_loop_stop(current_ioloop);
 	}
