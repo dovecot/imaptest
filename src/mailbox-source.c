@@ -18,10 +18,7 @@ struct mailbox_source *mailbox_source_new(const char *path)
 	source = i_new(struct mailbox_source, 1);
 	source->refcount = 1;
 	source->path = i_strdup(path);
-	source->fd = open(path, O_RDONLY);
-	if (source->fd == -1)
-		i_fatal("open(%s) failed: %m", path);
-	source->input = i_stream_create_fd(source->fd, (size_t)-1, FALSE);
+	source->fd = -1;
 
 	source->messages_pool = pool_alloconly_create("messages", 1024*1024);
 	source->messages =
@@ -40,14 +37,28 @@ void mailbox_source_unref(struct mailbox_source **_source)
 
 	hash_table_destroy(&source->messages);
 	pool_unref(&source->messages_pool);
-	i_stream_unref(&source->input);
-	(void)close(source->fd);
+	if (source->input != NULL)
+		i_stream_unref(&source->input);
+	if (source->fd != -1)
+		(void)close(source->fd);
 	i_free(source->path);
 	i_free(source);
 }
 
+static void mailbox_source_open(struct mailbox_source *source)
+{
+	if (source->fd != -1)
+		return;
+
+	source->fd = open(source->path, O_RDONLY);
+	if (source->fd == -1)
+		i_fatal("open(%s) failed: %m", source->path);
+	source->input = i_stream_create_fd(source->fd, (size_t)-1, FALSE);
+}
+
 bool mailbox_source_eof(struct mailbox_source *source)
 {
+	mailbox_source_open(source);
 	if (!source->input->eof)
 		(void)i_stream_read(source->input);
 	return i_stream_have_bytes_left(source->input) == 0;
@@ -64,6 +75,7 @@ void mailbox_source_get_next_size(struct mailbox_source *source,
 	unsigned int linelen;
 	int next_tz;
 
+	mailbox_source_open(source);
 	i_stream_seek(source->input, source->next_offset);
 
 	line = i_stream_read_next_line(source->input);

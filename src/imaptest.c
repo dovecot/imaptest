@@ -243,11 +243,20 @@ static void clients_unref(void)
 
 static void imaptest_run(void)
 {
+	const char *mbox_path = conf.mbox_path;
+	struct state *state;
 	struct timeout *to;
 	unsigned int i;
 
+	state = state_find("APPEND");
+	if (state->probability == 0) {
+		/* we're not going to append anything, don't give an error
+		   if mbox_path doesn't exist. */
+		mbox_path = "/dev/null";
+	}
+
 	next_checkpoint_time = ioloop_time + conf.checkpoint_interval;
-	mailbox_source = mailbox_source_new(conf.mbox_path);
+	mailbox_source = mailbox_source_new(mbox_path);
 	to = timeout_add(1000, print_timeout, NULL);
 	for (i = 0; i < INIT_CLIENT_COUNT && i < conf.clients_count; i++)
 		client_new(i, mailbox_source);
