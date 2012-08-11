@@ -1,4 +1,4 @@
-capabilities: THREAD=REFERENCES
+capabilities: MOVE
 state: created
 
 # - assumes COPYUID is sent untagged before expunges.
