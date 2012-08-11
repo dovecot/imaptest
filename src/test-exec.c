@@ -1043,7 +1043,7 @@ static int test_execute(const struct test *test,
 	ctx->clients_waiting = test->connection_count;
 
 	hash_table_insert(ctx->variables, "mailbox",
-			  ctx->clients[0]->storage->name);
+			  p_strdup(pool, ctx->clients[0]->storage->name));
 	return 0;
 }
 
