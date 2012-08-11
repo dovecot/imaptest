@@ -18,6 +18,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+#define IS_VAR_CHAR(c) (i_isalnum(c) || (c) == '_')
+
 struct tests_execute_context {
 	const ARRAY_TYPE(test) *tests;
 	unsigned int next_test;
@@ -170,7 +172,7 @@ test_expand_all(struct test_exec_context *ctx, const char *str,
 				}
 				var_name = t_strdup_until(str, p++);
 			} else {
-				for (p = str; i_isalnum(*p); p++) ;
+				for (p = str; IS_VAR_CHAR(*p); p++) ;
 				var_name = t_strdup_until(str, p);
 			}
 
@@ -224,7 +226,7 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 			var_name = t_strdup_until(str + 1, p);
 			str = p + 1;
 		} else {
-			for (p = str; i_isalnum(*p); p++) ;
+			for (p = str; IS_VAR_CHAR(*p); p++) ;
 			var_name = t_strdup_until(str, p);
 			str = p;
 		}
