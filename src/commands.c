@@ -59,8 +59,8 @@ struct command *command_send(struct client *client, const char *cmdline,
 
 		name = get_astring(argp);
 		if (name != NULL && strcmp(name, client->storage->name) != 0) {
-			mailbox_storage_unref(&client->storage);
 			mailbox_view_free(&client->view);
+			mailbox_storage_unref(&client->storage);
 			client->storage = mailbox_storage_get(source,
 							      client->username,
 							      name);

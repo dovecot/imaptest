@@ -599,8 +599,10 @@ void mailbox_storage_reset(struct mailbox_storage *storage)
 	array_clear(&storage->keyword_names);
 
 	ms = array_get_modifiable(&storage->static_metadata, &count);
-	for (i = 0; i < count; i++)
+	for (i = 0; i < count; i++) {
+		i_assert(ms[i]->refcount == 0);
 		i_free(ms[i]);
+	}
 	array_clear(&storage->static_metadata);
 
 	array_clear(&storage->expunged_uids);
