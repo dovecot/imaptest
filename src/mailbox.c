@@ -205,7 +205,7 @@ void mailbox_view_expunge(struct mailbox_view *view, unsigned int seq)
 	i_free(metadata->keyword_bitmask);
 
 	if (metadata->ms != NULL) {
-		seq_range_array_add(&view->storage->expunged_uids, 0,
+		seq_range_array_add(&view->storage->expunged_uids,
 				    metadata->ms->uid);
 		metadata->ms->expunged = TRUE;
 		message_metadata_static_unref(view->storage, &metadata->ms);

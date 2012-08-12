@@ -982,7 +982,7 @@ bool client_get_random_seq_range(struct client *client,
 			}
 		}
 
-		seq_range_array_add(range, 10, seq);
+		seq_range_array_add_with_init(range, 10, seq);
 		i++;
 	}
 	if (flag_type != CLIENT_RANDOM_FLAG_TYPE_NONE &&i > 0) {

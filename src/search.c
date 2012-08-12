@@ -661,6 +661,6 @@ void search_result(struct client *client, const struct imap_arg *args)
 					   num, msgs_count);
 			break;
 		}
-		seq_range_array_add(&client->search_ctx->result, 0, num);
+		seq_range_array_add(&client->search_ctx->result, num);
 	}
 }
