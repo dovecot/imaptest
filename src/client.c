@@ -470,6 +470,7 @@ static void client_input(struct client *client)
 	while (client_skip_literal(client)) {
 		ret = imap_parser_read_args(client->parser, 0,
 					    IMAP_PARSE_FLAG_LITERAL_SIZE |
+					    IMAP_PARSE_FLAG_LITERAL8 |
 					    IMAP_PARSE_FLAG_ATOM_ALLCHARS,
 					    &imap_args);
 		if (ret == -2) {
