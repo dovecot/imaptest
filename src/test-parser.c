@@ -463,29 +463,42 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 {
 	const char *line, *error;
 	string_t *multiline;
-	unsigned int len, linenum = 0, start_linenum = 0, start_pos = 0;
-	bool ret, header = TRUE, continues = FALSE;
+	unsigned int len, linenum = 0, start_linenum = 0, start_pos = 0, last_line_end = 0;
+	bool ret, header = TRUE, continues = FALSE, binary = FALSE;
 
 	multiline = t_str_new(256);
 	parser->cur_cmd = NULL;
 	while ((line = i_stream_read_next_line(input)) != NULL) {
 		linenum++;
 		if (continues) {
-			str_append(multiline, "\r\n");
 			if (strncmp(line, "}}}", 3) != 0) {
 				str_append(multiline, line);
+				last_line_end = str_len(multiline);
+				if (binary && !i_stream_last_line_crlf(input))
+					str_append(multiline, "\n");
+				else
+					str_append(multiline, "\r\n");
 				continue;
 			}
+			str_truncate(multiline, last_line_end);
+			line += 3;
 			str_insert(multiline, start_pos, t_strdup_printf(
-				"{%"PRIuSIZE_T"}", str_len(multiline)-2-start_pos));
+				"{%"PRIuSIZE_T"}\r\n", str_len(multiline)-start_pos));
 
 			len = strlen(line);
 			if (len >= 3 && strcmp(line + len-3, "{{{") == 0) {
+				if (len > 3 && line[len-4] == '~') {
+					len--;
+					binary = TRUE;
+				} else {
+					binary = FALSE;
+				}
 				str_append_n(multiline, line, len-3);
 				start_pos = str_len(multiline);
+				last_line_end = str_len(multiline);
 				continue;
 			}
-			str_append(multiline, line+3);
+			str_append(multiline, line);
 			line = str_c(multiline);
 			continues = FALSE;
 		} else {
@@ -500,8 +513,15 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 			len = strlen(line);
 			if (len >= 3 && strcmp(line + len-3, "{{{") == 0) {
 				str_truncate(multiline, 0);
+				if (len > 3 && line[len-4] == '~') {
+					len--;
+					binary = TRUE;
+				} else {
+					binary = FALSE;
+				}
 				str_append_n(multiline, line, len-3);
 				start_pos = str_len(multiline);
+				last_line_end = str_len(multiline);
 				continues = TRUE;
 				continue;
 			}
@@ -524,6 +544,11 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 
 		if (!ret)
 			return FALSE;
+	}
+	if (continues) {
+		i_error("%s: Multiline reply at line %u not ended",
+			test->path, start_linenum);
+		return FALSE;
 	}
 	if (parser->cur_cmd == NULL) {
 		i_error("%s: No commands in file", test->path);
