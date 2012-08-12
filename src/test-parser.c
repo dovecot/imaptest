@@ -582,7 +582,6 @@ test_parser_read_test(struct test_parser *parser, const char *fname,
 	struct istream *input;
 	struct stat st;
 	const char *mbox_path;
-	unsigned int i;
 	int fd, ret = 0;
 
 	test = p_new(parser->pool, struct test, 1);
@@ -626,8 +625,10 @@ test_parser_read_test(struct test_parser *parser, const char *fname,
 		i_error("close(%s) failed: %m", test->path);
 		return -1;
 	}
-	for (i = 0; i < test->connection_count; i++)
-		test_add_logout(parser, test, i);
+	/* add logout to only one connection, since we can't handle
+	   disconnections before all the connections have received tagged
+	   OK for logout */
+	test_add_logout(parser, test, 0);
 
 	*test_r = test;
 	return ret < 0 ? -1 : 1;
