@@ -310,7 +310,9 @@ static int client_append_more(struct client *client)
 	struct mailbox_source *source = client->storage->source;
 	struct istream *input, *input2;
 	off_t ret;
-	
+
+	i_assert(client->append_vsize_left > 0);
+
 	input = i_stream_create_limit(source->input, client->append_psize);
 	input2 = i_stream_create_crlf(input);
 	i_stream_skip(input2, client->append_skip);
@@ -356,6 +358,7 @@ static int client_append_more(struct client *client)
 	}
 
 	client->append_unfinished = FALSE;
+	client->append_can_send = FALSE;
 	o_stream_send_str(client->output, "\r\n");
 	if (client->rawlog_output != NULL)
 		client_rawlog_output(client, "\r\n");
@@ -412,6 +415,7 @@ int client_append(struct client *client, const char *args, bool add_datetime,
 		return 0;
 	}
 
+	client->append_can_send = TRUE;
 	return client_append_more(client);
 }
 

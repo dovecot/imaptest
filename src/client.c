@@ -598,7 +598,7 @@ static int client_output(void *context)
 	ret = o_stream_flush(client->output);
 	client->last_io = ioloop_time;
 
-	if (client->append_vsize_left > 0) {
+	if (client->append_vsize_left > 0 && client->append_can_send) {
 		if (client_append_continue(client) < 0)
 			client_unref(client, TRUE);
 	}

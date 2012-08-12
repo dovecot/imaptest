@@ -87,6 +87,8 @@ struct client {
 	unsigned int postlogin_capability:1;
 	unsigned int qresync_enabled:1;
 	unsigned int disconnected:1;
+	unsigned int append_can_send:1;
+
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
 
