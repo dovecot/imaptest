@@ -463,7 +463,7 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 {
 	const char *line, *error;
 	string_t *multiline;
-	unsigned int len, linenum = 0;
+	unsigned int len, linenum = 0, start_linenum = 0, start_pos = 0;
 	bool ret, header = TRUE, continues = FALSE;
 
 	multiline = t_str_new(256);
@@ -471,15 +471,25 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 	while ((line = i_stream_read_next_line(input)) != NULL) {
 		linenum++;
 		if (continues) {
-			if (strcmp(line, "}}}") == 0) {
-				continues = FALSE;
-				line = str_c(multiline);
-			} else {
-				str_append(multiline, "\r\n");
+			str_append(multiline, "\r\n");
+			if (strncmp(line, "}}}", 3) != 0) {
 				str_append(multiline, line);
 				continue;
 			}
+			str_insert(multiline, start_pos, t_strdup_printf(
+				"{%"PRIuSIZE_T"}", str_len(multiline)-2-start_pos));
+
+			len = strlen(line);
+			if (len >= 3 && strcmp(line + len-3, "{{{") == 0) {
+				str_append_n(multiline, line, len-3);
+				start_pos = str_len(multiline);
+				continue;
+			}
+			str_append(multiline, line+3);
+			line = str_c(multiline);
+			continues = FALSE;
 		} else {
+			start_linenum = linenum;
 			if (*line == '\0') {
 				header = FALSE;
 				continue;
@@ -488,9 +498,10 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 				continue;
 
 			len = strlen(line);
-			if (len >= 4 && strcmp(line + len-4, " {{{") == 0) {
+			if (len >= 3 && strcmp(line + len-3, "{{{") == 0) {
 				str_truncate(multiline, 0);
-				str_append_n(multiline, line, len-4);
+				str_append_n(multiline, line, len-3);
+				start_pos = str_len(multiline);
 				continues = TRUE;
 				continue;
 			}
@@ -502,7 +513,7 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 							     line, &error);
 			} else {
 				ret = test_parse_command_line(parser, test,
-							      linenum,
+							      start_linenum,
 							      line, &error);
 			}
 			if (!ret) {
@@ -519,8 +530,8 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 		return FALSE;
 	}
 	if (parser->cur_cmd != NULL && parser->cur_cmd->reply == NULL) {
-		i_error("%s line %u: Missing reply from previous command",
-			test->path, linenum);
+		i_error("%s line %u: Missing reply from previous command at line %u",
+			test->path, linenum, parser->cur_cmd->linenum);
 		return FALSE;
 	}
 	return TRUE;
