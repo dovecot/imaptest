@@ -5,6 +5,7 @@
 #include "array.h"
 #include "istream.h"
 #include "ostream.h"
+#include "iostream-ssl.h"
 #include "str.h"
 #include "imap-parser.h"
 
@@ -30,6 +31,9 @@ ARRAY_DEFINE(stalled_clients, unsigned int);
 bool stalled = FALSE, disconnect_clients = FALSE, no_new_clients = FALSE;
 
 static unsigned int global_id_counter = 0;
+static struct ssl_iostream_context *ssl_ctx;
+
+static const struct ssl_iostream_settings ssl_set;
 
 static void
 client_rawlog_input(struct client *client, const unsigned char *data,
@@ -415,7 +419,7 @@ static bool client_skip_literal(struct client *client)
 	}
 }
 
-static void client_input(struct client *client)
+static bool client_try_input(struct client *client)
 {
 	const struct imap_arg *imap_args;
 	const char *line, *p;
@@ -425,20 +429,20 @@ static void client_input(struct client *client)
 	bool fatal;
 	int ret;
 
-        client->last_io = ioloop_time;
+	client->last_io = ioloop_time;
 
 	switch (i_stream_read(client->input)) {
 	case 0:
-		return;
+		return FALSE;
 	case -1:
 		/* disconnected */
 		client_unref(client, TRUE);
-		return;
+		return FALSE;
 	case -2:
 		/* buffer full */
 		i_error("line too long");
 		client_unref(client, TRUE);
-		return;
+		return FALSE;
 	}
 
 	if (client->rawlog_output != NULL) {
@@ -455,7 +459,7 @@ static void client_input(struct client *client)
 		/* we haven't received the banner yet */
 		line = i_stream_next_line(client->input);
 		if (line == NULL)
-			return;
+			return FALSE;
 		client->seen_banner = TRUE;
 
 		p = strstr(line, "[CAPABILITY ");
@@ -482,7 +486,7 @@ static void client_input(struct client *client)
 			client_input_error(client,
 				"error parsing input: %s",
 				imap_parser_get_error(client->parser, &fatal));
-			return;
+			return FALSE;
 		}
 		if (imap_args->type == IMAP_ARG_EOL) {
 			/* FIXME: we get here, but we shouldn't.. */
@@ -526,19 +530,27 @@ static void client_input(struct client *client)
 		}
 
 		if (!client_unref(client, TRUE) || ret < 0)
-			return;
+			return FALSE;
 	}
 
 	if (do_rand(STATE_DISCONNECT)) {
 		/* random disconnection */
 		counters[STATE_DISCONNECT]++;
 		client_unref(client, TRUE);
-		return;
+		return FALSE;
 	}
 
 	(void)i_stream_get_data(client->input, &client->prev_size);
-	if (client->input->closed)
+	if (client->input->closed) {
 		client_unref(client, TRUE);
+		return FALSE;
+	}
+	return TRUE;
+}
+
+static void client_input(struct client *client)
+{
+	while (client_try_input(client)) ;
 }
 
 void client_input_stop(struct client *client)
@@ -549,10 +561,8 @@ void client_input_stop(struct client *client)
 
 void client_input_continue(struct client *client)
 {
-	if (client->io == NULL && !client->input->closed) {
-		client->io = io_add(i_stream_get_fd(client->input),
-				    IO_READ, client_input, client);
-	}
+	if (client->io == NULL && !client->input->closed)
+		client->io = io_add(client->fd, IO_READ, client_input, client);
 }
 
 static void client_delay_timeout(struct client *client)
@@ -600,18 +610,26 @@ static int client_output(void *context)
 static void client_wait_connect(void *context)
 {
 	struct client *client = context;
-	int err, fd;
+	int err;
 
-	fd = i_stream_get_fd(client->input);
-	err = net_geterror(fd);
+	err = net_geterror(client->fd);
 	if (err != 0) {
 		i_error("connect() failed: %s", strerror(err));
 		client_unref(client, TRUE);
 		return;
 	}
 
+	if (conf.port == 993) {
+		if (io_stream_create_ssl(ssl_ctx, "imaps", &ssl_set,
+					 &client->input, &client->output,
+					 &client->ssl_iostream) < 0)
+			i_fatal("Couldn't create SSL iostream");
+		(void)ssl_iostream_handshake(client->ssl_iostream);
+	}
+
 	io_remove(&client->io);
-	client->io = io_add(fd, IO_READ, client_input, client);
+	client->io = io_add(client->fd, IO_READ, client_input, client);
+	client->parser = imap_parser_create(client->input, NULL, (size_t)-1);
 }
 
 static void client_set_random_user(struct client *client)
@@ -685,6 +703,7 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 	client->fd = fd;
 	client->input = i_stream_create_fd(fd, 1024*64, FALSE);
 	client->output = o_stream_create_fd(fd, (size_t)-1, FALSE);
+	o_stream_set_flush_callback(client->output, client_output, client);
 	if (conf.rawlog) {
 		int log_fd;
 		const char *rawlog_path;
@@ -695,11 +714,9 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 			i_fatal("creat(%s) failed: %m", rawlog_path);
 		client->rawlog_output = o_stream_create_fd(log_fd, 0, TRUE);
 	}
-	client->parser = imap_parser_create(client->input, NULL, (size_t)-1);
-	client->io = io_add(fd, IO_READ, client_wait_connect, client);
+	client->io = io_add(fd, IO_WRITE, client_wait_connect, client);
         client->last_io = ioloop_time;
 	i_array_init(&client->commands, 16);
-	o_stream_set_flush_callback(client->output, client_output, client);
 	clients_count++;
 
 	client->handle_untagged = client_handle_untagged;
@@ -763,7 +780,6 @@ bool client_unref(struct client *client, bool reconnect)
 		i_error("close(client) failed: %m");
 	if (client->rawlog_output != NULL)
 		o_stream_destroy(&client->rawlog_output);
-	imap_parser_unref(&client->parser);
 
 	if (client->test_exec_ctx != NULL) {
 		/* storage must be fully unreferenced before new test can
@@ -771,11 +787,13 @@ bool client_unref(struct client *client, bool reconnect)
 		mailbox_storage_unref(&storage);
 		test_execute_cancel_by_client(client);
 	}
+	imap_parser_unref(&client->parser);
 
 	if (client->capabilities_list != NULL)
 		p_strsplit_free(default_pool, client->capabilities_list);
 	o_stream_unref(&client->output);
 	i_stream_unref(&client->input);
+	ssl_iostream_destroy(&client->ssl_iostream);
 	i_free(client->username);
 	i_free(client->password);
 
@@ -932,10 +950,13 @@ unsigned int clients_get_random_idx(void)
 
 void clients_init(void)
 {
+	if (ssl_iostream_context_init_client("imaps", &ssl_set, &ssl_ctx) < 0)
+		ssl_ctx = NULL;
 	i_array_init(&stalled_clients, CLIENTS_COUNT);
 }
 
 void clients_deinit(void)
 {
+	ssl_iostream_context_deinit(&ssl_ctx);
 	array_free(&stalled_clients);
 }

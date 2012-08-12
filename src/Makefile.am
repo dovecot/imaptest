@@ -28,7 +28,8 @@ noinst_HEADERS = \
 	test-exec.h \
 	test-parser.h
 
-imaptest_LDADD = $(LIBDOVECOT)
+imaptest_LDADD = $(LIBDOVECOT) $(LIBDOVECOT_SSL)
+imaptest_DEPENDENCIES = $(LIBDOVECOT_DEPS) $(LIBDOVECOT_SSL_DEPS)
 
 EXTRA_DIST = \
 	tests/append \

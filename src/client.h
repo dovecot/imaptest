@@ -36,6 +36,7 @@ struct client {
 	int fd;
 	struct istream *input;
 	struct ostream *output, *rawlog_output;
+	struct ssl_iostream *ssl_iostream;
 	struct imap_parser *parser;
 	struct io *io;
 	struct timeout *to;
