@@ -34,6 +34,12 @@ Hello world
 
 }}})
 
+ok fetch 1 (body.peek[1.1])
+* 1 fetch (body[1.1] {{{
+Hello world
+
+}}})
+
 ok fetch 1 (body.peek[1.header])
 * 1 fetch (body[1.header] {{{
 From: sub@domain.org
