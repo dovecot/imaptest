@@ -589,9 +589,8 @@ void client_delay(struct client *client, unsigned int msecs)
 	client->to = timeout_add(msecs, client_delay_timeout, client);
 }
 
-static int client_output(void *context)
+static int client_output(struct client *client)
 {
-        struct client *client = context;
 	int ret;
 
 	o_stream_cork(client->output);
@@ -607,9 +606,8 @@ static int client_output(void *context)
         return ret;
 }
 
-static void client_wait_connect(void *context)
+static void client_wait_connect(struct client *client)
 {
-	struct client *client = context;
 	int err;
 
 	err = net_geterror(client->fd);

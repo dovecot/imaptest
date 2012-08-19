@@ -33,11 +33,9 @@ const char *mail_flag_names[] = {
 	"\\Recent"
 };
 
-static int metadata_static_cmp(const void *key, const void *data)
+static int metadata_static_cmp(const uint32_t *uidp,
+			       struct message_metadata_static *const *ms)
 {
-	const uint32_t *uidp = key;
-	const struct message_metadata_static *const *ms = data;
-
 	return *uidp < (*ms)->uid ? -1 :
 		(*uidp > (*ms)->uid ? 1 : 0);
 }
@@ -56,8 +54,7 @@ void message_metadata_static_unref(struct mailbox_storage *storage,
 				   struct message_metadata_static **_ms)
 {
 	struct message_metadata_static *ms = *_ms;
-	struct message_metadata_static **base;
-	unsigned int count, idx;
+	unsigned int idx;
 
 	*_ms = NULL;
 	i_assert(ms->refcount > 0);
@@ -74,9 +71,8 @@ void message_metadata_static_unref(struct mailbox_storage *storage,
 		return;
 	}
 
-	base = array_get_modifiable(&storage->static_metadata, &count);
-	if (!bsearch_insert_pos(&ms->uid, base, count, sizeof(*base),
-				metadata_static_cmp, &idx))
+	if (!array_bsearch_insert_pos(&storage->static_metadata,
+				      &ms->uid, metadata_static_cmp, &idx))
 		i_unreached();
 	else
 		array_delete(&storage->static_metadata, idx, 1);
