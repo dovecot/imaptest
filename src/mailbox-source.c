@@ -22,7 +22,7 @@ struct mailbox_source *mailbox_source_new(const char *path)
 
 	source->messages_pool = pool_alloconly_create("messages", 1024*1024);
 	source->messages =
-		hash_table_create(default_pool, default_pool, 0, str_hash,
+		hash_table_create(default_pool, 0, str_hash,
 				  (hash_cmp_callback_t *)strcmp);
 	return source;
 }

@@ -1018,7 +1018,7 @@ static int test_execute(const struct test *test,
 	ctx->cur_received_untagged =
 		buffer_create_dynamic(default_pool, 128);
 	i_array_init(&ctx->cur_maybe_matches, 32);
-	ctx->variables = hash_table_create(default_pool, pool, 0, str_hash,
+	ctx->variables = hash_table_create(pool, 0, str_hash,
 					   (hash_cmp_callback_t *)strcmp);
 	p_array_init(&ctx->added_variables, pool, 32);
 	i_array_init(&ctx->cur_seqmap, 128);

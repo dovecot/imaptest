@@ -837,7 +837,7 @@ bool mailbox_global_get_subject_utf8(struct mailbox_source *source,
 
 void mailboxes_init(void)
 {
-	storages = hash_table_create(default_pool, default_pool, 0, str_hash,
+	storages = hash_table_create(default_pool, 0, str_hash,
 				     (hash_cmp_callback_t *)strcmp);
 }
 
