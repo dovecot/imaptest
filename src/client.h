@@ -61,7 +61,7 @@ struct client {
 	struct mailbox_storage *storage;
 	struct mailbox_view *view;
 	struct mailbox_storage *checkpointing;
-	ARRAY_DEFINE(commands, struct command *);
+	ARRAY(struct command *) commands;
 	struct command *last_cmd;
 	unsigned int tag_counter;
 

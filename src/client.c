@@ -27,7 +27,7 @@
 int clients_count = 0;
 unsigned int total_disconnects = 0;
 ARRAY_TYPE(client) clients;
-ARRAY_DEFINE(stalled_clients, unsigned int);
+ARRAY(unsigned int) stalled_clients;
 bool stalled = FALSE, disconnect_clients = FALSE, no_new_clients = FALSE;
 
 static unsigned int global_id_counter = 0;

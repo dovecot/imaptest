@@ -25,7 +25,7 @@ struct message_global {
 	ARRAY_TYPE(message_header) headers;
 #define MSG_MAX_BODY_WORDS 16
 	/* some random words from message body */
-	ARRAY_DEFINE(body_words, const char *);
+	ARRAY(const char *) body_words;
 };
 
 struct message_metadata_static {
@@ -107,9 +107,9 @@ struct mailbox_offline_cache {
 	uint64_t highest_modseq;
 
 	/* all keywords used currently in a mailbox */
-	ARRAY_DEFINE(keywords, struct mailbox_keyword_name *);
+	ARRAY(struct mailbox_keyword_name *) keywords;
 	/* seq -> uid */
-	ARRAY_DEFINE(uidmap, uint32_t);
+	ARRAY(uint32_t) uidmap;
 	/* seq -> metadata */
 	ARRAY_TYPE(message_metadata_dynamic) messages;
 };
@@ -138,8 +138,8 @@ struct mailbox_storage {
 	time_t static_metadata_ref0_next_scan;
 
 	/* static metadata for this mailbox. sorted by UID. */
-	ARRAY_DEFINE(static_metadata, struct message_metadata_static *);
-	ARRAY_DEFINE(keyword_names, struct mailbox_keyword_name *);
+	ARRAY(struct message_metadata_static *) static_metadata;
+	ARRAY(struct mailbox_keyword_name *) keyword_names;
 	/* List of UIDs that are definitely expunged. May contain UIDs that
 	   have never even existed. */
 	ARRAY_TYPE(seq_range) expunged_uids;
@@ -169,7 +169,7 @@ struct mailbox_view {
 	ARRAY_TYPE(mailbox_keyword) keywords;
 
 	/* seq -> uid */
-	ARRAY_DEFINE(uidmap, uint32_t);
+	ARRAY(uint32_t) uidmap;
 	/* seq -> metadata */
 	ARRAY_TYPE(message_metadata_dynamic) messages;
 	/* number of non-zero UIDs in uidmap. */
@@ -179,7 +179,9 @@ struct mailbox_view {
 	unsigned int keywords_can_create_more:1;
 };
 
-extern struct hash_table *storages;
+HASH_TABLE_DEFINE_TYPE(mailbox_storage, char *, struct mailbox_storage *);
+
+extern HASH_TABLE_TYPE(mailbox_storage) storages;
 extern const char *mail_flag_names[]; /* enum mail_flags names */
 
 struct mailbox_storage *

@@ -19,8 +19,8 @@ struct mailbox_checkpoint_context {
 
 struct checkpoint_context {
 	struct message_metadata_dynamic *messages;
-	ARRAY_DEFINE(all_keywords, const char *);
-	ARRAY_DEFINE(cur_keywords_map, unsigned int);
+	ARRAY(const char *) all_keywords;
+	ARRAY(unsigned int) cur_keywords_map;
 	uint32_t *uids;
 	unsigned int *flag_counts;
 	unsigned int count;

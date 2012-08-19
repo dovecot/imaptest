@@ -22,7 +22,7 @@
 
 #define MESSAGE_STATIC_REF0_KEEP_SECS 5
 
-struct hash_table *storages = NULL;
+HASH_TABLE_TYPE(mailbox_storage) storages;
 
 const char *mail_flag_names[] = {
 	"\\Answered",
@@ -837,8 +837,7 @@ bool mailbox_global_get_subject_utf8(struct mailbox_source *source,
 
 void mailboxes_init(void)
 {
-	storages = hash_table_create(default_pool, 0, str_hash,
-				     (hash_cmp_callback_t *)strcmp);
+	hash_table_create(&storages, default_pool, 0, str_hash, strcmp);
 }
 
 void mailboxes_deinit(void)

@@ -10,7 +10,7 @@ struct mailbox_source {
 	uoff_t next_offset;
 
 	pool_t messages_pool;
-	struct hash_table *messages;
+	HASH_TABLE(char *, struct message_global *) messages;
 };
 
 extern struct mailbox_source *mailbox_source;

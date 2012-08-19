@@ -45,9 +45,9 @@ struct test_exec_context {
 	unsigned int cur_untagged_mismatch_count;
 	struct command *cur_cmd;
 	buffer_t *cur_received_untagged;
-	ARRAY_DEFINE(cur_maybe_matches, struct test_maybe_match);
+	ARRAY(struct test_maybe_match) cur_maybe_matches;
 	/* initial sequence -> current sequence (0=expunged) mapping */
-	ARRAY_DEFINE(cur_seqmap, uint32_t);
+	ARRAY(uint32_t) cur_seqmap;
 
 	struct client **clients;
 	struct mailbox_source *source;
@@ -57,8 +57,8 @@ struct test_exec_context {
 	ARRAY_TYPE(const_string) delete_mailboxes, unsubscribe_mailboxes;
 	unsigned int delete_refcount;
 
-	struct hash_table *variables;
-	ARRAY_DEFINE(added_variables, const char *);
+	HASH_TABLE(const char *, const char *) variables;
+	ARRAY(const char *) added_variables;
 
 	enum test_startup_state startup_state;
 	unsigned int failed:1;
@@ -70,6 +70,8 @@ struct test_exec_context {
 
 #define t_imap_quote_str(str) \
 	imap_quote(pool_datastack_create(), (const void *)str, strlen(str), FALSE)
+
+static const char *tag_hash_key = "tag";
 
 static void init_callback(struct client *client, struct command *command,
 			  const struct imap_arg *args,
@@ -203,7 +205,7 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 		  const char *input)
 {
 	const char *p, *ckey, *value, *var_name, *tmp_str;
-	char *key, *value2;
+	const char *key, *value2;
 	string_t *output;
 	uint32_t seq;
 
@@ -278,8 +280,8 @@ test_imap_match_list(struct test_exec_context *ctx,
 	unsigned int i, j, arg_count, ret = 0;
 	buffer_t *matchbuf;
 	unsigned char *matches;
-	ARRAY_DEFINE(ignores, const char *);
-	ARRAY_DEFINE(bans, const char *);
+	ARRAY(const char *) ignores;
+	ARRAY(const char *) bans;
 	int noextra = -1;
 
 	/* get $! directives */
@@ -525,11 +527,11 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 			continue;
 
 		if (tag != NULL)
-			hash_table_insert(ctx->variables, "tag", t_strdup_noconst(tag));
+			hash_table_insert(ctx->variables, tag_hash_key, tag);
 		match_count = test_imap_match_args(ctx, untagged[i].args, args,
 						   -1U, prefix);
 		if (tag != NULL)
-			hash_table_remove(ctx->variables, "tag");
+			hash_table_remove(ctx->variables, tag_hash_key);
 
 		if (match_count == -1U) {
 			if (untagged[i].not_found) {
@@ -625,9 +627,9 @@ static void test_cmd_callback(struct client *client,
 	cmd = *cmdp;
 
 	tag = t_strdup_printf("%u.%u", client->global_id, command->tag);
-	hash_table_insert(ctx->variables, "tag", t_strdup_noconst(tag));
+	hash_table_insert(ctx->variables, tag_hash_key, tag);
 	match_count = test_imap_match_args(ctx, cmd->reply, args, -1U, TRUE);
-	hash_table_remove(ctx->variables, "tag");
+	hash_table_remove(ctx->variables, tag_hash_key);
 
 	if (match_count != -1U) {
 		test_fail(ctx, "Expected tagged reply '%s', got '%s'",
@@ -1007,6 +1009,7 @@ static int test_execute(const struct test *test,
 {
 	struct test_exec_context *ctx;
 	unsigned int i;
+	const char *key, *value;
 	pool_t pool;
 
 	pool = pool_alloconly_create("test exec context", 2048);
@@ -1018,8 +1021,7 @@ static int test_execute(const struct test *test,
 	ctx->cur_received_untagged =
 		buffer_create_dynamic(default_pool, 128);
 	i_array_init(&ctx->cur_maybe_matches, 32);
-	ctx->variables = hash_table_create(pool, 0, str_hash,
-					   (hash_cmp_callback_t *)strcmp);
+	hash_table_create(&ctx->variables, pool, 0, str_hash, strcmp);
 	p_array_init(&ctx->added_variables, pool, 32);
 	i_array_init(&ctx->cur_seqmap, 128);
 	p_array_init(&ctx->delete_mailboxes, pool, 16);
@@ -1042,8 +1044,9 @@ static int test_execute(const struct test *test,
 	ctx->startup_state = TEST_STARTUP_STATE_NONAUTH;
 	ctx->clients_waiting = test->connection_count;
 
-	hash_table_insert(ctx->variables, "mailbox",
-			  p_strdup(pool, ctx->clients[0]->storage->name));
+	key = "mailbox";
+	value = p_strdup(pool, ctx->clients[0]->storage->name);
+	hash_table_insert(ctx->variables, key, value);
 	return 0;
 }
 

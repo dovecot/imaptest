@@ -32,7 +32,7 @@ struct test_command {
 	const struct imap_arg *reply;
 
 	/* Expected untagged replies */
-	ARRAY_DEFINE(untagged, struct test_untagged);
+	ARRAY(struct test_untagged) untagged;
 };
 
 struct test {
@@ -50,7 +50,7 @@ struct test {
 	enum test_startup_state startup_state;
 
 	/* List of commands to run for this test */
-	ARRAY_DEFINE(commands, struct test_command *);
+	ARRAY(struct test_command *) commands;
 };
 ARRAY_DEFINE_TYPE(test, const struct test *);
 
