@@ -754,6 +754,10 @@ bool client_unref(struct client *client, bool reconnect)
 	client_mailbox_close(client);
 	mailbox_view_free(&client->view);
 
+	o_stream_destroy(&client->output);
+	i_stream_destroy(&client->input);
+	if (client->ssl_iostream != NULL)
+		ssl_iostream_destroy(&client->ssl_iostream);
 	if (client->io != NULL)
 		io_remove(&client->io);
 	if (client->to != NULL)
@@ -771,10 +775,6 @@ bool client_unref(struct client *client, bool reconnect)
 
 	if (client->capabilities_list != NULL)
 		p_strsplit_free(default_pool, client->capabilities_list);
-	o_stream_unref(&client->output);
-	i_stream_unref(&client->input);
-	if (client->ssl_iostream != NULL)
-		ssl_iostream_destroy(&client->ssl_iostream);
 	i_free(client->username);
 	i_free(client->password);
 
