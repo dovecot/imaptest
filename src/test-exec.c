@@ -690,6 +690,32 @@ static bool imap_arg_is_bad(const struct imap_arg *arg)
 	return strcasecmp(str, "bad") == 0;
 }
 
+static bool
+append_has_body(struct test_exec_context *ctx, const char *str_args)
+{
+	ARRAY_TYPE(imap_arg_list) *arg_list;
+	const struct imap_arg *args;
+	const char *error;
+
+	/* mailbox [(flags)] ["datetime"] */
+	arg_list = test_parse_imap_args(ctx->pool, str_args, &error);
+	if (arg_list == NULL)
+		return FALSE;
+	args = array_idx(arg_list, 0);
+	if (args->type == IMAP_ARG_EOL)
+		return FALSE;
+
+	if (args[1].type == IMAP_ARG_LIST)
+		args++;
+	if (args[1].type == IMAP_ARG_STRING)
+		args++;
+
+	return args[1].type == IMAP_ARG_LITERAL ||
+		args[1].type == IMAP_ARG_LITERAL_SIZE ||
+		args[1].type == IMAP_ARG_LITERAL_SIZE_NONSYNC ||
+		imap_arg_atom_equals(&args[1], "catenate");
+}
+
 static void test_send_next_command(struct test_exec_context *ctx)
 {
 	struct test_command *const *cmdp;
@@ -721,7 +747,8 @@ static void test_send_next_command(struct test_exec_context *ctx)
 		client->state = STATE_APPEND;
 		(void)client_append_full(client, NULL, NULL, NULL,
 					 test_cmd_callback, &ctx->cur_cmd);
-	} else if (strncasecmp(cmdline, "append ", 7) == 0) {
+	} else if (strncasecmp(cmdline, "append ", 7) == 0 &&
+		   !append_has_body(ctx, cmdline+7)) {
 		client->state = STATE_APPEND;
 		(void)client_append(client, cmdline + 7, FALSE,
 				    test_cmd_callback, &ctx->cur_cmd);

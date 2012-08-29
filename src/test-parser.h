@@ -60,4 +60,7 @@ void test_parser_deinit(struct test_parser **parser);
 /* Return an array of tests. They're freed when the parser is deinitialized. */
 const ARRAY_TYPE(test) *test_parser_get_tests(struct test_parser *parser);
 
+ARRAY_TYPE(imap_arg_list) *
+test_parse_imap_args(pool_t pool, const char *line, const char **error_r);
+
 #endif

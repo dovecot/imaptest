@@ -124,9 +124,8 @@ test_parse_imap_args_dup(pool_t pool, const struct imap_arg *args)
 	return list;
 }
 
-static ARRAY_TYPE(imap_arg_list) *
-test_parse_imap_args(struct test_parser *parser, const char *line,
-		     const char **error_r)
+ARRAY_TYPE(imap_arg_list) *
+test_parse_imap_args(pool_t pool, const char *line, const char **error_r)
 {
 	struct imap_parser *imap_parser;
 	struct istream *input;
@@ -149,7 +148,7 @@ test_parse_imap_args(struct test_parser *parser, const char *line,
 								  &fatal));
 		}
 	} else {
-		dup_args = test_parse_imap_args_dup(parser->pool, args);
+		dup_args = test_parse_imap_args_dup(pool, args);
 	}
 	imap_parser_unref(&imap_parser);
 	i_stream_unref(&input);
@@ -339,7 +338,7 @@ test_parse_command_untagged(struct test_parser *parser,
 	if (!array_is_created(&cmd->untagged))
 		p_array_init(&cmd->untagged, parser->pool, 8);
 
-	args_arr = test_parse_imap_args(parser, line, error_r);
+	args_arr = test_parse_imap_args(parser->pool, line, error_r);
 	if (args_arr == NULL)
 		return FALSE;
 
@@ -397,7 +396,7 @@ test_parse_command_finish(struct test_parser *parser,
 	struct test_command *cmd = parser->cur_cmd;
 	ARRAY_TYPE(imap_arg_list) *args;
 
-	args = test_parse_imap_args(parser, line, error_r);
+	args = test_parse_imap_args(parser->pool, line, error_r);
 	cmd->reply = array_idx(args, 0);
 	return cmd->reply != NULL;
 }
