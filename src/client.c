@@ -5,6 +5,7 @@
 #include "array.h"
 #include "istream.h"
 #include "ostream.h"
+#include "iostream-rawlog.h"
 #include "iostream-ssl.h"
 #include "str.h"
 #include "imap-parser.h"
@@ -34,10 +35,6 @@ static unsigned int global_id_counter = 0;
 static struct ssl_iostream_context *ssl_ctx;
 
 static const struct ssl_iostream_settings ssl_set;
-
-static void
-client_rawlog_input(struct client *client, const unsigned char *data,
-		    size_t size);
 
 int client_input_error(struct client *client, const char *fmt, ...)
 {
@@ -445,16 +442,6 @@ static bool client_try_input(struct client *client)
 		return FALSE;
 	}
 
-	if (client->rawlog_output != NULL) {
-		data = i_stream_get_data(client->input, &size);
-		i_assert(client->prev_size <= size);
-		if (client->prev_size != size) {
-			client_rawlog_input(client,
-					    data + client->prev_size,
-					    size - client->prev_size);
-		}
-	}
-
 	if (!client->seen_banner) {
 		/* we haven't received the banner yet */
 		line = i_stream_next_line(client->input);
@@ -624,6 +611,12 @@ static void client_wait_connect(struct client *client)
 			i_fatal("Couldn't create SSL iostream");
 		(void)ssl_iostream_handshake(client->ssl_iostream);
 	}
+	if (conf.rawlog) {
+		if (iostream_rawlog_create_path(
+				t_strdup_printf("rawlog.%u", client->global_id),
+				&client->input, &client->output))
+			client->rawlog_fd = o_stream_get_fd(client->output);
+	}
 
 	io_remove(&client->io);
 	client->io = io_add(client->fd, IO_READ, client_input, client);
@@ -699,19 +692,10 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 	if (strchr(conf.mailbox, '%') != NULL)
 		client->try_create_mailbox = TRUE;
 	client->fd = fd;
+	client->rawlog_fd = -1;
 	client->input = i_stream_create_fd(fd, 1024*64, FALSE);
 	client->output = o_stream_create_fd(fd, (size_t)-1, FALSE);
 	o_stream_set_flush_callback(client->output, client_output, client);
-	if (conf.rawlog) {
-		int log_fd;
-		const char *rawlog_path;
-
-		rawlog_path = t_strdup_printf("rawlog.%u", client->global_id);
-		log_fd = open(rawlog_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-		if (log_fd == -1)
-			i_fatal("creat(%s) failed: %m", rawlog_path);
-		client->rawlog_output = o_stream_create_fd(log_fd, 0, TRUE);
-	}
 	client->io = io_add(fd, IO_WRITE, client_wait_connect, client);
         client->last_io = ioloop_time;
 	i_array_init(&client->commands, 16);
@@ -776,8 +760,6 @@ bool client_unref(struct client *client, bool reconnect)
 		timeout_remove(&client->to);
 	if (close(client->fd) < 0)
 		i_error("close(client) failed: %m");
-	if (client->rawlog_output != NULL)
-		o_stream_destroy(&client->rawlog_output);
 
 	if (client->test_exec_ctx != NULL) {
 		/* storage must be fully unreferenced before new test can
@@ -828,13 +810,14 @@ void client_log_mailbox_view(struct client *client)
 	unsigned int i, count, metadata_count;
 	string_t *str;
 
-	if (client->rawlog_output == NULL)
+	if (client->rawlog_fd == -1)
 		return;
+	(void)o_stream_flush(client->output);
 
 	str = t_str_new(256);
 	str_printfa(str, "** view: highest_modseq=%llu\r\n",
 		    (unsigned long long)client->view->highest_modseq);
-	client_rawlog_output(client, str_c(str));
+	write(client->rawlog_fd, str_data(str), str_len(str));
 
 	uidmap = array_get(&client->view->uidmap, &count);
 	metadata = array_get(&client->view->messages, &metadata_count);
@@ -850,17 +833,16 @@ void client_log_mailbox_view(struct client *client)
 		mailbox_view_keywords_write(client->view,
 					    metadata[i].keyword_bitmask, str);
 		str_append(str, ")\r\n");
-		client_rawlog_output(client, str_c(str));
+		write(client->rawlog_fd, str_data(str), str_len(str));
 	}
-	client_rawlog_output(client, "**\r\n");
+	write(client->rawlog_fd, "**\r\n", 4);
 }
 
 void client_mailbox_close(struct client *client)
 {
 	if (client->login_state == LSTATE_SELECTED && conf.qresync) {
 		if (rand() % 3 == 0) {
-			if (mailbox_view_save_offline_cache(client->view) &&
-			    client->rawlog_output != NULL)
+			if (mailbox_view_save_offline_cache(client->view))
 				client_log_mailbox_view(client);
 		}
 
@@ -878,52 +860,6 @@ int client_send_more_commands(struct client *client)
 	ret = client->send_more_commands(client);
 	o_stream_uncork(client->output);
 	return ret;
-}
-
-static void
-client_rawlog_line(struct client *client, const void *data, size_t size,
-		   bool partial)
-{
-	struct const_iovec iov[3];
-	char timestamp[256];
-	struct timeval tv;
-
-	if (gettimeofday(&tv, NULL) < 0)
-		timestamp[0] = '\0';
-	else {
-		i_snprintf(timestamp, sizeof(timestamp), "%lu.%06u ",
-			   (unsigned long)tv.tv_sec, (unsigned int)tv.tv_usec);
-	}
-
-	iov[0].iov_base = timestamp;
-	iov[0].iov_len = strlen(timestamp);
-	iov[1].iov_base = data;
-	iov[1].iov_len = size;
-	iov[2].iov_base = ">>\n";
-	iov[2].iov_len = 3;
-	o_stream_sendv(client->rawlog_output, iov, partial ? 3 : 2);
-}
-
-static void
-client_rawlog_input(struct client *client, const unsigned char *data,
-		    size_t size)
-{
-	size_t i, start = 0;
-
-	for (i = 0; i < size; i++) {
-		if (data[i] == '\n') {
-			client_rawlog_line(client, data + start,
-					   i - start + 1, FALSE);
-			start = i + 1;
-		}
-	}
-	if (start != size)
-		client_rawlog_line(client, data + start, size - start, TRUE);
-}
-
-void client_rawlog_output(struct client *client, const char *line)
-{
-	client_rawlog_line(client, line, strlen(line), FALSE);
 }
 
 unsigned int clients_get_random_idx(void)

@@ -33,9 +33,9 @@ struct client {
         unsigned int idx, global_id;
         unsigned int cur;
 
-	int fd;
+	int fd, rawlog_fd;
 	struct istream *input;
-	struct ostream *output, *rawlog_output;
+	struct ostream *output;
 	struct ssl_iostream *ssl_iostream;
 	struct imap_parser *parser;
 	struct io *io;
@@ -119,7 +119,6 @@ int client_input_warn(struct client *client, const char *fmt, ...)
 	ATTR_FORMAT(2, 3);
 int client_state_error(struct client *client, const char *fmt, ...)
 	ATTR_FORMAT(2, 3);
-void client_rawlog_output(struct client *client, const char *line);
 
 unsigned int clients_get_random_idx(void);
 

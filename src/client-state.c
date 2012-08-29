@@ -330,11 +330,6 @@ static int client_append_more(struct client *client)
 	client->append_vsize_left -= ret;
 	client->append_skip += ret;
 
-	if (client->rawlog_output != NULL) {
-		client_rawlog_output(client,
-			t_strdup_printf("<%"PRIuUOFF_T" bytes>\n", ret));
-	}
-
 	if (client->append_vsize_left > 0) {
 		/* unfinished */
 		o_stream_set_flush_pending(client->output, TRUE);
@@ -360,8 +355,6 @@ static int client_append_more(struct client *client)
 	client->append_unfinished = FALSE;
 	client->append_can_send = FALSE;
 	o_stream_send_str(client->output, "\r\n");
-	if (client->rawlog_output != NULL)
-		client_rawlog_output(client, "\r\n");
 	return 0;
 }
 
@@ -400,8 +393,6 @@ int client_append(struct client *client, const char *args, bool add_datetime,
 	if (client->append_unfinished) {
 		/* continues the last APPEND call */
 		str_append(cmd, "\r\n");
-		if (client->rawlog_output != NULL)
-			client_rawlog_output(client, str_c(cmd));
 		o_stream_send_str(client->output, str_c(cmd));
 	} else {
 		client->state = STATE_APPEND;
