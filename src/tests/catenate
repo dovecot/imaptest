@@ -70,7 +70,13 @@ Subject: hdr2
 
 }}} text {{{
 
-body
+body6
+}}})
+
+ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox/;uid=$uid2/;partial=100000.1" text {{{
+Hdr: foo
+
+body7
 }}})
 
 #
@@ -167,8 +173,14 @@ suffix
 From: hdr1@example.com
 Subject: hdr2
 
-body
+body6
 }}})
+* 7 fetch (body[] {{{
+Hdr: foo
+
+body7
+}}})
+
 
 #
 # Try appending to nonexistent mailbox
