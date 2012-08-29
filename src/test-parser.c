@@ -91,6 +91,7 @@ test_parse_imap_arg_dup(pool_t pool, const struct imap_arg *args,
 		break;
 	case IMAP_ARG_ATOM:
 	case IMAP_ARG_STRING:
+	case IMAP_ARG_LITERAL:
 		dup->_data.str = p_strdup(pool, args->_data.str);
 		break;
 	case IMAP_ARG_LIST:
@@ -137,6 +138,7 @@ test_parse_imap_args(pool_t pool, const char *line, const char **error_r)
 	input = i_stream_create_from_data(line, strlen(line));
 	imap_parser = imap_parser_create(input, NULL, (size_t)-1);
 	ret = imap_parser_finish_line(imap_parser, 0,
+				      IMAP_PARSE_FLAG_LITERAL_TYPE |
 				      IMAP_PARSE_FLAG_ATOM_ALLCHARS |
 				      IMAP_PARSE_FLAG_MULTILINE_STR, &args);
 	if (ret < 0) {
