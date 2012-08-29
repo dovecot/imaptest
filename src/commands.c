@@ -2,13 +2,15 @@
 
 #include "lib.h"
 #include "array.h"
+#include "str.h"
 #include "istream.h"
 #include "ostream.h"
 #include "imap-parser.h"
-
 #include "mailbox.h"
 #include "client.h"
 #include "commands.h"
+
+#include <ctype.h>
 
 static const char *get_astring(const char *str)
 {
@@ -27,19 +29,92 @@ static const char *get_astring(const char *str)
 	return ret;
 }
 
+static bool
+ends_with_literal(const char *line, const char *p, unsigned long *num_r)
+{
+	unsigned long times = 1, num = 0;
+	unsigned int len = p-line+1;
+
+	if (len < 3)
+		return FALSE;
+	if (p[-1] == '\r')
+		p--;
+	if (p[-1] != '}')
+		return FALSE;
+	if (p[-2] == '+')
+		p--;
+	while (&p[-2] != line && i_isdigit(p[-2])) {
+		num += (unsigned long)(p[-2]-'0') * times;
+		times *= 10;
+		p--;
+	}
+	if (&p[-2] == line || p[-2] != '{')
+		return FALSE;
+	if (&p[-3] == line || p[-3] != ' ')
+		return FALSE;
+	*num_r = num;
+	return TRUE;
+}
+
+static const char *
+command_get_cmdline(struct client *client, const char *cmdline)
+{
+	string_t *str;
+	const char *p;
+	unsigned long lit_size;
+
+	p = strchr(cmdline, '\n');
+	if (p == NULL)
+		return cmdline;
+
+	str = t_str_new(128);
+	do {
+		if (!ends_with_literal(cmdline, p, &lit_size)) {
+			/* looks like a broken line? but allow anyway */
+			str_append_n(str, cmdline, p-cmdline+1);
+			cmdline = p+1;
+		} else {
+			/* using a literal */
+			if ((client->capabilities & CAP_LITERALPLUS) == 0 &&
+			    p[-2] == '+') {
+				/* using literal+ without server support,
+				   change it to a normal literal */
+				i_fatal("FIXME: Add support for sync literals");
+			} else if ((client->capabilities & CAP_LITERALPLUS) != 0 &&
+				   p[-2] != '+') {
+				/* for now we always convert to literal+ */
+				str_append_n(str, cmdline, p-cmdline-2);
+				str_append(str, "+}");
+			} else if (p[-2] != '+') {
+				i_fatal("FIXME: Add support for sync literals");
+			}
+			str_append_c(str, '\n');
+			cmdline = p+1;
+
+			/* add literal contents without parsing it */
+			i_assert(strlen(cmdline) >= lit_size);
+			str_append_n(str, cmdline, lit_size);
+			cmdline += lit_size;
+		}
+		p = strchr(cmdline, '\n');
+	} while (p != NULL);
+	str_append(str, cmdline);
+	return str_c(str);
+}
+
 struct command *command_send(struct client *client, const char *cmdline,
 			     command_callback_t *callback)
 {
 	struct command *cmd;
 	const char *cmd_str, *cmdname, *argp;
-	char *p;
 	unsigned int tag = client->tag_counter++;
 
 	i_assert(!client->append_unfinished);
 
 	cmd = i_new(struct command, 1);
-	cmd->cmdline = i_malloc(strlen(cmdline) + 2);
-	strcpy(cmd->cmdline, cmdline);
+	T_BEGIN {
+		cmd->cmdline = i_strdup(command_get_cmdline(client, cmdline));
+	} T_END;
 	cmd->state = client->state;
 	cmd->tag = tag;
 	cmd->callback = callback;
@@ -79,29 +154,6 @@ struct command *command_send(struct client *client, const char *cmdline,
 							 client->username, name);
 			if (storage != NULL)
 				mailbox_storage_reset(storage);
-		}
-	}
-
-	cmdline = NULL;
-	p = strchr(cmd->cmdline, '\r');
-	if (p != NULL && p != cmd->cmdline && p[-1] == '}') {
-		/* using a literal */
-		if ((client->capabilities & CAP_LITERALPLUS) == 0 &&
-		    p[-2] == '+') {
-			/* @UNSAFE: using literal+ without server support,
-			   change it to a normal literal */
-			memmove(p-2, p-1, strlen(p) + 2);
-		} else if ((client->capabilities & CAP_LITERALPLUS) != 0 &&
-			   p[-2] != '+') {
-			/* FIXME: @UNSAFE: for now we always convert to
-			   literal+ */
-			memmove(p, p-1, strlen(p) + 2);
-			p[-1] = '+';
-			p++;
-		}
-
-		if (p[-2] != '+') {
-			i_fatal("FIXME: Add support for sync literals");
 		}
 	}
 
