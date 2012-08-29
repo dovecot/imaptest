@@ -38,3 +38,6 @@ state: created
 * 3 exists
 1 ok fetch 3 (uid flags)
 2 ok fetch 3 (uid flags)
+
+1 append ${mailbox}nonexistent
+no [trycreate]
