@@ -504,7 +504,7 @@ static bool client_try_input(struct client *client)
 		}
 
 		if (client->literal_left == 0) {
-			/* skip CRLF */
+			/* end of command - skip CRLF */
 			imap_parser_reset(client->parser);
 
 			data = i_stream_get_data(client->input, &size);

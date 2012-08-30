@@ -26,23 +26,23 @@ From: bar@example.com
 Second body
 }}})
 
-ok append ${mailbox} catenate (url "/$mailbox/;uid=$uid/;section=header" text {{{
+ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid/;section=header" text {{{
 body1
-}}}) catenate (url "/$mailbox/;uid=$uid2/;section=header" text {{{
+}}}) catenate (url "/$mailbox_url/;uid=$uid2/;section=header" text {{{
 body2
 }}})
 
-ok append ${mailbox} catenate (url "/$mailbox/;uid=$uid") catenate (url "/$mailbox/;uid=$uid2/;section=header" text {{{
+ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid") catenate (url "/$mailbox_url/;uid=$uid2/;section=header" text {{{
 body3
 }}})
 
-ok append ${mailbox} catenate (url "/$mailbox/;uid=$uid/;section=header") {{{
+ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid/;section=header") {{{
 New: Message
 
 body4
 }}}
 
-ok append ${mailbox} catenate (url "/$mailbox/;uid=$uid/;section=header") (\answered) {{{
+ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid/;section=header") (\answered) {{{
 New: Message
 
 body5
@@ -96,17 +96,17 @@ body5
 # Try invalid URLs
 #
 
-no append ${mailbox} (\seen \flagged) catenate (url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header") catenate (url "/$mailbox/;uid=$uid")
+no append ${mailbox} (\seen \flagged) catenate (url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header") catenate (url "/$mailbox_url/;uid=$uid")
 
-no append ${mailbox} (\seen \flagged) catenate (url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header") catenate (url "/$mailbox/;uid=$uid" text {{{
+no append ${mailbox} (\seen \flagged) catenate (url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header") catenate (url "/$mailbox_url/;uid=$uid" text {{{
 hello
 }}})
 
-no append ${mailbox} (\seen \flagged) catenate (url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header") catenate (text {{{
+no append ${mailbox} (\seen \flagged) catenate (url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header") catenate (text {{{
 hello
 }}})
 
-no append ${mailbox} (\seen \flagged) catenate (url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header") {{{
+no append ${mailbox} (\seen \flagged) catenate (url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header") {{{
 hello
 }}}
 

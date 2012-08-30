@@ -36,19 +36,19 @@ Another body
 
 ok create ${mailbox}2
 
-ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox/;uid=$uid/;section=header" text {{{
+ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url/;uid=$uid/;section=header" text {{{
 body1
 }}})
 
-ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox;uidvalidity=$uidv/;uid=$uid/;section=header" text {{{
+ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url;uidvalidity=$uidv/;uid=$uid/;section=header" text {{{
 body2
 }}})
 
-ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox/;uid=$uid2/;section=text" text {{{
+ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url/;uid=$uid2/;section=text" text {{{
 body3
 }}})
 
-ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox/;uid=$uid2/;section=1" text {{{
+ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url/;uid=$uid2/;section=1" text {{{
 body4
 }}})
 
@@ -57,7 +57,7 @@ From: new@example.com
 Subject: test header
 
 
-}}} url "/$mailbox/;uid=$uid/;section=1" text {{{
+}}} url "/$mailbox_url/;uid=$uid/;section=1" text {{{
 
 suffix
 }}})
@@ -73,7 +73,7 @@ Subject: hdr2
 body6
 }}})
 
-ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox/;uid=$uid2/;partial=100000.1" text {{{
+ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url/;uid=$uid2/;partial=100000.1" text {{{
 Hdr: foo
 
 body7
@@ -83,7 +83,7 @@ body7
 # Try invalid URLs
 #
 
-no append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header" text {{{
+no append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header" text {{{
 body
 
 }}})
@@ -91,12 +91,12 @@ body
 no append ${mailbox}2 (\seen \flagged) catenate (text {{{
 hdr: 1
 
-}}} url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header")
+}}} url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header")
 
 no append ${mailbox}2 (\seen \flagged) catenate (text {{{
 hdr: 1
 
-}}} url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header" text {{{
+}}} url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header" text {{{
 hdr: 2
 
 }}})
@@ -104,10 +104,10 @@ hdr: 2
 no append ${mailbox}2 (\seen \flagged) catenate (text {{{
 hdr: 1
 
-}}} url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header" text {{{
+}}} url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header" text {{{
 hdr: 2
 
-}}} url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header" text {{{
+}}} url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header" text {{{
 hdr: 3
 
 }}})
@@ -115,10 +115,10 @@ hdr: 3
 no append ${mailbox}2 (\seen \flagged) catenate (text {{{
 hdr: 1
 
-}}} url "/$mailbox/;uid=$uid/;section=header" text {{{
+}}} url "/$mailbox_url/;uid=$uid/;section=header" text {{{
 hdr: 2
 
-}}} url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header" text {{{
+}}} url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header" text {{{
 hdr: 3
 
 }}})
@@ -126,16 +126,16 @@ hdr: 3
 no append ${mailbox}2 (\seen \flagged) catenate (text {{{
 hdr: 1
 
-}}} url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header" text {{{
+}}} url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header" text {{{
 hdr: 2
 
-}}} url "/$mailbox/;uid=$uid/;section=header" text {{{
+}}} url "/$mailbox_url/;uid=$uid/;section=header" text {{{
 hdr: 3
 
 }}})
 
-no append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header" url "/$mailbox/;uid=$uid/;section=header")
-no append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox/;uid=$uid/;section=header" url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header")
+no append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header" url "/$mailbox_url/;uid=$uid/;section=header")
+no append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url/;uid=$uid/;section=header" url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header")
 
 #
 # verify previous appends
@@ -186,26 +186,26 @@ body7
 # Try appending to nonexistent mailbox
 #
 
-append ${mailbox}nonexistent catenate (url "/$mailbox/;uid=$uid/;section=1")
+append ${mailbox}nonexistent catenate (url "/$mailbox_url/;uid=$uid/;section=1")
 no [trycreate]
 
-append ${mailbox}nonexistent catenate (url "/$mailbox/;uid=$uid/;section=1" text {{{
+append ${mailbox}nonexistent catenate (url "/$mailbox_url/;uid=$uid/;section=1" text {{{
 hello
 }}})
 no [trycreate]
 
 append ${mailbox}nonexistent catenate (text {{{
 hello
-}}} url "/$mailbox/;uid=$uid/;section=1")
+}}} url "/$mailbox_url/;uid=$uid/;section=1")
 no [trycreate]
 
 append ${mailbox}nonexistent (\seen \flagged) catenate (text {{{
 hdr1: 1
 
-}}} url "/$mailbox;uidvalidity=12345/;uid=$uid/;section=header" text {{{
+}}} url "/$mailbox_url;uidvalidity=12345/;uid=$uid/;section=header" text {{{
 hdr2: 2
 
-}}} url "/$mailbox/;uid=$uid/;section=header" text {{{
+}}} url "/$mailbox_url/;uid=$uid/;section=header" text {{{
 hdr3: 3
 
 }}})

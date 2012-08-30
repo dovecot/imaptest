@@ -11,6 +11,7 @@
 #include "mailbox-source.h"
 #include "client.h"
 #include "commands.h"
+#include "imapurl.h"
 #include "test-parser.h"
 #include "test-exec.h"
 
@@ -1037,6 +1038,7 @@ static int test_execute(const struct test *test,
 	struct test_exec_context *ctx;
 	unsigned int i;
 	const char *key, *value;
+	char *url;
 	pool_t pool;
 
 	pool = pool_alloconly_create("test exec context", 2048);
@@ -1073,6 +1075,13 @@ static int test_execute(const struct test *test,
 
 	key = "mailbox";
 	value = p_strdup(pool, ctx->clients[0]->storage->name);
+	hash_table_insert(ctx->variables, key, value);
+
+	key = "mailbox_url";
+	url = p_malloc(pool, strlen(value)*4+1);
+	imap_mailbox_to_url(url, value);
+	value = url;
+
 	hash_table_insert(ctx->variables, key, value);
 	return 0;
 }
