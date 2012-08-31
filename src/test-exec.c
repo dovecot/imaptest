@@ -102,8 +102,8 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 
 	va_start(args, fmt);
 	if (!ctx->init_finished) {
-		printf("*** Test %s initialization failed: %s\n",
-		       ctx->test->name, t_strdup_vprintf(fmt, args));
+		fprintf(stderr, "*** Test %s initialization failed: %s\n",
+			ctx->test->name, t_strdup_vprintf(fmt, args));
 	} else {
 		str = t_str_new(256);
 		str_printfa(str, "*** Test %s command %u/%u (line %u)\n - failed: %s\n"
@@ -115,7 +115,7 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 				    client->global_id, ctx->cur_cmd->tag);
 		}
 		str_printfa(str, ": %s", (*cmdp)->command);
-		printf("%s\n\n", str_c(str));
+		fprintf(stderr, "%s\n\n", str_c(str));
 	}
 	va_end(args);
 
