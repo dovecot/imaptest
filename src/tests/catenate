@@ -7,6 +7,7 @@ ok append $mailbox (\seen \flagged) catenate (text {{{
 From: foo@example.com
 
 Hello world body
+
 }}})
 
 ok append $mailbox (\seen \flagged) catenate (text {{{
@@ -15,6 +16,7 @@ From: foo2@example.com
 Lookslike: header
 
 Another body
+
 }}})
 
 ok select $mailbox
@@ -25,6 +27,7 @@ ok fetch 1:2 (uid body.peek[])
 From: foo@example.com
 
 Hello world body
+
 }}})
 * 2 fetch (uid $uid2 body[] {{{
 From: foo2@example.com
@@ -32,24 +35,29 @@ From: foo2@example.com
 Lookslike: header
 
 Another body
+
 }}})
 
 ok create ${mailbox}2
 
 ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url/;uid=$uid/;section=header" text {{{
 body1
+
 }}})
 
 ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url;uidvalidity=$uidv/;uid=$uid/;section=header" text {{{
 body2
+
 }}})
 
 ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url/;uid=$uid2/;section=text" text {{{
 body3
+
 }}})
 
 ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url/;uid=$uid2/;section=1" text {{{
 body4
+
 }}})
 
 ok append ${mailbox}2 (\seen \flagged) catenate (text {{{
@@ -60,6 +68,7 @@ Subject: test header
 }}} url "/$mailbox_url/;uid=$uid/;section=1" text {{{
 
 suffix
+
 }}})
 
 ok append ${mailbox}2 (\seen \flagged) catenate (text {{{
@@ -71,12 +80,14 @@ Subject: hdr2
 }}} text {{{
 
 body6
+
 }}})
 
 ok append ${mailbox}2 (\seen \flagged) catenate (url "/$mailbox_url/;uid=$uid2/;partial=100000.1" text {{{
 Hdr: foo
 
 body7
+
 }}})
 
 #
@@ -146,39 +157,49 @@ ok fetch 1:* body.peek[]
 From: foo@example.com
 
 body1
+
 }}})
 * 2 fetch (body[] {{{
 From: foo@example.com
 
 body2
+
 }}})
 * 3 fetch (body[] {{{
 Lookslike: header
 
-Another bodybody3
+Another body
+body3
+
 }}})
 * 4 fetch (body[] {{{
 Lookslike: header
 
-Another bodybody4
+Another body
+body4
+
 }}})
 * 5 fetch (body[] {{{
 From: new@example.com
 Subject: test header
 
 Hello world body
+
 suffix
+
 }}})
 * 6 fetch (body[] {{{
 From: hdr1@example.com
 Subject: hdr2
 
 body6
+
 }}})
 * 7 fetch (body[] {{{
 Hdr: foo
 
 body7
+
 }}})
 
 

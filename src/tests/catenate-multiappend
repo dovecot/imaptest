@@ -5,10 +5,12 @@ ok append $mailbox catenate (text {{{
 From: foo@example.com
 
 Hello world body
+
 }}}) catenate (text {{{
 From: bar@example.com
 
 Second body
+
 }}})
 
 ok select $mailbox
@@ -19,33 +21,40 @@ ok fetch 1:2 (uid body.peek[])
 From: foo@example.com
 
 Hello world body
+
 }}})
 * 2 fetch (uid $uid2 body[] {{{
 From: bar@example.com
 
 Second body
+
 }}})
 
 ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid/;section=header" text {{{
 body1
+
 }}}) catenate (url "/$mailbox_url/;uid=$uid2/;section=header" text {{{
 body2
+
 }}})
 
 ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid") catenate (url "/$mailbox_url/;uid=$uid2/;section=header" text {{{
 body3
+
 }}})
 
 ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid/;section=header") {{{
 New: Message
 
 body4
+
 }}}
 
 ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid/;section=header") (\answered) {{{
 New: Message
 
 body5
+
 }}}
 
 ok noop
@@ -55,21 +64,25 @@ ok fetch 3:* body.peek[]
 From: foo@example.com
 
 body1
+
 }}})
 * 4 fetch (body[] {{{
 From: bar@example.com
 
 body2
+
 }}})
 * 5 fetch (body[] {{{
 From: foo@example.com
 
 Hello world body
+
 }}})
 * 6 fetch (body[] {{{
 From: bar@example.com
 
 body3
+
 }}})
 * 7 fetch (body[] {{{
 From: foo@example.com
@@ -80,6 +93,7 @@ From: foo@example.com
 New: Message
 
 body4
+
 }}})
 * 9 fetch (body[] {{{
 From: foo@example.com
@@ -90,6 +104,7 @@ From: foo@example.com
 New: Message
 
 body5
+
 }}})
 
 #
