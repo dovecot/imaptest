@@ -43,14 +43,14 @@ body3
 
 }}})
 
-ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid/;section=header") {{{
+ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid") {{{
 New: Message
 
 body4
 
 }}}
 
-ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid/;section=header") (\answered) {{{
+ok append ${mailbox} catenate (url "/$mailbox_url/;uid=$uid") (\answered) {{{
 New: Message
 
 body5
@@ -87,6 +87,7 @@ body3
 * 7 fetch (body[] {{{
 From: foo@example.com
 
+Hello world body
 
 }}})
 * 8 fetch (body[] {{{
@@ -98,6 +99,7 @@ body4
 * 9 fetch (body[] {{{
 From: foo@example.com
 
+Hello world body
 
 }}})
 * 10 fetch (body[] {{{
