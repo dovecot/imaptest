@@ -771,7 +771,8 @@ bool client_unref(struct client *client, bool reconnect)
 		mailbox_storage_unref(&storage);
 		test_execute_cancel_by_client(client);
 	}
-	imap_parser_unref(&client->parser);
+	if (client->parser != NULL)
+		imap_parser_unref(&client->parser);
 
 	if (client->capabilities_list != NULL)
 		p_strsplit_free(default_pool, client->capabilities_list);
