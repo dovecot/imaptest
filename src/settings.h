@@ -1,7 +1,7 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
-#include "network.h"
+#include "net.h"
 
 /* host / port where to connect to */
 #define HOST "127.0.0.1"

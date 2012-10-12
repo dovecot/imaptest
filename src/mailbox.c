@@ -823,7 +823,8 @@ bool mailbox_global_get_subject_utf8(struct mailbox_source *source,
 	if (subject != NULL) {
 		tmp = t_str_new(128);
 		message_header_decode_utf8((const unsigned char *)subject,
-					   strlen(subject), tmp, TRUE);
+					   strlen(subject), tmp,
+					   uni_utf8_to_decomposed_titlecase);
 		subject = str_c(tmp);
 	}
 	*subject_r = msg->subject_utf8_tcase =
