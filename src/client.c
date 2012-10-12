@@ -416,7 +416,7 @@ static bool client_skip_literal(struct client *client)
 	}
 }
 
-static bool client_try_input(struct client *client)
+static void client_input(struct client *client)
 {
 	const struct imap_arg *imap_args;
 	const char *line, *p;
@@ -430,23 +430,23 @@ static bool client_try_input(struct client *client)
 
 	switch (i_stream_read(client->input)) {
 	case 0:
-		return FALSE;
+		return;
 	case -1:
 		/* disconnected */
 		client_unref(client, TRUE);
-		return FALSE;
+		return;
 	case -2:
 		/* buffer full */
 		i_error("line too long");
 		client_unref(client, TRUE);
-		return FALSE;
+		return;
 	}
 
 	if (!client->seen_banner) {
 		/* we haven't received the banner yet */
 		line = i_stream_next_line(client->input);
 		if (line == NULL)
-			return FALSE;
+			return;
 		client->seen_banner = TRUE;
 
 		p = strstr(line, "[CAPABILITY ");
@@ -473,7 +473,7 @@ static bool client_try_input(struct client *client)
 			client_input_error(client,
 				"error parsing input: %s",
 				imap_parser_get_error(client->parser, &fatal));
-			return FALSE;
+			return;
 		}
 		if (imap_args->type == IMAP_ARG_EOL) {
 			/* FIXME: we get here, but we shouldn't.. */
@@ -517,27 +517,19 @@ static bool client_try_input(struct client *client)
 		}
 
 		if (!client_unref(client, TRUE) || ret < 0)
-			return FALSE;
+			return;
 	}
 
 	if (do_rand(STATE_DISCONNECT)) {
 		/* random disconnection */
 		counters[STATE_DISCONNECT]++;
 		client_unref(client, TRUE);
-		return FALSE;
+		return;
 	}
 
 	(void)i_stream_get_data(client->input, &client->prev_size);
-	if (client->input->closed) {
+	if (client->input->closed)
 		client_unref(client, TRUE);
-		return FALSE;
-	}
-	return TRUE;
-}
-
-static void client_input(struct client *client)
-{
-	while (client_try_input(client)) ;
 }
 
 void client_input_stop(struct client *client)
