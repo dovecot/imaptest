@@ -12,6 +12,7 @@
 #include "client.h"
 #include "commands.h"
 #include "imapurl.h"
+#include "settings.h"
 #include "test-parser.h"
 #include "test-exec.h"
 
@@ -1072,6 +1073,22 @@ static int test_execute(const struct test *test,
 	}
 	ctx->startup_state = TEST_STARTUP_STATE_NONAUTH;
 	ctx->clients_waiting = test->connection_count;
+
+	key = "user";
+	value = p_strdup(pool, ctx->clients[0]->username);
+	hash_table_insert(ctx->variables, key, value);
+
+	key = "username";
+	value = p_strdup(pool, t_strcut(ctx->clients[0]->username, '@'));
+	hash_table_insert(ctx->variables, key, value);
+
+	key = "domain";
+	value = strchr(ctx->clients[0]->username, '@');
+	if (value != NULL)
+		value++;
+	else
+		value = p_strdup(pool, conf.host);
+	hash_table_insert(ctx->variables, key, value);
 
 	key = "mailbox";
 	value = p_strdup(pool, ctx->clients[0]->storage->name);
