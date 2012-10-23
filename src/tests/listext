@@ -91,5 +91,5 @@ ok list (subscribed recursivematch) "" ($mailbox${sep}test2 $mailbox${sep}test2$
 * list (\subscribed) $sep $mailbox${sep}test2${sep}test1
 
 ok list "" ($mailbox${sep}test7 $mailbox${sep}test7${sep}test7)
-! list (\nonexistent) $sep $mailbox${sep}test7
+#This isn't really an error, although it's non-optimal: ! list (\nonexistent) $sep $mailbox${sep}test7
 * list () $sep $mailbox${sep}test7${sep}test7
