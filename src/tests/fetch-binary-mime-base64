@@ -38,7 +38,7 @@ abcdefg
 
 ok fetch 1 (binary.peek[5]<0.8>)
 * 1 fetch (binary[5]<0> ~{{{
-abcdefg
+abcdefg
 }}})
 
 ok fetch 1 (binary.peek[5]<0.10>)
