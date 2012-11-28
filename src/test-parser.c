@@ -126,7 +126,8 @@ test_parse_imap_args_dup(pool_t pool, const struct imap_arg *args)
 }
 
 ARRAY_TYPE(imap_arg_list) *
-test_parse_imap_args(pool_t pool, const char *line, const char **error_r)
+test_parse_imap_args(pool_t pool, const char *line, unsigned int linelen,
+		     const char **error_r)
 {
 	struct imap_parser *imap_parser;
 	struct istream *input;
@@ -135,7 +136,7 @@ test_parse_imap_args(pool_t pool, const char *line, const char **error_r)
 	bool fatal;
 	int ret;
 
-	input = i_stream_create_from_data(line, strlen(line));
+	input = i_stream_create_from_data(line, linelen);
 	imap_parser = imap_parser_create(input, NULL, (size_t)-1);
 	ret = imap_parser_finish_line(imap_parser, 0,
 				      IMAP_PARSE_FLAG_LITERAL_TYPE |
@@ -327,8 +328,8 @@ test_parse_untagged_handle_directives(struct list_directives_context *ctx,
 
 static bool
 test_parse_command_untagged(struct test_parser *parser,
-			    const char *line, bool not_found,
-			    const char **error_r)
+			    const char *line, unsigned int linelen,
+			    bool not_found, const char **error_r)
 {
 	struct test_command *cmd = parser->cur_cmd;
 	struct list_directives_context directives_ctx;
@@ -340,7 +341,7 @@ test_parse_command_untagged(struct test_parser *parser,
 	if (!array_is_created(&cmd->untagged))
 		p_array_init(&cmd->untagged, parser->pool, 8);
 
-	args_arr = test_parse_imap_args(parser->pool, line, error_r);
+	args_arr = test_parse_imap_args(parser->pool, line, linelen, error_r);
 	if (args_arr == NULL)
 		return FALSE;
 
@@ -393,12 +394,13 @@ test_get_cmd_reply(struct test_parser *parser, const char **line)
 
 static bool
 test_parse_command_finish(struct test_parser *parser,
-			  const char *line, const char **error_r)
+			  const char *line, unsigned int linelen,
+			  const char **error_r)
 {
 	struct test_command *cmd = parser->cur_cmd;
 	ARRAY_TYPE(imap_arg_list) *args;
 
-	args = test_parse_imap_args(parser->pool, line, error_r);
+	args = test_parse_imap_args(parser->pool, line, linelen, error_r);
 	cmd->reply = array_idx(args, 0);
 	return cmd->reply != NULL;
 }
@@ -406,22 +408,25 @@ test_parse_command_finish(struct test_parser *parser,
 static bool
 test_parse_command_line(struct test_parser *parser, struct test *test,
 			unsigned int linenum, const char *line,
-			const char **error_r)
+			unsigned int linelen, const char **error_r)
 {
 	struct test_command *cmd;
-	const char *line2;
+	const char *line2, *p;
+	void *cmdmem;
 
 	if (parser->cur_cmd != NULL) {
 		if (strncmp(line, "* ", 2) == 0 ||
 		    strncmp(line, "! ", 2) == 0) {
 			bool not_found = line[0] == '!';
 			return test_parse_command_untagged(parser, line + 2,
-							   not_found, error_r);
+							   linelen-2, not_found,
+							   error_r);
 		}
 		line2 = line;
 		if (parser->cur_cmd->reply == NULL &&
 		    test_get_cmd_reply(parser, &line2) != NULL) {
-			return test_parse_command_finish(parser, line, error_r);
+			return test_parse_command_finish(parser, line, linelen,
+							 error_r);
 		}
 	}
 
@@ -445,15 +450,27 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 			test->connection_count = cmd->connection_idx;
 		cmd->connection_idx--;
 
-		line = strchr(line, ' ');
-		if (line++ == NULL)
+		p = strchr(line, ' ');
+		if (p == NULL) {
 			line = "";
+			linelen = 0;
+		} else {
+			linelen -= p+1 - line;
+			line = p+1;
+		}
 	}
 
 	/* optional expected ok/no/bad reply */
-	cmd->reply = test_get_cmd_reply(parser, &line);
+	p = line;
+	cmd->reply = test_get_cmd_reply(parser, &p);
+	linelen -= p-line;
+	line = p;
 
-	cmd->command = p_strdup(parser->pool, line);
+	i_assert(line[linelen] == '\0');
+
+	cmd->command = cmdmem = p_malloc(parser->pool, linelen+1);
+	memcpy(cmdmem, line, linelen);
+	cmd->command_len = linelen;
 	parser->cur_cmd = cmd;
 	array_append(&test->commands, &cmd, 1);
 	return TRUE;
@@ -462,18 +479,29 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 static bool test_parse_file(struct test_parser *parser, struct test *test,
 			    struct istream *input)
 {
-	const char *line, *error;
-	string_t *multiline;
+	const char *error;
+	string_t *line, *multiline;
+	const unsigned char *data, *p;
+	size_t size;
 	unsigned int len, linenum = 0, start_linenum = 0, start_pos = 0, last_line_end = 0;
-	bool ret, header = TRUE, continues = FALSE, binary = FALSE;
+	int ret;
+	bool ok, header = TRUE, continues = FALSE, binary = FALSE;
 
+	line = t_str_new(256);
 	multiline = t_str_new(256);
 	parser->cur_cmd = NULL;
-	while ((line = i_stream_read_next_line(input)) != NULL) {
+	while ((ret = i_stream_read_data(input, &data, &size, 0)) > 0) {
+		p = memchr(data, '\n', size);
+		if (p == NULL)
+			break;
+		str_truncate(line, 0);
+		buffer_append(line, data, p-data);
+		i_stream_skip(input, p-data+1);
+
 		linenum++;
 		if (continues) {
-			if (strncmp(line, "}}}", 3) != 0) {
-				str_append(multiline, line);
+			if (strncmp(str_c(line), "}}}", 3) != 0) {
+				str_append_str(multiline, line);
 				last_line_end = str_len(multiline);
 				if (binary && !i_stream_last_line_crlf(input))
 					str_append(multiline, "\n");
@@ -482,45 +510,46 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 				continue;
 			}
 			str_truncate(multiline, last_line_end);
-			line += 3;
+			str_delete(line, 0, 3);
 			str_insert(multiline, start_pos, t_strdup_printf(
 				"{%"PRIuSIZE_T"}\r\n", str_len(multiline)-start_pos));
 
-			len = strlen(line);
-			if (len >= 3 && strcmp(line + len-3, "{{{") == 0) {
-				if (len > 3 && line[len-4] == '~') {
+			len = str_len(line);
+			if (len >= 3 && strcmp(str_c(line) + len-3, "{{{") == 0) {
+				if (len > 3 && str_c(line)[len-4] == '~') {
 					len--;
 					binary = TRUE;
 				} else {
 					binary = FALSE;
 				}
-				str_append_n(multiline, line, len-3);
+				buffer_append(multiline, str_data(line), len-3);
 				start_pos = str_len(multiline);
 				last_line_end = str_len(multiline);
 				continue;
 			}
-			str_append(multiline, line);
-			line = str_c(multiline);
+			str_append_str(multiline, line);
+			str_truncate(line, 0);
+			str_append_str(line, multiline);
 			continues = FALSE;
 		} else {
 			start_linenum = linenum;
-			if (*line == '\0') {
+			if (str_len(line) == 0) {
 				header = FALSE;
 				continue;
 			}
-			if (*line == '#')
+			if (*str_c(line) == '#')
 				continue;
 
-			len = strlen(line);
-			if (len >= 3 && strcmp(line + len-3, "{{{") == 0) {
+			len = str_len(line);
+			if (len >= 3 && strcmp(str_c(line) + len-3, "{{{") == 0) {
 				str_truncate(multiline, 0);
-				if (len > 3 && line[len-4] == '~') {
+				if (len > 3 && str_c(line)[len-4] == '~') {
 					len--;
 					binary = TRUE;
 				} else {
 					binary = FALSE;
 				}
-				str_append_n(multiline, line, len-3);
+				buffer_append(multiline, str_data(line), len-3);
 				start_pos = str_len(multiline);
 				last_line_end = str_len(multiline);
 				continues = TRUE;
@@ -530,20 +559,21 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 
 		T_BEGIN {
 			if (header) {
-				ret = test_parse_header_line(parser, test,
-							     line, &error);
+				ok = test_parse_header_line(parser, test,
+							    str_c(line), &error);
 			} else {
-				ret = test_parse_command_line(parser, test,
-							      start_linenum,
-							      line, &error);
+				ok = test_parse_command_line(parser, test,
+							     start_linenum,
+							     str_c(line),
+							     line->used, &error);
 			}
-			if (!ret) {
+			if (!ok) {
 				i_error("%s line %u: %s", test->path,
 					linenum, error);
 			}
 		} T_END;
 
-		if (!ret)
+		if (!ok)
 			return FALSE;
 	}
 	if (continues) {
@@ -572,6 +602,7 @@ static void test_add_logout(struct test_parser *parser, struct test *test,
 	cmd->connection_idx = connection_idx;
 	cmd->reply = parser->reply_ok;
 	cmd->command = "logout";
+	cmd->command_len = strlen(cmd->command);
 	array_append(&test->commands, &cmd, 1);
 }
 

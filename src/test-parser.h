@@ -28,6 +28,7 @@ struct test_command {
 
 	/* Command to execute */
 	const char *command;
+	unsigned int command_len;
 	/* Expected tagged reply prefix */
 	const struct imap_arg *reply;
 
@@ -61,6 +62,7 @@ void test_parser_deinit(struct test_parser **parser);
 const ARRAY_TYPE(test) *test_parser_get_tests(struct test_parser *parser);
 
 ARRAY_TYPE(imap_arg_list) *
-test_parse_imap_args(pool_t pool, const char *line, const char **error_r);
+test_parse_imap_args(pool_t pool, const char *line, unsigned int linelen,
+		     const char **error_r);
 
 #endif

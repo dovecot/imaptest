@@ -30,7 +30,8 @@ static const char *get_astring(const char *str)
 }
 
 static bool
-ends_with_literal(const char *line, const char *p, unsigned long *num_r)
+ends_with_literal(const unsigned char *line, const unsigned char *p,
+		  unsigned long *num_r)
 {
 	unsigned long times = 1, num = 0;
 	unsigned int len = p-line+1;
@@ -56,23 +57,28 @@ ends_with_literal(const char *line, const char *p, unsigned long *num_r)
 	return TRUE;
 }
 
-static const char *
-command_get_cmdline(struct client *client, const char *cmdline)
+static void
+command_get_cmdline(struct client *client, const char **_cmdline,
+		    unsigned int *_cmdline_len)
 {
+	const unsigned char *cmdline = (const void *)*_cmdline;
+	unsigned int cmdline_len = *_cmdline_len;
 	string_t *str;
-	const char *p;
-	unsigned long lit_size;
+	const unsigned char *p;
+	unsigned long len, lit_size;
 
-	p = strchr(cmdline, '\n');
+	p = memchr(cmdline, '\n', cmdline_len);
 	if (p == NULL)
-		return cmdline;
+		return;
 
 	str = t_str_new(128);
 	do {
+		len = p-cmdline+1;
 		if (!ends_with_literal(cmdline, p, &lit_size)) {
 			/* looks like a broken line? but allow anyway */
-			str_append_n(str, cmdline, p-cmdline+1);
-			cmdline = p+1;
+			buffer_append(str, cmdline, len);
+			cmdline += len;
+			cmdline_len -= len;
 		} else {
 			/* using a literal */
 			if ((client->capabilities & CAP_LITERALPLUS) == 0 &&
@@ -83,37 +89,53 @@ command_get_cmdline(struct client *client, const char *cmdline)
 			} else if ((client->capabilities & CAP_LITERALPLUS) != 0 &&
 				   p[-2] != '+') {
 				/* for now we always convert to literal+ */
-				str_append_n(str, cmdline, p-cmdline-2);
+				buffer_append(str, cmdline, p-cmdline-2);
 				str_append(str, "+}");
 			} else if (p[-2] != '+') {
 				i_fatal("FIXME: Add support for sync literals");
 			}
 			str_append_c(str, '\n');
-			cmdline = p+1;
+			cmdline += len;
+			cmdline_len -= len;
 
 			/* add literal contents without parsing it */
-			i_assert(strlen(cmdline) >= lit_size);
-			str_append_n(str, cmdline, lit_size);
+			i_assert(cmdline_len >= lit_size);
+			buffer_append(str, cmdline, lit_size);
 			cmdline += lit_size;
+			cmdline_len -= lit_size;
 		}
-		p = strchr(cmdline, '\n');
+		p = memchr(cmdline, '\n', cmdline_len);
 	} while (p != NULL);
-	str_append(str, cmdline);
-	return str_c(str);
+	buffer_append(str, cmdline, cmdline_len);
+
+	*_cmdline = str_c(str);
+	*_cmdline_len = str_len(str);
 }
 
 struct command *command_send(struct client *client, const char *cmdline,
 			     command_callback_t *callback)
 {
+	return command_send_binary(client, cmdline, strlen(cmdline), callback);
+}
+
+struct command *
+command_send_binary(struct client *client, const char *cmdline,
+		    unsigned int cmdline_len,
+		    command_callback_t *callback)
+{
 	struct command *cmd;
-	const char *cmd_str, *cmdname, *argp;
+	struct const_iovec iov[3];
+	const char *prefix, *cmdname, *argp;
 	unsigned int tag = client->tag_counter++;
 
 	i_assert(!client->append_unfinished);
 
 	cmd = i_new(struct command, 1);
 	T_BEGIN {
-		cmd->cmdline = i_strdup(command_get_cmdline(client, cmdline));
+		command_get_cmdline(client, &cmdline, &cmdline_len);
+		cmd->cmdline = i_malloc(cmdline_len+1);
+		memcpy(cmd->cmdline, cmdline, cmdline_len);
+		cmd->cmdline_len = cmdline_len;
 	} T_END;
 	cmd->state = client->state;
 	cmd->tag = tag;
@@ -157,9 +179,14 @@ struct command *command_send(struct client *client, const char *cmdline,
 		}
 	}
 
-	cmd_str = t_strdup_printf("%u.%u %s\r\n", client->global_id,
-				  tag, cmd->cmdline);
-	o_stream_send_str(client->output, cmd_str);
+	prefix = t_strdup_printf("%u.%u ", client->global_id, tag);
+	iov[0].iov_base = prefix;
+	iov[0].iov_len = strlen(prefix);
+	iov[1].iov_base = cmd->cmdline;
+	iov[1].iov_len = cmd->cmdline_len;
+	iov[2].iov_base = "\r\n";
+	iov[2].iov_len = 2;
+	o_stream_sendv(client->output, iov, 3);
 
 	array_append(&client->commands, &cmd, 1);
 	client->last_cmd = cmd;

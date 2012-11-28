@@ -70,9 +70,6 @@ struct test_exec_context {
 	unsigned int listing:1;
 };
 
-#define t_imap_quote_str(str) \
-	imap_quote(pool_datastack_create(), (const void *)str, strlen(str), FALSE)
-
 static const char *tag_hash_key = "tag";
 
 static void init_callback(struct client *client, struct command *command,
@@ -89,6 +86,14 @@ test_imap_match_args(struct test_exec_context *ctx,
 		     const struct imap_arg *match,
 		     const struct imap_arg *args,
 		     unsigned int max, bool prefix);
+
+static const char *t_imap_quote_str(const char *src)
+{
+	string_t *dest = t_str_new(64);
+
+	imap_append_string(dest, src);
+	return str_c(dest);
+}
 
 static void ATTR_FORMAT(2, 3)
 test_fail(struct test_exec_context *ctx, const char *fmt, ...)
@@ -144,40 +149,55 @@ test_expand_relative_seq(struct test_exec_context *ctx, uint32_t seq)
 	return dec2str(seqs[seq-1]);
 }
 
-static const char *
-test_expand_all(struct test_exec_context *ctx, const char *str,
-		bool skip_uninitialized)
+static void
+test_expand_all(struct test_exec_context *ctx, const char **_line,
+		unsigned int *_line_len, bool skip_uninitialized)
 {
+	const unsigned char *line = (const void *)*_line;
+	unsigned int line_len = *_line_len;
 	string_t *value;
-	const char *p, *var_name, *var_value;
+	const unsigned char *p;
+	const char *var_name, *var_value;
 	uint32_t seq;
 
-	p = strchr(str, '$');
+	p = memchr(line, '$', line_len);
 	if (p == NULL)
-		return str;
+		return;
 
 	/* need to expand variables */
 	value = t_str_new(256);
-	str_append_n(value, str, p-str);
-	for (str = p; *str != '\0'; str++) {
-		if (*str != '$' || str[1] == '\0')
-			str_append_c(value, *str);
-		else if (*++str == '$') {
-			str_append_c(value, *str);
-		} else if (*str == '!') {
+	buffer_append(value, line, p-line);
+	line_len -= p-line;
+	for (line = p; line_len > 0; ) {
+		if (*line != '$' || line_len == 1) {
+			str_append_c(value, *line);
+			line++; line_len--;
+			continue;
+		}
+		line++; line_len--;
+
+		if (*line == '$') {
+			str_append_c(value, *line);
+			line++; line_len--;
+		} else if (*line == '!') {
 			/* skip directives */
-			while (str[1] != ' ' && str[1] != '\0') str++;
+			while (line[1] != ' ' && line_len > 1) {
+				line++;
+				line_len--;
+			}
+			line++; line_len--;
 		} else {
-			if (*str == '{') {
-				p = strchr(++str, '}');
+			if (*line == '{') {
+				line++; line_len--;
+				p = memchr(line, '}', line_len);
 				if (p == NULL) {
 					test_fail(ctx, "Missing '}'");
 					break;
 				}
-				var_name = t_strdup_until(str, p++);
+				var_name = t_strdup_until(line, p++);
 			} else {
-				for (p = str; IS_VAR_CHAR(*p); p++) ;
-				var_name = t_strdup_until(str, p);
+				for (p = line; IS_VAR_CHAR(*p); p++) ;
+				var_name = t_strdup_until(line, p);
 			}
 
 			if (str_to_uint32(var_name, &seq) == 0) {
@@ -196,10 +216,13 @@ test_expand_all(struct test_exec_context *ctx, const char *str,
 				}
 			}
 			str_append(value, var_value);
-			str = p - 1;
+			line_len -= p-line;
+			line = p;
 		}
 	}
-	return str_c(value);
+	i_assert(*line == '\0');
+	*_line = str_c(value);
+	*_line_len = str_len(value);
 }
 
 static const char *
@@ -654,13 +677,17 @@ static void test_cmd_callback(struct client *client,
 
 		if (missing_count != 0) {
 			const struct test_maybe_match *maybes;
-			const char *best_match;
-			unsigned int mcount;
+			const char *best_match, *str;
+			unsigned int mcount, str_len;
 
 			ut += first_missing_idx;
 			maybes = array_get(&ctx->cur_maybe_matches, &mcount);
 			best_match = mcount < first_missing_idx ? NULL :
 				maybes[first_missing_idx].str;
+
+			str = imap_args_to_str(ut->args);
+			str_len = strlen(str);
+			test_expand_all(ctx, &str, &str_len, TRUE);
 
 			test_fail(ctx, "Missing %u untagged replies "
 				  "(%u mismatches)\n"
@@ -668,8 +695,7 @@ static void test_cmd_callback(struct client *client,
 				  " - first expanded: %s\n"
 				  " - best match: %s", missing_count,
 				  ctx->cur_untagged_mismatch_count,
-				  imap_args_to_str(ut->args),
-				  test_expand_all(ctx, imap_args_to_str(ut->args), TRUE),
+				  imap_args_to_str(ut->args), str,
 				  best_match == NULL ? "" : best_match);
 		}
 	}
@@ -693,14 +719,16 @@ static bool imap_arg_is_bad(const struct imap_arg *arg)
 }
 
 static bool
-append_has_body(struct test_exec_context *ctx, const char *str_args)
+append_has_body(struct test_exec_context *ctx, const char *str_args,
+		unsigned int str_args_len)
 {
 	ARRAY_TYPE(imap_arg_list) *arg_list;
 	const struct imap_arg *args;
 	const char *error;
 
 	/* mailbox [(flags)] ["datetime"] */
-	arg_list = test_parse_imap_args(ctx->pool, str_args, &error);
+	arg_list = test_parse_imap_args(ctx->pool, str_args, str_args_len,
+					&error);
 	if (arg_list == NULL)
 		return FALSE;
 	args = array_idx(arg_list, 0);
@@ -724,7 +752,7 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	struct client *client;
 	const char *cmdline;
 	uint32_t seq;
-	unsigned int i;
+	unsigned int i, cmdline_len;
 
 	i_assert(ctx->cur_cmd == NULL);
 
@@ -744,19 +772,22 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	for (seq = 1; seq <= array_count(&client->view->uidmap); seq++)
 		array_append(&ctx->cur_seqmap, &seq, 1);
 
-	cmdline = test_expand_all(ctx, (*cmdp)->command, FALSE);
+	cmdline = (*cmdp)->command;
+	cmdline_len = (*cmdp)->command_len;
+	test_expand_all(ctx, &cmdline, &cmdline_len, FALSE);
 	if (strcasecmp(cmdline, "append") == 0) {
 		client->state = STATE_APPEND;
 		(void)client_append_full(client, NULL, NULL, NULL,
 					 test_cmd_callback, &ctx->cur_cmd);
 	} else if (strncasecmp(cmdline, "append ", 7) == 0 &&
-		   !append_has_body(ctx, cmdline+7)) {
+		   !append_has_body(ctx, cmdline+7, cmdline_len-7)) {
 		client->state = STATE_APPEND;
 		(void)client_append(client, cmdline + 7, FALSE,
 				    test_cmd_callback, &ctx->cur_cmd);
 	} else {
 		client->state = STATE_SELECT;
-		ctx->cur_cmd = command_send(client, cmdline, test_cmd_callback);
+		ctx->cur_cmd = command_send_binary(client, cmdline, cmdline_len,
+						   test_cmd_callback);
 		if ((*cmdp)->linenum == 0) {
 			/* sending the logout command */
 			ctx->cur_cmd->state = STATE_LOGOUT;
