@@ -479,7 +479,7 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 static bool test_parse_file(struct test_parser *parser, struct test *test,
 			    struct istream *input)
 {
-	const char *error;
+	const char *error, *cline;
 	string_t *line, *multiline;
 	const unsigned char *data, *p;
 	size_t size;
@@ -556,15 +556,16 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 				continue;
 			}
 		}
+		cline = str_c(line);
 
 		T_BEGIN {
 			if (header) {
 				ok = test_parse_header_line(parser, test,
-							    str_c(line), &error);
+							    cline, &error);
 			} else {
 				ok = test_parse_command_line(parser, test,
 							     start_linenum,
-							     str_c(line),
+							     cline,
 							     line->used, &error);
 			}
 			if (!ok) {
