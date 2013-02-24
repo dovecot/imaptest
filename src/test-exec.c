@@ -345,7 +345,7 @@ test_imap_match_list(struct test_exec_context *ctx,
 
 	if (!unordered) {
 		/* full matching */
-		return test_imap_match_args(ctx, match, args, -1U, FALSE);
+		return test_imap_match_args(ctx, match, args, UINT_MAX, FALSE);
 	}
 
 	/* sanity check - parser should check this already */
@@ -367,7 +367,7 @@ test_imap_match_list(struct test_exec_context *ctx,
 	for (; match->type != IMAP_ARG_EOL; match += chain_count, ret++) {
 		for (i = 0; i < arg_count; i += chain_count) {
 			if (test_imap_match_args(ctx, match, &args[i],
-						 chain_count, FALSE) == -1U) {
+						 chain_count, FALSE) == UINT_MAX) {
 				matches[i] = 1;
 				break;
 			}
@@ -419,7 +419,7 @@ test_imap_match_list(struct test_exec_context *ctx,
 				return ret;
 		}
 	}
-	return -1U;
+	return UINT_MAX;
 }
 
 static unsigned int
@@ -466,7 +466,7 @@ test_imap_match_args(struct test_exec_context *ctx,
 				return ret;
 			subret = test_imap_match_list(ctx, imap_arg_as_list(match),
 						      listargs);
-			if (subret != -1U)
+			if (subret != UINT_MAX)
 				return ret + subret;
 			break;
 		case IMAP_ARG_LITERAL_SIZE:
@@ -479,7 +479,7 @@ test_imap_match_args(struct test_exec_context *ctx,
 		ret++;
 	}
 	if (prefix || args->type == IMAP_ARG_EOL || max == 0)
-		return -1U;
+		return UINT_MAX;
 	else
 		return ret;
 }
@@ -554,11 +554,11 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 		if (tag != NULL)
 			hash_table_insert(ctx->variables, tag_hash_key, tag);
 		match_count = test_imap_match_args(ctx, untagged[i].args, args,
-						   -1U, prefix);
+						   UINT_MAX, prefix);
 		if (tag != NULL)
 			hash_table_remove(ctx->variables, tag_hash_key);
 
-		if (match_count == -1U) {
+		if (match_count == UINT_MAX) {
 			if (untagged[i].not_found) {
 				test_fail(ctx, "Unexpected untagged match:\n"
 					  "Match: %s\n"
@@ -653,10 +653,10 @@ static void test_cmd_callback(struct client *client,
 
 	tag = t_strdup_printf("%u.%u", client->global_id, command->tag);
 	hash_table_insert(ctx->variables, tag_hash_key, tag);
-	match_count = test_imap_match_args(ctx, cmd->reply, args, -1U, TRUE);
+	match_count = test_imap_match_args(ctx, cmd->reply, args, UINT_MAX, TRUE);
 	hash_table_remove(ctx->variables, tag_hash_key);
 
-	if (match_count != -1U) {
+	if (match_count != UINT_MAX) {
 		test_fail(ctx, "Expected tagged reply '%s', got '%s'",
 			  imap_args_to_str(cmd->reply),
 			  imap_args_to_str(args));
@@ -1035,7 +1035,7 @@ static int test_send_lstate_commands(struct client *client)
 		case TEST_STARTUP_STATE_CREATED:
 			if (ctx->appends_left > 0 &&
 			    (!mailbox_source_eof(ctx->source) ||
-			     ctx->test->message_count != -1U)) {
+			     ctx->test->message_count != UINT_MAX)) {
 				client->state = STATE_APPEND;
 				ctx->appends_left--;
 				if (client_append_full(client, NULL, NULL, NULL,

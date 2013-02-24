@@ -268,7 +268,7 @@ void checkpoint_neg(struct mailbox_storage *storage)
 {
 	struct checkpoint_context ctx;
 	struct client *const *c;
-	unsigned int min_uidnext = -1U, max_msgs_count = 0;
+	unsigned int min_uidnext = UINT_MAX, max_msgs_count = 0;
 	unsigned int i, count, check_count = 0;
 	unsigned int recent_total;
 	bool orig_dont_track_recent = storage->dont_track_recent;
