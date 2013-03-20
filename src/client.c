@@ -32,7 +32,7 @@ ARRAY(unsigned int) stalled_clients;
 bool stalled = FALSE, disconnect_clients = FALSE, no_new_clients = FALSE;
 
 static unsigned int global_id_counter = 0;
-static struct ssl_iostream_context *ssl_ctx;
+static struct ssl_iostream_context *ssl_ctx = NULL;
 
 static const struct ssl_iostream_settings ssl_set;
 
@@ -597,6 +597,10 @@ static void client_wait_connect(struct client *client)
 	}
 
 	if (conf.port == 993) {
+		if (ssl_ctx == NULL) {
+			if (ssl_iostream_context_init_client("imaps", &ssl_set, &ssl_ctx) < 0)
+				i_fatal("Failed to initialize SSL context");
+		}
 		if (io_stream_create_ssl(ssl_ctx, "imaps", &ssl_set,
 					 &client->input, &client->output,
 					 &client->ssl_iostream) < 0)
@@ -878,13 +882,12 @@ unsigned int clients_get_random_idx(void)
 
 void clients_init(void)
 {
-	if (ssl_iostream_context_init_client("imaps", &ssl_set, &ssl_ctx) < 0)
-		ssl_ctx = NULL;
 	i_array_init(&stalled_clients, CLIENTS_COUNT);
 }
 
 void clients_deinit(void)
 {
-	ssl_iostream_context_deinit(&ssl_ctx);
+	if (ssl_ctx != NULL)
+		ssl_iostream_context_deinit(&ssl_ctx);
 	array_free(&stalled_clients);
 }
