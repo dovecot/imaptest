@@ -587,6 +587,7 @@ static int client_output(struct client *client)
 
 static void client_wait_connect(struct client *client)
 {
+	const char *error;
 	int err;
 
 	err = net_geterror(client->fd);
@@ -598,13 +599,13 @@ static void client_wait_connect(struct client *client)
 
 	if (conf.port == 993) {
 		if (ssl_ctx == NULL) {
-			if (ssl_iostream_context_init_client("imaps", &ssl_set, &ssl_ctx) < 0)
-				i_fatal("Failed to initialize SSL context");
+			if (ssl_iostream_context_init_client(&ssl_set, &ssl_ctx, &error) < 0)
+				i_fatal("Failed to initialize SSL context: %s", error);
 		}
-		if (io_stream_create_ssl(ssl_ctx, "imaps", &ssl_set,
-					 &client->input, &client->output,
-					 &client->ssl_iostream) < 0)
-			i_fatal("Couldn't create SSL iostream");
+		if (io_stream_create_ssl_client(ssl_ctx, conf.host, &ssl_set,
+						&client->input, &client->output,
+						&client->ssl_iostream, &error) < 0)
+			i_fatal("Couldn't create SSL iostream: %s", error);
 		(void)ssl_iostream_handshake(client->ssl_iostream);
 	}
 	if (conf.rawlog) {
