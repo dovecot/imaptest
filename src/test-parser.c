@@ -19,7 +19,7 @@ struct test_parser {
 	const char *dir, *default_mbox_path;
 
 	struct imap_arg *reply_ok, *reply_no, *reply_bad, *reply_any;
-	struct test_command *cur_cmd;
+	struct test_command_group *cur_cmd_group;
 	ARRAY_TYPE(test) tests;
 };
 
@@ -331,15 +331,15 @@ test_parse_command_untagged(struct test_parser *parser,
 			    const char *line, unsigned int linelen,
 			    bool not_found, const char **error_r)
 {
-	struct test_command *cmd = parser->cur_cmd;
+	struct test_command_group *group = parser->cur_cmd_group;
 	struct list_directives_context directives_ctx;
 	const struct imap_arg *args;
 	struct test_untagged ut;
 	ARRAY_TYPE(imap_arg_list) *args_arr;
 	const char *str = "";
 
-	if (!array_is_created(&cmd->untagged))
-		p_array_init(&cmd->untagged, parser->pool, 8);
+	if (!array_is_created(&group->untagged))
+		p_array_init(&group->untagged, parser->pool, 8);
 
 	args_arr = test_parse_imap_args(parser->pool, line, linelen, error_r);
 	if (args_arr == NULL)
@@ -364,15 +364,28 @@ test_parse_command_untagged(struct test_parser *parser,
 	memset(&ut, 0, sizeof(ut));
 	ut.args = array_idx(args_arr, 0);
 	ut.not_found = not_found;
-	array_append(&cmd->untagged, &ut, 1);
+	array_append(&group->untagged, &ut, 1);
 	return TRUE;
 }
 
 static struct imap_arg *
-test_get_cmd_reply(struct test_parser *parser, const char **line)
+test_get_cmd_reply(struct test_parser *parser, unsigned int *tag_r,
+		   const char **line)
 {
 	struct imap_arg *reply = NULL;
-	const char *arg = t_strcut(*line, ' ');
+	const char *p, *arg = t_strcut(*line, ' ');
+	unsigned int tag;
+
+	*tag_r = 0;
+
+	if (strncasecmp(arg, "tag", 3) == 0) {
+		p = strchr(*line, ' ');
+		if (p != NULL && str_to_uint(arg+3, &tag) == 0 && tag > 0) {
+			*line = p + 1;
+			*tag_r = tag;
+			arg = t_strcut(*line, ' ');
+		}
+	}
 
 	if (strcasecmp(arg, "ok") == 0) {
 		reply = parser->reply_ok;
@@ -392,17 +405,55 @@ test_get_cmd_reply(struct test_parser *parser, const char **line)
 	return reply;
 }
 
+static struct test_command *
+cmd_find_by_tag(struct test_command_group *group, unsigned int tag)
+{
+	struct test_command *cmd;
+
+	array_foreach_modifiable(&group->commands, cmd) {
+		if (cmd->tag == tag)
+			return cmd;
+	}
+	return NULL;
+}
+
+static struct test_command *
+test_cmd_group_find_missing_reply(struct test_command_group *group)
+{
+	struct test_command *cmd;
+
+	array_foreach_modifiable(&group->commands, cmd) {
+		if (cmd->reply == NULL)
+			return cmd;
+	}
+	return NULL;
+}
+
 static bool
-test_parse_command_finish(struct test_parser *parser,
+test_parse_command_finish(struct test_parser *parser, unsigned int tag,
 			  const char *line, unsigned int linelen,
 			  const char **error_r)
 {
-	struct test_command *cmd = parser->cur_cmd;
+	struct test_command *cmd;
 	ARRAY_TYPE(imap_arg_list) *args;
 
+	cmd = cmd_find_by_tag(parser->cur_cmd_group, tag);
+	if (cmd == NULL) {
+		*error_r = "Reply for unknown tag";
+		return FALSE;
+	}
+	if (cmd->reply != NULL) {
+		*error_r = "Command already has a reply";
+		return FALSE;
+	}
+
 	args = test_parse_imap_args(parser->pool, line, linelen, error_r);
-	cmd->reply = array_idx(args, 0);
-	return cmd->reply != NULL;
+	cmd->reply = array_idx(args, tag == 0 ? 0 : 1);
+	if (cmd->reply == NULL)
+		return FALSE;
+	i_assert(parser->cur_cmd_group->replies_pending > 0);
+	parser->cur_cmd_group->replies_pending--;
+	return TRUE;
 }
 
 static bool
@@ -410,11 +461,14 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 			unsigned int linenum, const char *line,
 			unsigned int linelen, const char **error_r)
 {
-	struct test_command *cmd;
+	struct test_command_group *group = parser->cur_cmd_group;
+	struct test_command *cmd, newcmd;
 	const char *line2, *p;
+	unsigned int tag, connection_idx;
 	void *cmdmem;
 
-	if (parser->cur_cmd != NULL) {
+	if (group != NULL) {
+		/* continuing the command */
 		if (strncmp(line, "* ", 2) == 0 ||
 		    strncmp(line, "! ", 2) == 0) {
 			bool not_found = line[0] == '!';
@@ -423,32 +477,40 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 							   error_r);
 		}
 		line2 = line;
-		if (parser->cur_cmd->reply == NULL &&
-		    test_get_cmd_reply(parser, &line2) != NULL) {
-			return test_parse_command_finish(parser, line, linelen,
+		if (group->replies_pending > 0 &&
+		    test_get_cmd_reply(parser, &tag, &line2) != NULL) {
+			return test_parse_command_finish(parser, tag,
+							 line, linelen,
 							 error_r);
 		}
 	}
 
-	if (parser->cur_cmd != NULL && parser->cur_cmd->reply == NULL) {
-		*error_r = "Missing reply from previous command";
-		return FALSE;
+	if (group == NULL || group->replies_pending == 0) {
+		group = p_new(parser->pool, struct test_command_group, 1);
+		p_array_init(&group->commands, parser->pool, 2);
+		parser->cur_cmd_group = group;
+		array_append(&test->cmd_groups, &group, 1);
 	}
 
-	cmd = p_new(parser->pool, struct test_command, 1);
+	cmd = &newcmd;
+	memset(&newcmd, 0, sizeof(newcmd));
 	cmd->linenum = linenum;
 	if (test->connection_count > 1) {
 		/* begins with connection index */
-		if (str_to_uint(t_strcut(line, ' '), &cmd->connection_idx) < 0 ||
-		    cmd->connection_idx == 0) {
+		if (str_to_uint(t_strcut(line, ' '), &connection_idx) < 0 ||
+		    connection_idx == 0) {
 			*error_r = "Missing client index";
 			return FALSE;
 		}
+		if (array_count(&group->commands) > 0 &&
+		    group->connection_idx != connection_idx) {
+			*error_r = "All pipelined commands must use the same connection";
+			return FALSE;
+		}
+		group->connection_idx = connection_idx-1;
 
-		i_assert(cmd->connection_idx > 0);
-		if (test->connection_count < cmd->connection_idx)
-			test->connection_count = cmd->connection_idx;
-		cmd->connection_idx--;
+		if (test->connection_count < connection_idx)
+			test->connection_count = connection_idx;
 
 		p = strchr(line, ' ');
 		if (p == NULL) {
@@ -462,17 +524,32 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 
 	/* optional expected ok/no/bad reply */
 	p = line;
-	cmd->reply = test_get_cmd_reply(parser, &p);
+	cmd->reply = test_get_cmd_reply(parser, &cmd->tag, &p);
 	linelen -= p-line;
 	line = p;
 
+	if (cmd->tag == 0) {
+		/* not part of pipelined commands, make sure we
+		   finished the previous group */
+		if (group->replies_pending > 0) {
+			*error_r = "Missing reply from previous command group";
+			return FALSE;
+		}
+		i_assert(array_count(&group->commands) == 0);
+	} else {
+		if (cmd_find_by_tag(group, cmd->tag) != NULL) {
+			*error_r = "Tag reused within command group";
+			return FALSE;
+		}
+	}
+	if (cmd->reply == NULL)
+		group->replies_pending++;
 	i_assert(line[linelen] == '\0');
 
 	cmd->command = cmdmem = p_malloc(parser->pool, linelen+1);
 	memcpy(cmdmem, line, linelen);
 	cmd->command_len = linelen;
-	parser->cur_cmd = cmd;
-	array_append(&test->commands, &cmd, 1);
+	array_append(&group->commands, cmd, 1);
 	return TRUE;
 }
 
@@ -483,13 +560,14 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 	string_t *line, *multiline;
 	const unsigned char *data, *p;
 	size_t size;
+	struct test_command *cmd;
 	unsigned int len, linenum = 0, start_linenum = 0, start_pos = 0, last_line_end = 0;
 	int ret;
 	bool ok, header = TRUE, continues = FALSE, binary = FALSE;
 
 	line = t_str_new(256);
 	multiline = t_str_new(256);
-	parser->cur_cmd = NULL;
+	parser->cur_cmd_group = NULL;
 	while ((ret = i_stream_read_data(input, &data, &size, 0)) > 0) {
 		p = memchr(data, '\n', size);
 		if (p == NULL)
@@ -582,13 +660,16 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 			test->path, start_linenum);
 		return FALSE;
 	}
-	if (parser->cur_cmd == NULL) {
+	if (parser->cur_cmd_group == NULL) {
 		i_error("%s: No commands in file", test->path);
 		return FALSE;
 	}
-	if (parser->cur_cmd != NULL && parser->cur_cmd->reply == NULL) {
+	if (parser->cur_cmd_group != NULL &&
+	    parser->cur_cmd_group->replies_pending > 0) {
+		cmd = test_cmd_group_find_missing_reply(parser->cur_cmd_group);
+		i_assert(cmd != NULL);
 		i_error("%s line %u: Missing reply from previous command at line %u",
-			test->path, linenum, parser->cur_cmd->linenum);
+			test->path, linenum, cmd->linenum);
 		return FALSE;
 	}
 	return TRUE;
@@ -598,13 +679,17 @@ static void test_add_logout(struct test_parser *parser, struct test *test,
 			    unsigned int connection_idx)
 {
 	struct test_command *cmd;
+	struct test_command_group *group;
 
-	cmd = p_new(parser->pool, struct test_command, 1);
-	cmd->connection_idx = connection_idx;
+	group = p_new(parser->pool, struct test_command_group, 1);
+	group->connection_idx = connection_idx;
+	p_array_init(&group->commands, parser->pool, 1);
+	array_append(&test->cmd_groups, &group, 1);
+
+	cmd = array_append_space(&group->commands);
 	cmd->reply = parser->reply_ok;
 	cmd->command = "logout";
 	cmd->command_len = strlen(cmd->command);
-	array_append(&test->commands, &cmd, 1);
 }
 
 static int
@@ -621,7 +706,7 @@ test_parser_read_test(struct test_parser *parser, const char *fname,
 	test->startup_state = TEST_STARTUP_STATE_SELECTED;
 	test->connection_count = 1;
 	test->message_count = UINT_MAX;
-	p_array_init(&test->commands, parser->pool, 32);
+	p_array_init(&test->cmd_groups, parser->pool, 32);
 
 	mbox_path = t_strdup_printf("%s/%s.mbox", parser->dir, fname);
 	if (stat(mbox_path, &st) == 0) {

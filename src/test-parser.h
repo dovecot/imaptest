@@ -21,19 +21,32 @@ struct test_untagged {
 };
 
 struct test_command {
-	/* Connection index which runs this command (0..connection_count-1) */
-	unsigned int connection_idx;
 	/* line number in configuration file */
 	unsigned int linenum;
+
+	/* tag number used in the script (0 = no tag) */
+	unsigned int tag;
+	/* the actual tag sent to the IMAP server */
+	unsigned int cur_cmd_tag;
 
 	/* Command to execute */
 	const char *command;
 	unsigned int command_len;
 	/* Expected tagged reply prefix */
 	const struct imap_arg *reply;
+};
 
+struct test_command_group {
+	/* Connection index which runs this command (0..connection_count-1) */
+	unsigned int connection_idx;
+
+	/* List of commands to send */
+	ARRAY(struct test_command) commands;
 	/* Expected untagged replies */
 	ARRAY(struct test_untagged) untagged;
+
+	/* Number of commands still missing a reply (0 once finished parsing) */
+	unsigned int replies_pending;
 };
 
 struct test {
@@ -51,7 +64,7 @@ struct test {
 	enum test_startup_state startup_state;
 
 	/* List of commands to run for this test */
-	ARRAY(struct test_command *) commands;
+	ARRAY(struct test_command_group *) cmd_groups;
 };
 ARRAY_DEFINE_TYPE(test, const struct test *);
 

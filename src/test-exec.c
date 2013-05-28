@@ -42,10 +42,10 @@ struct test_exec_context {
 	struct tests_execute_context *exec_ctx;
 	const struct test *test;
 
-	/* current command index */
-	unsigned int cur_cmd_idx;
+	/* current command group index */
+	unsigned int cur_group_idx;
 	unsigned int cur_untagged_mismatch_count;
-	struct command *cur_cmd;
+	ARRAY(struct command *) cur_commands;
 	buffer_t *cur_received_untagged;
 	ARRAY(struct test_maybe_match) cur_maybe_matches;
 	/* initial sequence -> current sequence (0=expunged) mapping */
@@ -78,7 +78,7 @@ static void init_callback(struct client *client, struct command *command,
 
 static void test_execute_free(struct test_exec_context *ctx);
 static void test_execute_finish(struct test_exec_context *ctx);
-static void test_send_next_command(struct test_exec_context *ctx);
+static void test_send_next_command_group(struct test_exec_context *ctx);
 static int test_send_lstate_commands(struct client *client);
 
 static unsigned int
@@ -98,29 +98,34 @@ static const char *t_imap_quote_str(const char *src)
 static void ATTR_FORMAT(2, 3)
 test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 {
-	struct test_command *const *cmdp;
+	struct test_command_group *const *groupp;
+	const struct test_command *cmd;
 	struct client *client;
 	string_t *str;
 	va_list args;
 
-	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
-	client = ctx->clients[(*cmdp)->connection_idx];
+	groupp = array_idx(&ctx->test->cmd_groups, ctx->cur_group_idx);
+	client = ctx->clients[(*groupp)->connection_idx];
 
 	va_start(args, fmt);
 	if (!ctx->init_finished) {
 		fprintf(stderr, "*** Test %s initialization failed: %s\n",
 			ctx->test->name, t_strdup_vprintf(fmt, args));
 	} else {
+		/* FIXME: we're now just showing the first command in the
+		   group. the failing one might be something else, or the
+		   group altogether.. */
+		cmd = array_idx(&(*groupp)->commands, 0);
 		str = t_str_new(256);
 		str_printfa(str, "*** Test %s command %u/%u (line %u)\n - failed: %s\n"
-			    " - Command", ctx->test->name, ctx->cur_cmd_idx+1,
-			    array_count(&ctx->test->commands),
-			    (*cmdp)->linenum, t_strdup_vprintf(fmt, args));
-		if (ctx->cur_cmd != NULL && client != NULL) {
+			    " - Command", ctx->test->name, ctx->cur_group_idx+1,
+			    array_count(&ctx->test->cmd_groups),
+			    cmd->linenum, t_strdup_vprintf(fmt, args));
+		if (cmd->cur_cmd_tag != 0 && client != NULL) {
 			str_printfa(str, " (tag %u.%u)",
-				    client->global_id, ctx->cur_cmd->tag);
+				    client->global_id, cmd->cur_cmd_tag);
 		}
-		str_printfa(str, ": %s", (*cmdp)->command);
+		str_printfa(str, ": %s", cmd->command);
 		fprintf(stderr, "%s\n\n", str_c(str));
 	}
 	va_end(args);
@@ -130,6 +135,32 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 	else
 		ctx->exec_ctx->ext_failures++;
 	ctx->failed = TRUE;
+}
+
+static struct test_command *
+test_cmd_find_by_cur_tag(struct test_command_group *group,
+			 unsigned int cur_cmd_tag)
+{
+	struct test_command *cmd;
+
+	i_assert(cur_cmd_tag != 0);
+
+	array_foreach_modifiable(&group->commands, cmd) {
+		if (cmd->cur_cmd_tag == cur_cmd_tag)
+			return cmd;
+	}
+	return NULL;
+}
+
+static bool test_group_have_pending_commands(struct test_command_group *group)
+{
+	const struct test_command *cmd;
+
+	array_foreach(&group->commands, cmd) {
+		if (cmd->cur_cmd_tag != 0)
+			return TRUE;
+	}
+	return FALSE;
 }
 
 static const char *
@@ -513,7 +544,8 @@ static void
 test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
-	struct test_command *const *cmdp;
+	struct test_command_group *const *groupp;
+	const struct test_command *cmd;
 	const struct test_untagged *untagged;
 	struct test_maybe_match *maybes;
 	const char *const *vars, *tag, *str;
@@ -521,13 +553,13 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 	unsigned int i, count, j, var_count, match_count;
 	bool prefix = FALSE, found_some;
 
-	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
-	if (!array_is_created(&(*cmdp)->untagged)) {
+	groupp = array_idx(&ctx->test->cmd_groups, ctx->cur_group_idx);
+	if (!array_is_created(&(*groupp)->untagged)) {
 		/* no untagged replies defined for the command.
 		   don't bother checking further */
 		return;
 	}
-	untagged = array_get(&(*cmdp)->untagged, &count);
+	untagged = array_get(&(*groupp)->untagged, &count);
 	i_assert(count > 0);
 
 	if (imap_arg_get_atom(args, &str)) {
@@ -540,8 +572,9 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 		}
 	}
 
-	tag = ctx->cur_cmd == NULL ? NULL :
-		t_strdup_printf("%u.%u", client->global_id, ctx->cur_cmd->tag);
+	cmd = array_idx(&(*groupp)->commands, 0);
+	tag = cmd->cur_cmd_tag == 0 ? NULL :
+		t_strdup_printf("%u.%u", client->global_id, cmd->cur_cmd_tag);
 	array_clear(&ctx->added_variables);
 	found = buffer_get_space_unsafe(ctx->cur_received_untagged, 0, count);
 	(void)array_idx_modifiable(&ctx->cur_maybe_matches, count-1);
@@ -624,21 +657,80 @@ test_handle_untagged(struct client *client, const struct imap_arg *args)
 	return 0;
 }
 
+static void
+test_group_check_missing_untagged(struct test_exec_context *ctx,
+				  struct test_command_group *group)
+{
+	const struct test_untagged *ut;
+	const unsigned char *found;
+	unsigned int i, first_missing_idx, missing_count, ut_count;
+
+	ut = array_get(&group->untagged, &ut_count);
+	first_missing_idx = ut_count;
+	missing_count = 0;
+	found = ctx->cur_received_untagged->data;
+	for (i = 0; i < ut_count; i++) {
+		if (!ut[i].not_found &&
+		    (i >= ctx->cur_received_untagged->used ||
+		     found[i] == 0)) {
+			if (i < first_missing_idx)
+				first_missing_idx = i;
+			missing_count++;
+		}
+	}
+
+	if (missing_count != 0) {
+		const struct test_maybe_match *maybes;
+		const char *best_match, *str;
+		unsigned int mcount, str_len;
+
+		ut += first_missing_idx;
+		maybes = array_get(&ctx->cur_maybe_matches, &mcount);
+		best_match = mcount < first_missing_idx ? NULL :
+			maybes[first_missing_idx].str;
+
+		str = imap_args_to_str(ut->args);
+		str_len = strlen(str);
+		test_expand_all(ctx, &str, &str_len, TRUE);
+
+		test_fail(ctx, "Missing %u untagged replies "
+			  "(%u mismatches)\n"
+			  " - first unexpanded: %s\n"
+			  " - first expanded: %s\n"
+			  " - best match: %s", missing_count,
+			  ctx->cur_untagged_mismatch_count,
+			  imap_args_to_str(ut->args), str,
+			  best_match == NULL ? "" : best_match);
+	}
+}
+
+static void test_group_finished(struct test_exec_context *ctx,
+				struct test_command_group *group)
+{
+	if (array_is_created(&group->untagged))
+		test_group_check_missing_untagged(ctx, group);
+
+	array_clear(&ctx->cur_commands);
+	ctx->cur_group_idx++;
+	if (ctx->test->required_capabilities == NULL)
+		ctx->exec_ctx->base_tests++;
+	else
+		ctx->exec_ctx->ext_tests++;
+	test_send_next_command_group(ctx);
+}
+
 static void test_cmd_callback(struct client *client,
 			      struct command *command,
 			      const struct imap_arg *args,
 			      enum command_reply reply)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
-	struct test_command *const *cmdp;
-	const struct test_command *cmd;
-	const struct test_untagged *ut;
-	const unsigned char *found;
+	struct test_command_group *const *groupp;
+	struct test_command *test_cmd;
+	unsigned int match_count;
 	const char *tag;
-	unsigned int i, first_missing_idx, missing_count, ut_count, match_count;
 
 	i_assert(ctx->init_finished);
-	i_assert(ctx->cur_cmd == command);
 
 	if (reply == REPLY_CONT) {
 		i_assert(command->state == STATE_APPEND);
@@ -648,65 +740,24 @@ static void test_cmd_callback(struct client *client,
 	}
 	client_handle_tagged_reply(client, command, args, reply);
 
-	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
-	cmd = *cmdp;
+	groupp = array_idx(&ctx->test->cmd_groups, ctx->cur_group_idx);
+	test_cmd = test_cmd_find_by_cur_tag(*groupp, command->tag);
 
 	tag = t_strdup_printf("%u.%u", client->global_id, command->tag);
 	hash_table_insert(ctx->variables, tag_hash_key, tag);
-	match_count = test_imap_match_args(ctx, cmd->reply, args, UINT_MAX, TRUE);
+	match_count = test_imap_match_args(ctx, test_cmd->reply,
+					   args, UINT_MAX, TRUE);
 	hash_table_remove(ctx->variables, tag_hash_key);
 
 	if (match_count != UINT_MAX) {
 		test_fail(ctx, "Expected tagged reply '%s', got '%s'",
-			  imap_args_to_str(cmd->reply),
+			  imap_args_to_str(test_cmd->reply),
 			  imap_args_to_str(args));
-	} else if (array_is_created(&cmd->untagged)) {
-		ut = array_get(&cmd->untagged, &ut_count);
-		first_missing_idx = ut_count;
-		missing_count = 0;
-		found = ctx->cur_received_untagged->data;
-		for (i = 0; i < ut_count; i++) {
-			if (!ut[i].not_found &&
-			    (i >= ctx->cur_received_untagged->used ||
-			     found[i] == 0)) {
-				if (i < first_missing_idx)
-					first_missing_idx = i;
-				missing_count++;
-			}
-		}
-
-		if (missing_count != 0) {
-			const struct test_maybe_match *maybes;
-			const char *best_match, *str;
-			unsigned int mcount, str_len;
-
-			ut += first_missing_idx;
-			maybes = array_get(&ctx->cur_maybe_matches, &mcount);
-			best_match = mcount < first_missing_idx ? NULL :
-				maybes[first_missing_idx].str;
-
-			str = imap_args_to_str(ut->args);
-			str_len = strlen(str);
-			test_expand_all(ctx, &str, &str_len, TRUE);
-
-			test_fail(ctx, "Missing %u untagged replies "
-				  "(%u mismatches)\n"
-				  " - first unexpanded: %s\n"
-				  " - first expanded: %s\n"
-				  " - best match: %s", missing_count,
-				  ctx->cur_untagged_mismatch_count,
-				  imap_args_to_str(ut->args), str,
-				  best_match == NULL ? "" : best_match);
-		}
 	}
+	test_cmd->cur_cmd_tag = 0;
 
-	ctx->cur_cmd = NULL;
-	ctx->cur_cmd_idx++;
-	if (ctx->test->required_capabilities == NULL)
-		ctx->exec_ctx->base_tests++;
-	else
-		ctx->exec_ctx->ext_tests++;
-	test_send_next_command(ctx);
+	if (!test_group_have_pending_commands(*groupp))
+		test_group_finished(ctx, *groupp);
 }
 
 static bool imap_arg_is_bad(const struct imap_arg *arg)
@@ -746,22 +797,58 @@ append_has_body(struct test_exec_context *ctx, const char *str_args,
 		imap_arg_atom_equals(&args[1], "catenate");
 }
 
-static void test_send_next_command(struct test_exec_context *ctx)
+static void test_send_next_command(struct test_exec_context *ctx,
+				   struct client *client,
+				   struct test_command *test_cmd)
 {
-	struct test_command *const *cmdp;
-	struct client *client;
+	struct command *cmd = NULL;
 	const char *cmdline;
+	unsigned int cmdline_len;
+
+	cmdline = test_cmd->command;
+	cmdline_len = test_cmd->command_len;
+	test_expand_all(ctx, &cmdline, &cmdline_len, FALSE);
+	if (strcasecmp(cmdline, "append") == 0) {
+		client->state = STATE_APPEND;
+		(void)client_append_full(client, NULL, NULL, NULL,
+					 test_cmd_callback, &cmd);
+	} else if (strncasecmp(cmdline, "append ", 7) == 0 &&
+		   !append_has_body(ctx, cmdline+7, cmdline_len-7)) {
+		client->state = STATE_APPEND;
+		(void)client_append(client, cmdline + 7, FALSE,
+				    test_cmd_callback, &cmd);
+	} else {
+		client->state = STATE_SELECT;
+		cmd = command_send_binary(client, cmdline, cmdline_len,
+					  test_cmd_callback);
+		if (test_cmd->linenum == 0) {
+			/* sending the logout command */
+			cmd->state = STATE_LOGOUT;
+		}
+		if (imap_arg_is_bad(test_cmd->reply))
+			cmd->expect_bad = TRUE;
+	}
+	test_cmd->cur_cmd_tag = cmd->tag;
+	array_append(&ctx->cur_commands, &cmd, 1);
+}
+
+static void test_send_next_command_group(struct test_exec_context *ctx)
+{
+	struct test_command_group *const *groupp;
+	struct test_command *cmd;
+	struct client *client;
 	uint32_t seq;
-	unsigned int i, cmdline_len;
+	unsigned int i;
 
-	i_assert(ctx->cur_cmd == NULL);
+	i_assert(array_count(&ctx->cur_commands) == 0);
 
-	if (ctx->cur_cmd_idx == array_count(&ctx->test->commands)) {
+	if (ctx->cur_group_idx == array_count(&ctx->test->cmd_groups)) {
 		test_execute_finish(ctx);
 		return;
 	}
-	cmdp = array_idx(&ctx->test->commands, ctx->cur_cmd_idx);
-	client = ctx->clients[(*cmdp)->connection_idx];
+
+	groupp = array_idx(&ctx->test->cmd_groups, ctx->cur_group_idx);
+	client = ctx->clients[(*groupp)->connection_idx];
 
 	ctx->cur_untagged_mismatch_count = 0;
 	buffer_reset(ctx->cur_received_untagged);
@@ -772,29 +859,8 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	for (seq = 1; seq <= array_count(&client->view->uidmap); seq++)
 		array_append(&ctx->cur_seqmap, &seq, 1);
 
-	cmdline = (*cmdp)->command;
-	cmdline_len = (*cmdp)->command_len;
-	test_expand_all(ctx, &cmdline, &cmdline_len, FALSE);
-	if (strcasecmp(cmdline, "append") == 0) {
-		client->state = STATE_APPEND;
-		(void)client_append_full(client, NULL, NULL, NULL,
-					 test_cmd_callback, &ctx->cur_cmd);
-	} else if (strncasecmp(cmdline, "append ", 7) == 0 &&
-		   !append_has_body(ctx, cmdline+7, cmdline_len-7)) {
-		client->state = STATE_APPEND;
-		(void)client_append(client, cmdline + 7, FALSE,
-				    test_cmd_callback, &ctx->cur_cmd);
-	} else {
-		client->state = STATE_SELECT;
-		ctx->cur_cmd = command_send_binary(client, cmdline, cmdline_len,
-						   test_cmd_callback);
-		if ((*cmdp)->linenum == 0) {
-			/* sending the logout command */
-			ctx->cur_cmd->state = STATE_LOGOUT;
-		}
-		if (imap_arg_is_bad((*cmdp)->reply))
-			ctx->cur_cmd->expect_bad = TRUE;
-	}
+	array_foreach_modifiable(&(*groupp)->commands, cmd)
+		test_send_next_command(ctx, client, cmd);
 
 	/* if we're using multiple connections, stop reading input from the
 	   other ones. otherwise if the server sends untagged events
@@ -802,7 +868,7 @@ static void test_send_next_command(struct test_exec_context *ctx)
 	   untagged queue list, rather than the next command's on the
 	   connection where they came from. */
 	for (i = 0; i < ctx->test->connection_count; i++) {
-		if (i == (*cmdp)->connection_idx) {
+		if (i == (*groupp)->connection_idx) {
 			if (!ctx->clients[i]->disconnected)
 				client_input_continue(ctx->clients[i]);
 		} else {
@@ -825,7 +891,7 @@ static void test_send_first_command(struct test_exec_context *ctx)
 		ctx->clients[i]->send_more_commands = test_send_no_commands;
 
 	ctx->init_finished = TRUE;
-	test_send_next_command(ctx);
+	test_send_next_command_group(ctx);
 }
 
 static void wakeup_clients(struct test_exec_context *ctx)
@@ -1081,6 +1147,7 @@ static int test_execute(const struct test *test,
 	ctx->source = mailbox_source_new(test->mbox_source_path);
 	ctx->cur_received_untagged =
 		buffer_create_dynamic(default_pool, 128);
+	p_array_init(&ctx->cur_commands, pool, 16);
 	i_array_init(&ctx->cur_maybe_matches, 32);
 	hash_table_create(&ctx->variables, pool, 0, str_hash, strcmp);
 	p_array_init(&ctx->added_variables, pool, 32);
