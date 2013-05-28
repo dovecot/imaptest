@@ -652,7 +652,8 @@ static void client_set_random_user(struct client *client)
 	}
 }
 
-struct client *client_new(unsigned int idx, struct mailbox_source *source)
+struct client *client_new(unsigned int idx, struct mailbox_source *source,
+			  const char *username)
 {
 	struct client *client;
 	const struct ip_addr *ip;
@@ -681,7 +682,12 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source)
 	client->tag_counter = 1;
 	client->idx = idx;
 	client->global_id = ++global_id_counter;
-	client_set_random_user(client);
+	if (username != NULL) {
+		client->username = i_strdup(username);
+		client->password = i_strdup(conf.password);
+	} else {
+		client_set_random_user(client);
+	}
 
 	mailbox = t_strdup_printf(conf.mailbox, idx);
 	client->storage = mailbox_storage_get(source, client->username, mailbox);
@@ -780,14 +786,14 @@ bool client_unref(struct client *client, bool reconnect)
 		io_loop_stop(current_ioloop);
 	else if (io_loop_is_running(current_ioloop) && !no_new_clients &&
 		 !disconnect_clients && reconnect) {
-		client_new(idx, storage->source);
+		client_new(idx, storage->source, NULL);
 		if (!stalled) {
 			const unsigned int *indexes;
 			unsigned int i, count;
 
 			indexes = array_get(&stalled_clients, &count);
 			for (i = 0; i < count && i < 3; i++)
-				client_new(indexes[i], storage->source);
+				client_new(indexes[i], storage->source, NULL);
 			array_delete(&stalled_clients, 0, i);
 		}
 	}

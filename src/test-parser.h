@@ -49,6 +49,10 @@ struct test_command_group {
 	unsigned int replies_pending;
 };
 
+struct test_connection {
+	const char *username;
+};
+
 struct test {
 	const char *name, *path;
 
@@ -56,15 +60,20 @@ struct test {
 	const char *mbox_source_path;
 	/* NULL-terminated list of IMAP capabilities required from the server */
 	const char *const *required_capabilities;
-	/* Number of connections to use */
-	unsigned int connection_count;
 	/* Number of messages to APPEND initially (-1 = all) */
 	unsigned int message_count;
 	/* Startup state in which this test is run */
 	enum test_startup_state startup_state;
 
+	/* Number of connections to use */
+	unsigned int connection_count;
+	/* Configuration to connections (may have less than connection_count) */
+	ARRAY(struct test_connection) connections;
+
 	/* List of commands to run for this test */
 	ARRAY(struct test_command_group *) cmd_groups;
+
+	unsigned int require_user2:1;
 };
 ARRAY_DEFINE_TYPE(test, const struct test *);
 

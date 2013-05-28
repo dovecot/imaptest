@@ -869,7 +869,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				break;
 
 			client_new(array_count(&clients),
-				   client->storage->source);
+				   client->storage->source, NULL);
 		}
 		break;
 	case STATE_SELECT:

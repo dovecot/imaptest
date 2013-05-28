@@ -1010,6 +1010,9 @@ static bool test_have_all_capabilities(struct client *client)
 	char **have = client->capabilities_list;
 	unsigned int i, j;
 
+	if (ctx->test->require_user2 && conf.username2_template == NULL)
+		return FALSE;
+
 	if (req == NULL)
 		return TRUE;
 
@@ -1134,8 +1137,9 @@ static int test_execute(const struct test *test,
 			struct tests_execute_context *exec_ctx)
 {
 	struct test_exec_context *ctx;
-	unsigned int i;
-	const char *key, *value;
+	const struct test_connection *test_conns;
+	unsigned int i, test_conn_count;
+	const char *key, *value, *username;
 	char *url;
 	pool_t pool;
 
@@ -1157,10 +1161,14 @@ static int test_execute(const struct test *test,
 	ctx->appends_left = ctx->test->message_count;
 
 	/* create clients for the test */
+	test_conns = array_get(&test->connections, &test_conn_count);
 	ctx->clients = p_new(pool, struct client *, test->connection_count);
 	for (i = 0; i < test->connection_count; i++) {
+		username = NULL;
+		if (i < test_conn_count)
+			username = test_conns[i].username;
 		ctx->clients[i] = client_new(array_count(&clients),
-					     ctx->source);
+					     ctx->source, username);
 		if (ctx->clients[i] == NULL) {
 			test_execute_free(ctx);
 			return -1;
@@ -1168,25 +1176,27 @@ static int test_execute(const struct test *test,
 		ctx->clients[i]->handle_untagged = test_handle_untagged;
 		ctx->clients[i]->send_more_commands = test_send_lstate_commands;
 		ctx->clients[i]->test_exec_ctx = ctx;
+
+		key = i == 0 ? "user" : p_strdup_printf(pool, "user%u", i+1);
+		value = p_strdup(pool, ctx->clients[i]->username);
+		hash_table_insert(ctx->variables, key, value);
+
+		key = i == 0 ? "username" :
+			p_strdup_printf(pool, "username%u", i+1);
+		value = p_strdup(pool, t_strcut(ctx->clients[i]->username, '@'));
+		hash_table_insert(ctx->variables, key, value);
+
+		key = i == 0 ? "domain" :
+			p_strdup_printf(pool, "domain%u", i+1);
+		value = strchr(ctx->clients[i]->username, '@');
+		if (value != NULL)
+			value++;
+		else
+			value = p_strdup(pool, conf.host);
+		hash_table_insert(ctx->variables, key, value);
 	}
 	ctx->startup_state = TEST_STARTUP_STATE_NONAUTH;
 	ctx->clients_waiting = test->connection_count;
-
-	key = "user";
-	value = p_strdup(pool, ctx->clients[0]->username);
-	hash_table_insert(ctx->variables, key, value);
-
-	key = "username";
-	value = p_strdup(pool, t_strcut(ctx->clients[0]->username, '@'));
-	hash_table_insert(ctx->variables, key, value);
-
-	key = "domain";
-	value = strchr(ctx->clients[0]->username, '@');
-	if (value != NULL)
-		value++;
-	else
-		value = p_strdup(pool, conf.host);
-	hash_table_insert(ctx->variables, key, value);
 
 	key = "mailbox";
 	value = p_strdup(pool, ctx->clients[0]->storage->name);

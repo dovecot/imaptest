@@ -97,7 +97,8 @@ extern unsigned int total_disconnects;
 extern ARRAY_TYPE(client) clients;
 extern bool stalled, disconnect_clients, no_new_clients;
 
-struct client *client_new(unsigned int idx, struct mailbox_source *source);
+struct client *client_new(unsigned int idx, struct mailbox_source *source,
+			  const char *username);
 bool client_unref(struct client *client, bool reconnect);
 void client_disconnect(struct client *client);
 

@@ -4,6 +4,7 @@
 #include "str.h"
 #include "istream.h"
 #include "imap-parser.h"
+#include "settings.h"
 #include "test-parser.h"
 
 #include <stdlib.h>
@@ -27,7 +28,9 @@ static bool
 test_parse_header_line(struct test_parser *parser, struct test *test,
 		       const char *line, const char **error_r)
 {
+	struct test_connection *test_conn;
 	const char *key, *value;
+	unsigned int idx;
 
 	value = strchr(line, ':');
 	if (value == NULL) {
@@ -47,6 +50,18 @@ test_parse_header_line(struct test_parser *parser, struct test *test,
 	if (strcmp(key, "connections") == 0) {
 		test->connection_count = strcmp(value, "n") == 0 ? 2 :
 			strtoul(value, NULL, 10);
+		return TRUE;
+	}
+	if (strncmp(key, "user ", 5) == 0 &&
+	    str_to_uint(key+5, &idx) == 0 && idx != 0) {
+		/* FIXME: kludgy kludgy */
+		if (strcmp(value, "$user2") == 0 ||
+		    strcmp(value, "${user2}") == 0) {
+			test->require_user2 = TRUE;
+			value = conf.username2_template;
+		}
+		test_conn = array_idx_modifiable(&test->connections, idx-1);
+		test_conn->username = p_strdup(parser->pool, value);
 		return TRUE;
 	}
 	if (strcmp(key, "messages") == 0) {
@@ -707,6 +722,7 @@ test_parser_read_test(struct test_parser *parser, const char *fname,
 	test->connection_count = 1;
 	test->message_count = UINT_MAX;
 	p_array_init(&test->cmd_groups, parser->pool, 32);
+	p_array_init(&test->connections, parser->pool, 4);
 
 	mbox_path = t_strdup_printf("%s/%s.mbox", parser->dir, fname);
 	if (stat(mbox_path, &st) == 0) {

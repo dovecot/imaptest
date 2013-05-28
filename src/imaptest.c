@@ -257,7 +257,7 @@ static void imaptest_run(void)
 	mailbox_source = mailbox_source_new(mbox_path);
 	to = timeout_add(1000, print_timeout, NULL);
 	for (i = 0; i < INIT_CLIENT_COUNT && i < conf.clients_count; i++)
-		client_new(i, mailbox_source);
+		client_new(i, mailbox_source, NULL);
 
         io_loop_run(ioloop);
 
@@ -488,6 +488,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		}
 		if (strcmp(key, "user") == 0) {
 			conf.username_template = value;
+			continue;
+		}
+		if (strcmp(key, "user2") == 0) {
+			conf.username2_template = value;
 			continue;
 		}
 		if (strcmp(key, "userfile") == 0) {
