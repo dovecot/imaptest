@@ -17,7 +17,7 @@
 
 struct test_parser {
 	pool_t pool;
-	const char *dir, *default_mbox_path;
+	const char *default_mbox_path;
 
 	struct imap_arg *reply_ok, *reply_no, *reply_bad, *reply_any;
 	struct test_command_group *cur_cmd_group;
@@ -708,8 +708,7 @@ static void test_add_logout(struct test_parser *parser, struct test *test,
 }
 
 static int
-test_parser_read_test(struct test_parser *parser, const char *fname,
-		      const struct test **test_r)
+test_parser_read_test(struct test_parser *parser, const char *path)
 {
 	struct test *test;
 	struct istream *input;
@@ -724,7 +723,7 @@ test_parser_read_test(struct test_parser *parser, const char *fname,
 	p_array_init(&test->cmd_groups, parser->pool, 32);
 	p_array_init(&test->connections, parser->pool, 4);
 
-	mbox_path = t_strdup_printf("%s/%s.mbox", parser->dir, fname);
+	mbox_path = t_strdup_printf("%s.mbox", path);
 	if (stat(mbox_path, &st) == 0) {
 		/* test-specific mbox */
 		test->mbox_source_path = p_strdup(parser->pool, mbox_path);
@@ -736,13 +735,17 @@ test_parser_read_test(struct test_parser *parser, const char *fname,
 		test->mbox_source_path = parser->default_mbox_path;
 	}
 
-	test->path = p_strdup_printf(parser->pool, "%s/%s", parser->dir, fname);
-	test->name = test->path + strlen(parser->dir) + 1;
+	test->path = p_strdup(parser->pool, path);
+	test->name = strrchr(test->path, '/');
+	if (test->name != NULL)
+		test->name++;
+	else
+		test->name = test->path;
 	if (stat(test->path, &st) < 0) {
 		i_error("stat(%s) failed: %m", test->path);
 		return -1;
 	}
-	if (!S_ISREG(st.st_mode))
+	if (S_ISDIR(st.st_mode))
 		return 0;
 
 	fd = open(test->path, O_RDONLY);
@@ -764,21 +767,23 @@ test_parser_read_test(struct test_parser *parser, const char *fname,
 	   OK for logout */
 	test_add_logout(parser, test, 0);
 
-	*test_r = test;
-	return ret < 0 ? -1 : 1;
+	if (ret < 0)
+		return -1;
+
+	array_append(&parser->tests, &test, 1);
+	return 1;
 }
 
-static int test_parser_scan_dir(struct test_parser *parser)
+static int test_parser_scan_dir(struct test_parser *parser, const char *path)
 {
-	const struct test *test;
 	DIR *dir;
 	struct dirent *d;
 	unsigned int len;
 	int ret = 0;
 
-	dir = opendir(parser->dir);
+	dir = opendir(path);
 	if (dir == NULL) {
-		i_error("opendir(%s) failed: %m", parser->dir);
+		i_error("opendir(%s) failed: %m", path);
 		return -1;
 	}
 
@@ -790,15 +795,15 @@ static int test_parser_scan_dir(struct test_parser *parser)
 			continue;
 
 		T_BEGIN {
-			ret = test_parser_read_test(parser, d->d_name, &test);
+			const char *filepath =
+				t_strdup_printf("%s/%s", path, d->d_name);
+			ret = test_parser_read_test(parser, filepath);
 		} T_END;
 		if (ret < 0)
 			break;
-		if (ret > 0)
-			array_append(&parser->tests, &test, 1);
 	}
 	if (closedir(dir) < 0) {
-		i_error("closedir(%s) failed: %m", parser->dir);
+		i_error("closedir(%s) failed: %m", path);
 		return -1;
 	}
 	return ret;
@@ -815,17 +820,17 @@ static struct imap_arg *test_parser_reply_init(pool_t pool, const char *atom)
 	return args;
 }
 
-struct test_parser *test_parser_init(const char *dir)
+struct test_parser *test_parser_init(const char *path)
 {
 	struct test_parser *parser;
 	pool_t pool;
+	struct stat st;
+	const char *dir;
+	int ret;
 
 	pool = pool_alloconly_create("test parser", 1024*256);
 	parser = p_new(pool, struct test_parser, 1);
 	parser->pool = pool;
-	parser->dir = p_strdup(pool, dir);
-	parser->default_mbox_path =
-		p_strdup_printf(pool, "%s/"DEFAULT_MBOX_FNAME, dir);
 	i_array_init(&parser->tests, 128);
 
 	parser->reply_ok = test_parser_reply_init(pool, "ok");
@@ -833,8 +838,25 @@ struct test_parser *test_parser_init(const char *dir)
 	parser->reply_bad = test_parser_reply_init(pool, "bad");
 	parser->reply_any = test_parser_reply_init(pool, "");
 
-	if (test_parser_scan_dir(parser) < 0)
-		i_fatal("Failed to read tests");
+	if (stat(path, &st) < 0)
+		i_fatal("stat(%s) failed: %m", path);
+	if (S_ISDIR(st.st_mode)) {
+		parser->default_mbox_path =
+			p_strdup_printf(pool, "%s/"DEFAULT_MBOX_FNAME, path);
+		if (test_parser_scan_dir(parser, path) < 0)
+			i_fatal("Failed to read tests");
+	} else {
+		dir = t_strcut(path, '/');
+		if (*dir == '\0')
+			parser->default_mbox_path = DEFAULT_MBOX_FNAME;
+		else {
+			parser->default_mbox_path =
+				p_strdup_printf(pool, "%s/"DEFAULT_MBOX_FNAME, dir);
+		}
+		if ((ret = test_parser_read_test(parser, path)) < 0)
+			i_fatal("Failed to read test");
+		i_assert(ret > 0);
+	}
 	return parser;
 }
 

@@ -1213,7 +1213,7 @@ static int test_execute(const struct test *test,
 
 static void tests_execute_next(struct tests_execute_context *exec_ctx)
 {
-	const struct test *const *tests;
+	struct test *const *tests;
 	unsigned int count;
 
 	tests = array_get(exec_ctx->tests, &count);

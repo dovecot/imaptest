@@ -75,7 +75,7 @@ struct test {
 
 	unsigned int require_user2:1;
 };
-ARRAY_DEFINE_TYPE(test, const struct test *);
+ARRAY_DEFINE_TYPE(test, struct test *);
 
 struct test_parser *test_parser_init(const char *dir);
 void test_parser_deinit(struct test_parser **parser);

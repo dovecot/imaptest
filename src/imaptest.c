@@ -268,14 +268,14 @@ static void imaptest_run(void)
 	print_total();
 }
 
-static void imaptest_run_tests(const char *dir)
+static void imaptest_run_tests(const char *path)
 {
 	struct test_parser *test_parser;
 	const ARRAY_TYPE(test) *tests;
 	struct tests_execute_context *exec_ctx;
 
 	no_new_clients = TRUE;
-	test_parser = test_parser_init(dir);
+	test_parser = test_parser_init(path);
 	tests = test_parser_get_tests(test_parser);
 
 	exec_ctx = tests_execute(tests);
@@ -337,7 +337,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 {
 	struct timeout *to_stop;
 	struct state *state;
-	const char *key, *value, *testdir = NULL;
+	const char *key, *value, *testpath = NULL;
 	unsigned int i;
 	int ret;
 
@@ -477,7 +477,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		}
 		/* test=dir */
 		if (strcmp(key, "test") == 0) {
-			testdir = value;
+			testpath = value;
 			continue;
 		}
 
@@ -515,11 +515,11 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		return 1;
 	}
 	if (conf.mailbox == NULL)
-		conf.mailbox = testdir == NULL ? "INBOX" : "imaptest";
+		conf.mailbox = testpath == NULL ? "INBOX" : "imaptest";
 
 	if (conf.username_template == NULL)
 		i_fatal("Missing username");
-	if (testdir != NULL && strchr(conf.username_template, '%') != NULL) {
+	if (testpath != NULL && strchr(conf.username_template, '%') != NULL) {
 		printf("Don't use %% in username with tests\n");
 		return 1;
 	}
@@ -536,10 +536,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	clients_init();
 
 	i_array_init(&clients, CLIENTS_COUNT);
-	if (testdir == NULL)
+	if (testpath == NULL)
 		imaptest_run();
 	else
-		imaptest_run_tests(testdir);
+		imaptest_run_tests(testpath);
 	clients_deinit();
 	mailboxes_deinit();
 
