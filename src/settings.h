@@ -19,7 +19,7 @@
 #define CLIENTS_COUNT 10
 /* Number of clients to create at startup. After each successful login a new
    client is created. */
-#define INIT_CLIENT_COUNT 10
+#define INIT_CLIENT_COUNT 100
 /* Try to keep around this many messages in mailbox (in expunge + append) */
 #define MESSAGE_COUNT_THRESHOLD 30
 /* Append messages from this mbox file to mailboxes */
