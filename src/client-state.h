@@ -34,6 +34,7 @@ enum client_state {
 	STATE_EXPUNGE,
 	STATE_APPEND,
         STATE_NOOP,
+        STATE_IDLE,
         STATE_CHECK,
         STATE_LOGOUT,
         STATE_DISCONNECT,

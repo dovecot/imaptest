@@ -2,6 +2,7 @@
 #define CLIENT_H
 
 #include "client-state.h"
+#include "user.h"
 
 struct mailbox_source;
 struct imap_arg;
@@ -27,8 +28,15 @@ static const struct imap_capability_name cap_names[] = {
 	{ NULL, 0 }
 };
 
+struct mailbox_list_entry {
+	char *name;
+	bool found;
+};
+
 struct client {
 	int refcount;
+	struct user *user;
+	struct profile_client *profile;
 
         unsigned int idx, global_id;
         unsigned int cur;
@@ -50,6 +58,9 @@ struct client {
 	/* plan[0] contains always the next state we move to. */
 	enum client_state plan[STATE_COUNT];
 	unsigned int plan_size;
+
+	/* LIST reply */
+	ARRAY(struct mailbox_list_entry) mailboxes_list;
 
 	const struct imap_arg *cur_args;
 	uoff_t append_offset, append_psize, append_vsize_left, append_skip;
@@ -78,7 +89,6 @@ struct client {
 
         time_t last_io;
 
-	char *username, *password;
 	unsigned int delayed:1;
 	unsigned int seen_banner:1;
 	unsigned int append_unfinished:1;
@@ -88,6 +98,8 @@ struct client {
 	unsigned int qresync_enabled:1;
 	unsigned int disconnected:1;
 	unsigned int append_can_send:1;
+	unsigned int idling:1;
+	unsigned int idle_done_sent:1;
 
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
@@ -98,7 +110,7 @@ extern ARRAY_TYPE(client) clients;
 extern bool stalled, disconnect_clients, no_new_clients;
 
 struct client *client_new(unsigned int idx, struct mailbox_source *source,
-			  const char *username);
+			  struct user *user);
 bool client_unref(struct client *client, bool reconnect);
 void client_disconnect(struct client *client);
 
@@ -111,6 +123,10 @@ void client_delay(struct client *client, unsigned int msecs);
 int client_handle_untagged(struct client *client, const struct imap_arg *args);
 void client_capability_parse(struct client *client, const char *line);
 void client_log_mailbox_view(struct client *client);
+void client_mailboxes_list_begin(struct client *client);
+void client_mailboxes_list_end(struct client *client);
+struct mailbox_list_entry *
+client_mailboxes_list_find(struct client *client, const char *name);
 
 int client_send_more_commands(struct client *client);
 

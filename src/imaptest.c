@@ -13,6 +13,8 @@
 #include "mailbox.h"
 #include "mailbox-source.h"
 #include "client.h"
+#include "user.h"
+#include "profile.h"
 #include "checkpoint.h"
 #include "commands.h"
 #include "test-exec.h"
@@ -112,7 +114,7 @@ static void print_timeout(void *context ATTR_UNUSED)
 	str = t_str_new(256);
 	for (i = 0; i < count; i++) {
 		if (c[i] != NULL && c[i]->state != STATE_BANNER &&
-		    c[i]->to == NULL &&
+		    c[i]->to == NULL && !c[i]->idling &&
 		    c[i]->last_io < ioloop_time - STALL_PRINT_SECS) {
 			struct command *const *cmds;
 			unsigned int cmdcount;
@@ -257,7 +259,7 @@ static void imaptest_run(void)
 	mailbox_source = mailbox_source_new(mbox_path);
 	to = timeout_add(1000, print_timeout, NULL);
 	for (i = 0; i < INIT_CLIENT_COUNT && i < conf.clients_count; i++)
-		client_new(i, mailbox_source, NULL);
+		client_new(i, mailbox_source, user_get_random());
 
         io_loop_run(ioloop);
 
@@ -337,6 +339,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 {
 	struct timeout *to_stop;
 	struct state *state;
+	struct profile *profile = NULL;
 	const char *key, *value, *testpath = NULL;
 	unsigned int i;
 	int ret;
@@ -480,6 +483,11 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			testpath = value;
 			continue;
 		}
+		/* profile=path */
+		if (strcmp(key, "profile") == 0) {
+			profile = profile_parse(value);
+			continue;
+		}
 
 		/* copybox=mailbox */
 		if (strcmp(key, "copybox") == 0) {
@@ -532,6 +540,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	}
 
 	fix_probabilities();
+	users_init(profile);
 	mailboxes_init();
 	clients_init();
 
@@ -542,6 +551,9 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		imaptest_run_tests(testpath);
 	clients_deinit();
 	mailboxes_deinit();
+	users_deinit();
+	if (profile != NULL)
+		pool_unref(&profile->pool);
 
 	if (to_stop != NULL)
 		timeout_remove(&to_stop);

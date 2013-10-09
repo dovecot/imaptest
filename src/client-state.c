@@ -43,6 +43,7 @@ struct state states[STATE_COUNT] = {
 	{ "EXPUNGE",	  "Expu", LSTATE_SELECTED, 100, 0,  FLAG_EXPUNGES },
 	{ "APPEND",	  "Appe", LSTATE_AUTH,     100, 5,  FLAG_EXPUNGES },
 	{ "NOOP",	  "Noop", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
+	{ "IDLE",	  "Noop", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES | FLAG_STATECHANGE },
 	{ "CHECK",	  "Chec", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "LOGOUT",	  "Logo", LSTATE_NONAUTH,  100, 0,  FLAG_STATECHANGE | FLAG_STATECHANGE_NONAUTH },
 	{ "DISCONNECT",	  "Disc", LSTATE_NONAUTH,  0,   0,  0 },
@@ -82,15 +83,15 @@ static void auth_plain_callback(struct client *client, struct command *cmd,
 
 	buf = t_str_new(512);
 	if (conf.master_user != NULL) {
-		str_append(buf, client->username);
+		str_append(buf, client->user->username);
 		str_append_c(buf, '\0');
 		str_append(buf, conf.master_user);
 	} else {
 		str_append_c(buf, '\0');
-		str_append(buf, client->username);
+		str_append(buf, client->user->username);
 	}
 	str_append_c(buf, '\0');
-	str_append(buf, client->password);
+	str_append(buf, client->user->password);
 
 	str = t_str_new(512);
 	base64_encode(buf->data, buf->used, str);
@@ -477,6 +478,9 @@ seq_range_flags_ref(struct client *client,
 	unsigned int i, count;
 	uint32_t seq;
 
+	if (!array_is_created(seq_range))
+		return;
+
 	range = array_get(seq_range, &count);
 	for (i = 0; i < count; i++) {
 		for (seq = range[i].seq1; seq <= range[i].seq2; seq++) {
@@ -830,6 +834,10 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				/* Domino (FETCH/STORE/EXPUNGE) */
 				break;
 			}
+		case STATE_APPEND:
+			if (client->try_create_mailbox)
+				break;
+			/* fall through */
 		default:
 			client_state_error(client, "%s failed",
 					   states[cmd->state].name);
@@ -848,6 +856,10 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				return -1;
 			return 0;
 		}
+		if (cmd->state == STATE_IDLE) {
+			client->idling = TRUE;
+			return 0;
+		}
 
 		client_input_error(client, "%s: Unexpected continuation",
 				   states[cmd->state].name);
@@ -864,13 +876,19 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 			return -1;
 		}
 
+		/* successful logins, create some more clients */
 		for (i = 0; i < 3 && !stalled && !no_new_clients; i++) {
 			if (array_count(&clients) >= conf.clients_count)
 				break;
 
 			client_new(array_count(&clients),
-				   client->storage->source, NULL);
+				   client->storage->source,
+				   user_get_random());
 		}
+		break;
+	case STATE_LIST:
+		if (reply == REPLY_OK)
+			client_mailboxes_list_end(client);
 		break;
 	case STATE_SELECT:
 		if (reply == REPLY_NO)
@@ -933,6 +951,10 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		}
 		client->login_state = LSTATE_NONAUTH;
 		return -1;
+	case STATE_IDLE:
+		client->idling = FALSE;
+		client->idle_done_sent = FALSE;
+		break;
 	case STATE_DISCONNECT:
 		return -1;
 	default:
@@ -1076,8 +1098,8 @@ int client_plan_send_next_cmd(struct client *client)
 	case STATE_LOGIN:
 		o_stream_cork(client->output);
 		str = t_strdup_printf("LOGIN \"%s\" \"%s\"",
-				      str_escape(client->username),
-				      str_escape(client->password));
+				      str_escape(client->user->username),
+				      str_escape(client->user->password));
 		command_send(client, str, state_callback);
 		if (conf.qresync)
 			command_send(client, "ENABLE QRESYNC", state_callback);
@@ -1085,6 +1107,7 @@ int client_plan_send_next_cmd(struct client *client)
 		break;
 	case STATE_LIST:
 		//str = t_strdup_printf("LIST \"\" * RETURN (X-STATUS (MESSAGES))");
+		client_mailboxes_list_begin(client);
 		str = t_strdup_printf("LIST \"\" *");
 		command_send(client, str, state_callback);
 		break;
@@ -1332,6 +1355,9 @@ int client_plan_send_next_cmd(struct client *client)
 		break;
 	case STATE_NOOP:
 		command_send(client, "NOOP", state_callback);
+		break;
+	case STATE_IDLE:
+		command_send(client, "IDLE", state_callback);
 		break;
 	case STATE_CHECK:
 		command_send(client, "CHECK", state_callback);

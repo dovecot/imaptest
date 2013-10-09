@@ -130,6 +130,11 @@ command_send_binary(struct client *client, const char *cmdline,
 
 	i_assert(!client->append_unfinished);
 
+	if (client->idling && !client->idle_done_sent) {
+		client->idle_done_sent = TRUE;
+		o_stream_send_str(client->output, "DONE\r\n");
+	}
+
 	cmd = i_new(struct command, 1);
 	T_BEGIN {
 		command_get_cmdline(client, &cmdline, &cmdline_len);
@@ -159,8 +164,7 @@ command_send_binary(struct client *client, const char *cmdline,
 			mailbox_view_free(&client->view);
 			mailbox_storage_unref(&client->storage);
 			client->storage = mailbox_storage_get(source,
-							      client->username,
-							      name);
+				client->user->username, name);
 			client->view = mailbox_view_new(client->storage);
 		}
 	} else if (strcasecmp(cmdname, "DELETE") == 0 ||
@@ -173,7 +177,8 @@ command_send_binary(struct client *client, const char *cmdline,
 		name = get_astring(argp);
 		if (name != NULL) {
 			storage = mailbox_storage_lookup(client->storage->source,
-							 client->username, name);
+							 client->user->username,
+							 name);
 			if (storage != NULL)
 				mailbox_storage_reset(storage);
 		}

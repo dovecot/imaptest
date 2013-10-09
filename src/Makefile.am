@@ -12,9 +12,12 @@ imaptest_SOURCES = \
 	mailbox.c \
 	mailbox-source.c \
 	mailbox-state.c \
+	profile.c \
+	profile-parse.c \
 	search.c \
 	test-exec.c \
-	test-parser.c
+	test-parser.c \
+	user.c
 
 noinst_HEADERS = \
 	checkpoint.h \
@@ -25,12 +28,14 @@ noinst_HEADERS = \
 	mailbox.h \
 	mailbox-source.h \
 	mailbox-state.h \
+	profile.h \
 	search.h \
 	settings.h \
 	test-exec.h \
-	test-parser.h
+	test-parser.h \
+	user.h
 
-imaptest_LDADD = $(LIBDOVECOT) $(LIBDOVECOT_SSL)
+imaptest_LDADD = $(LIBDOVECOT) $(LIBDOVECOT_SSL) -lm
 imaptest_DEPENDENCIES = $(LIBDOVECOT_DEPS) $(LIBDOVECOT_SSL_DEPS)
 
 EXTRA_DIST = \

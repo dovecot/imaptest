@@ -17,6 +17,7 @@
 #include "mailbox-state.h"
 #include "commands.h"
 #include "checkpoint.h"
+#include "profile.h"
 #include "search.h"
 #include "test-exec.h"
 #include "client.h"
@@ -41,7 +42,7 @@ int client_input_error(struct client *client, const char *fmt, ...)
 	va_list va;
 
 	va_start(va, fmt);
-	i_error("%s[%u]: %s: %s", client->username, client->global_id,
+	i_error("%s[%u]: %s: %s", client->user->username, client->global_id,
 		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
 		imap_args_to_str(client->cur_args));
 	va_end(va);
@@ -57,7 +58,7 @@ int client_input_warn(struct client *client, const char *fmt, ...)
 	va_list va;
 
 	va_start(va, fmt);
-	i_error("%s[%u]: %s: %s", client->username, client->global_id,
+	i_error("%s[%u]: %s: %s", client->user->username, client->global_id,
 		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
 		imap_args_to_str(client->cur_args));
 	va_end(va);
@@ -69,7 +70,7 @@ int client_state_error(struct client *client, const char *fmt, ...)
 	va_list va;
 
 	va_start(va, fmt);
-	i_error("%s[%u]: %s: %s", client->username, client->global_id,
+	i_error("%s[%u]: %s: %s", client->user->username, client->global_id,
 		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
 		imap_args_to_str(client->cur_args));
 	va_end(va);
@@ -238,6 +239,68 @@ static int client_vanished(struct client *client, const struct imap_arg *args)
 	return 0;
 }
 
+static void
+client_list_result(struct client *client, const struct imap_arg *args)
+{
+	struct mailbox_list_entry *list;
+	const char *name;
+
+	if (args[0].type != IMAP_ARG_LIST ||
+	    !IMAP_ARG_IS_NSTRING(&args[1]) ||
+	    !imap_arg_get_astring(&args[2], &name))
+		return;
+
+	if (!array_is_created(&client->mailboxes_list))
+		i_array_init(&client->mailboxes_list, 4);
+
+	/* don't add duplicates */
+	array_foreach_modifiable(&client->mailboxes_list, list) {
+		if (strcmp(list->name, name) == 0) {
+			list->found = TRUE;
+			return;
+		}
+	}
+	list = array_append_space(&client->mailboxes_list);
+	list->name = i_strdup(name);
+	list->found = TRUE;
+}
+
+void client_mailboxes_list_begin(struct client *client)
+{
+	struct mailbox_list_entry *list;
+
+	if (!array_is_created(&client->mailboxes_list))
+		return;
+	array_foreach_modifiable(&client->mailboxes_list, list)
+		list->found = FALSE;
+}
+
+void client_mailboxes_list_end(struct client *client)
+{
+	struct mailbox_list_entry *lists;
+	unsigned int i, count;
+
+	lists = array_get_modifiable(&client->mailboxes_list, &count);
+	for (i = count; i > 0; i--) {
+		if (!lists[i-1].found) {
+			i_free(lists[i-1].name);
+			array_delete(&client->mailboxes_list, i-1, 1);
+		}
+	}
+}
+
+struct mailbox_list_entry *
+client_mailboxes_list_find(struct client *client, const char *name)
+{
+	struct mailbox_list_entry *list;
+
+	array_foreach_modifiable(&client->mailboxes_list, list) {
+		if (strcmp(list->name, name) == 0)
+			return list;
+	}
+	return NULL;
+}
+
 void client_capability_parse(struct client *client, const char *line)
 {
 	const char *const *tmp;
@@ -312,6 +375,8 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 		client_capability_parse(client, imap_args_to_str(args));
 	else if (strcmp(str, "SEARCH") == 0)
 		search_result(client, args);
+	else if (strcmp(str, "LIST") == 0)
+		client_list_result(client, args);
 	else if (strcmp(str, "ENABLED") == 0)
 		client_enabled(client, args);
 	else if (strcmp(str, "VANISHED") == 0) {
@@ -325,7 +390,7 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 	} else if (strcmp(str, "OK") == 0) {
 		client_handle_resp_text_code(client, args);
 	} else if (strcmp(str, "NO") == 0) {
-		/*i_info("%s: %s", client->username, line + 2);*/
+		/*i_info("%s: %s", client->user->username, line + 2);*/
 	} else if (strcmp(str, "BAD") == 0) {
 		client_input_warn(client, "BAD received");
 	}
@@ -620,40 +685,8 @@ static void client_wait_connect(struct client *client)
 	client->parser = imap_parser_create(client->input, NULL, (size_t)-1);
 }
 
-static void client_set_random_user(struct client *client)
-{
-	static int prev_user = 0, prev_domain = 0;
-	const char *const *userp, *p;
-	unsigned int i;
-
-	if (array_is_created(&conf.usernames)) {
-		i = rand() % array_count(&conf.usernames);
-		userp = array_idx(&conf.usernames, i);
-		p = strchr(*userp, ':');
-		if (p == NULL) {
-			client->username = i_strdup(*userp);
-			client->password = i_strdup(conf.password);
-		} else {
-			client->username = i_strdup_until(*userp, p);
-			client->password = i_strdup(p + 1);
-		}
-		i_assert(*client->username != '\0');
-	} else {
-		if (rand() % 2 == 0 && prev_user != 0) {
-			/* continue with same user */
-		} else {
-			prev_user = random() % USER_RAND + 1;
-			prev_domain = random() % DOMAIN_RAND + 1;
-		}
-		client->username =
-			i_strdup_printf(conf.username_template,
-					prev_user, prev_domain);
-		client->password = i_strdup(conf.password);
-	}
-}
-
 struct client *client_new(unsigned int idx, struct mailbox_source *source,
-			  const char *username)
+			  struct user *user)
 {
 	struct client *client;
 	const struct ip_addr *ip;
@@ -681,18 +714,14 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source,
 	client->refcount = 1;
 	client->tag_counter = 1;
 	client->idx = idx;
+	client->user = user;
+	client->profile = user_get_new_client_profile(user);
 	client->global_id = ++global_id_counter;
-	if (username != NULL) {
-		client->username = i_strdup(username);
-		client->password = i_strdup(conf.password);
-	} else {
-		client_set_random_user(client);
-	}
 
-	mailbox = t_strdup_printf(conf.mailbox, idx);
-	client->storage = mailbox_storage_get(source, client->username, mailbox);
+	mailbox = user_get_new_mailbox(user, client);
+	client->storage = mailbox_storage_get(source, user->username, mailbox);
 	client->view = mailbox_view_new(client->storage);
-	if (strchr(conf.mailbox, '%') != NULL)
+	if (strchr(conf.mailbox, '%') != NULL || client->profile != NULL)
 		client->try_create_mailbox = TRUE;
 	client->fd = fd;
 	client->rawlog_fd = -1;
@@ -704,9 +733,13 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source,
 	i_array_init(&client->commands, 16);
 	clients_count++;
 
-	client->handle_untagged = client_handle_untagged;
-	client->send_more_commands = client_plan_send_more_commands;
+	client->handle_untagged = user->profile != NULL ?
+		client_profile_handle_untagged : client_handle_untagged;
+	client->send_more_commands = user->profile != NULL ?
+		client_profile_send_more_commands :
+		client_plan_send_more_commands;
 
+	user_add_client(user, client);
         array_idx_set(&clients, idx, &client);
         return client;
 }
@@ -728,6 +761,7 @@ void client_disconnect(struct client *client)
 bool client_unref(struct client *client, bool reconnect)
 {
 	struct mailbox_storage *storage = client->storage;
+	struct mailbox_list_entry *list;
 	unsigned int idx = client->idx;
 	struct command *const *cmds;
 	unsigned int i, count;
@@ -779,23 +813,30 @@ bool client_unref(struct client *client, bool reconnect)
 
 	if (client->capabilities_list != NULL)
 		p_strsplit_free(default_pool, client->capabilities_list);
-	i_free(client->username);
-	i_free(client->password);
+	user_remove_client(client->user, client);
 
 	if (clients_count == 0 && disconnect_clients)
 		io_loop_stop(current_ioloop);
 	else if (io_loop_is_running(current_ioloop) && !no_new_clients &&
 		 !disconnect_clients && reconnect) {
-		client_new(idx, storage->source, NULL);
+		client_new(idx, storage->source, user_get_random());
 		if (!stalled) {
 			const unsigned int *indexes;
 			unsigned int i, count;
 
 			indexes = array_get(&stalled_clients, &count);
-			for (i = 0; i < count && i < 3; i++)
-				client_new(indexes[i], storage->source, NULL);
+			for (i = 0; i < count && i < 3; i++) {
+				client_new(indexes[i], storage->source,
+					   user_get_random());
+			}
 			array_delete(&stalled_clients, 0, i);
 		}
+	}
+
+	if (array_is_created(&client->mailboxes_list)) {
+		array_foreach_modifiable(&client->mailboxes_list, list)
+			i_free(list->name);
+		array_free(&client->mailboxes_list);
 	}
 	i_free(client);
 

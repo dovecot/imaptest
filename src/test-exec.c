@@ -1168,7 +1168,7 @@ static int test_execute(const struct test *test,
 		if (i < test_conn_count)
 			username = test_conns[i].username;
 		ctx->clients[i] = client_new(array_count(&clients),
-					     ctx->source, username);
+					     ctx->source, user_get(username));
 		if (ctx->clients[i] == NULL) {
 			test_execute_free(ctx);
 			return -1;
@@ -1178,17 +1178,17 @@ static int test_execute(const struct test *test,
 		ctx->clients[i]->test_exec_ctx = ctx;
 
 		key = i == 0 ? "user" : p_strdup_printf(pool, "user%u", i+1);
-		value = p_strdup(pool, ctx->clients[i]->username);
+		value = p_strdup(pool, ctx->clients[i]->user->username);
 		hash_table_insert(ctx->variables, key, value);
 
 		key = i == 0 ? "username" :
 			p_strdup_printf(pool, "username%u", i+1);
-		value = p_strdup(pool, t_strcut(ctx->clients[i]->username, '@'));
+		value = p_strdup(pool, t_strcut(ctx->clients[i]->user->username, '@'));
 		hash_table_insert(ctx->variables, key, value);
 
 		key = i == 0 ? "domain" :
 			p_strdup_printf(pool, "domain%u", i+1);
-		value = strchr(ctx->clients[i]->username, '@');
+		value = strchr(ctx->clients[i]->user->username, '@');
 		if (value != NULL)
 			value++;
 		else
