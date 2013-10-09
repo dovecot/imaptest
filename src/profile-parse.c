@@ -234,25 +234,21 @@ static void parse_count(struct profile_parser *parser, const char *value,
 			"Only nn%% values are supported currently",
 			parser->linenum);
 	}
-	T_BEGIN {
-		value = t_strdup_until(value, p);
-		if (str_to_uint(value, count_r) < 0) {
-			i_fatal("Invalid count setting at line %u: "
-				"Invalid number '%s'",
-				parser->linenum, value);
-		}
-		if (*count_r > 100) {
-			i_fatal("Invalid count setting at line %u: "
-				"Value can't be more than 100%%",
-				parser->linenum);
-		}
-	} T_END;
+	value = t_strdup_until(value, p);
+	if (str_to_uint(value, count_r) < 0) {
+		i_fatal("Invalid count setting at line %u: Invalid number '%s'",
+			parser->linenum, value);
+	}
+	if (*count_r > 100) {
+		i_fatal("Invalid count setting at line %u: "
+			"Value can't be more than 100%%", parser->linenum);
+	}
 }
 
 static void
 profile_parse_line_section(struct profile_parser *parser, char *line)
 {
-	const char *key, *value;
+	const char *key, *value, *newline;
 	int ret;
 
 	if (strcmp(line, "}") == 0) {
@@ -263,9 +259,10 @@ profile_parse_line_section(struct profile_parser *parser, char *line)
 	if (!try_parse_keyvalue(line, &key, &value))
 		i_fatal("Invalid data at line %u: %s", parser->linenum, line);
 
+	newline = t_strdup_printf("%s=%s", key, value);
 	if (strcmp(key, "count") == 0)
 		parse_count(parser, value, &parser->cur_count);
-	else if ((ret = settings_parse_keyvalue(parser->cur_parser, key, value)) < 0) {
+	else if ((ret = settings_parse_line(parser->cur_parser, newline)) < 0) {
 		i_fatal("Invalid value for setting '%s' at line %u: %s",
 			key, parser->linenum, value);
 	} else if (ret == 0) {
@@ -325,13 +322,12 @@ struct profile *profile_parse(const char *path)
 	p_array_init(&parser.users, pool, 4);
 
 	input = i_stream_create_file(path, (size_t)-1);
-	while ((line = i_stream_read_next_line(input)) != NULL) {
+	while ((line = i_stream_read_next_line(input)) != NULL) T_BEGIN {
 		parser.linenum++;
 		line = line_remove_whitespace(line);
 		if (line[0] == '\0' || line[0] == '#')
-			continue;
-
-		switch (parser.state) {
+			;
+		else switch (parser.state) {
 		case STATE_ROOT:
 			profile_parse_line_root(&parser, line);
 			break;
@@ -342,7 +338,7 @@ struct profile *profile_parse(const char *path)
 			profile_parse_line_section(&parser, line);
 			break;
 		}
-	}
+	} T_END;
 	if (input->stream_errno != 0)
 		i_fatal("read(%s) failed: %s", path, i_stream_get_error(input));
 	i_stream_destroy(&input);
