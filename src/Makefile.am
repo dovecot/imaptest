@@ -1,6 +1,6 @@
 bin_PROGRAMS = imaptest
 
-AM_CPPFLAGS = $(LIBDOVECOT_INCLUDE)
+AM_CPPFLAGS = $(LIBDOVECOT_INCLUDE) $(LIBDOVECOT_LDA_INCLUDE)
 
 imaptest_SOURCES = \
 	checkpoint.c \
@@ -9,6 +9,7 @@ imaptest_SOURCES = \
 	commands.c \
 	imapurl.c \
 	imaptest.c \
+	imaptest-lmtp.c \
 	mailbox.c \
 	mailbox-source.c \
 	mailbox-state.c \
@@ -25,6 +26,7 @@ noinst_HEADERS = \
 	client-state.h \
 	commands.h \
 	imapurl.h \
+	imaptest-lmtp.h \
 	mailbox.h \
 	mailbox-source.h \
 	mailbox-state.h \
@@ -35,8 +37,8 @@ noinst_HEADERS = \
 	test-parser.h \
 	user.h
 
-imaptest_LDADD = $(LIBDOVECOT) $(LIBDOVECOT_SSL) -lm
-imaptest_DEPENDENCIES = $(LIBDOVECOT_DEPS) $(LIBDOVECOT_SSL_DEPS)
+imaptest_LDADD = $(LIBDOVECOT_LDA) $(LIBDOVECOT) $(LIBDOVECOT_SSL) -lm
+imaptest_DEPENDENCIES = $(LIBDOVECOT_LDA_DEPS) $(LIBDOVECOT_DEPS) $(LIBDOVECOT_SSL_DEPS)
 
 EXTRA_DIST = \
 	tests/append \

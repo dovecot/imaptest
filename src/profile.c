@@ -7,7 +7,9 @@
 #include "imap-quote.h"
 #include "client.h"
 #include "mailbox.h"
+#include "mailbox-source.h"
 #include "commands.h"
+#include "imaptest-lmtp.h"
 #include "profile.h"
 
 #include <stdlib.h>
@@ -206,6 +208,15 @@ user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
 	command_send(client, cmd, state_callback);
 }
 
+static void deliver_new_mail(struct user *user, const char *mailbox)
+{
+	const char *rcpt_to = strcmp(mailbox, "INBOX") == 0 ? user->username :
+		t_strdup_printf("%s+%s", user->username, mailbox);
+
+	imaptest_lmtp_send(user->profile->profile->lmtp_port,
+			   rcpt_to, mailbox_source);
+}
+
 static void user_timeout(struct user *user)
 {
 	struct user_mailbox_cache *const *mailboxp;
@@ -219,18 +230,10 @@ static void user_timeout(struct user *user)
 
 		switch (ts) {
 		case USER_TIMESTAMP_INBOX_DELIVERY:
-			client = user_find_any_client(user);
-			if (client != NULL) {
-				client_append_full(client, "INBOX", 0, "",
-						   state_callback, &cmd);
-			}
+			deliver_new_mail(user, "INBOX");
 			break;
 		case USER_TIMESTAMP_SPAM_DELIVERY:
-			client = user_find_any_client(user);
-			if (client != NULL) {
-				client_append_full(client, PROFILE_MAILBOX_SPAM,
-						   0, "", state_callback, &cmd);
-			}
+			deliver_new_mail(user, "Spam");
 			break;
 		case USER_TIMESTAMP_WRITE_MAIL:
 			/* FIXME: write to Drafts first */

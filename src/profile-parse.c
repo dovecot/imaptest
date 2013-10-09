@@ -159,6 +159,7 @@ static void parser_close(struct profile_parser *parser)
 		break;
 	case STATE_USER:
 		user = settings_parser_get(parser->cur_parser);
+		user->profile = parser->profile;
 		user->percentage = parser->cur_count;
 		array_append(&parser->users, &user, 1);
 		break;
@@ -191,6 +192,14 @@ static void profile_parse_line_root(struct profile_parser *parser, char *line)
 			if (str_to_uint(value, &parser->profile->total_user_count) < 0) {
 				i_fatal("Invalid setting %s at line %u: "
 					"Invalid number '%s'",
+					key, parser->linenum, value);
+			}
+		} else if (strcmp(key, "lmtp_port") == 0) {
+			if (str_to_uint(value, &parser->profile->lmtp_port) < 0 ||
+			    parser->profile->lmtp_port == 0 ||
+			    parser->profile->lmtp_port > 65535) {
+				i_fatal("Invalid setting %s at line %u: "
+					"Invalid port number '%s'",
 					key, parser->linenum, value);
 			}
 		} else {
@@ -270,6 +279,8 @@ static void profile_finish(struct profile_parser *parser)
 	struct profile_user *const *userp;
 	unsigned int percentage_count;
 
+	if (parser->profile->lmtp_port == 0)
+		i_fatal("lmtp_port setting missing");
 	if (parser->profile->total_user_count == 0)
 		i_fatal("total_user_count setting missing");
 	if (array_count(&parser->clients) == 0)

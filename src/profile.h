@@ -22,6 +22,7 @@ struct profile_client {
 ARRAY_DEFINE_TYPE(profile_client, struct profile_client *);
 
 struct profile_user {
+	struct profile *profile;
 	const char *name;
 	const char *username_prefix;
 	unsigned int percentage, user_count;
@@ -58,6 +59,7 @@ struct profile {
 
 	ARRAY_TYPE(profile_user) users;
 	ARRAY_TYPE(profile_client) clients;
+	unsigned int lmtp_port;
 	unsigned int total_user_count;
 };
 
