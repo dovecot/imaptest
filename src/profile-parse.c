@@ -185,7 +185,7 @@ static void parser_add_user(struct profile_parser *parser)
 
 static void profile_parse_line_root(struct profile_parser *parser, char *line)
 {
-	const char *key, *value;
+	const char *key, *value, *nameline;
 
 	if (try_parse_keyvalue(line, &key, &value)) {
 		if (strcmp(key, "total_user_count") == 0) {
@@ -218,7 +218,8 @@ static void profile_parse_line_root(struct profile_parser *parser, char *line)
 		i_fatal("Unknown section at line %u: %s", parser->linenum, key);
 
 	if (value[0] != '\0') {
-		if (settings_parse_keyvalue(parser->cur_parser, "name", value) != 1)
+		nameline = t_strdup_printf("name=%s", value);
+		if (settings_parse_line(parser->cur_parser, nameline) != 1)
 			i_unreached();
 	}
 }
