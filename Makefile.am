@@ -4,7 +4,8 @@ ACLOCAL_AMFLAGS = -I m4
 
 EXTRA_DIST = \
 	ChangeLog \
-	COPYING.MIT
+	COPYING.MIT \
+	profile.conf
 
 if MAINTAINER_MODE
 ChangeLog: .hg/dirstate
