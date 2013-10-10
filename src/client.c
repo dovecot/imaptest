@@ -367,6 +367,7 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 		else
 			counters[client->last_cmd->state]++;
 		client_mailbox_close(client);
+		client->seen_bye = TRUE;
 		client->login_state = LSTATE_NONAUTH;
 	} else if (strcmp(str, "FLAGS") == 0) {
 		if (mailbox_state_set_flags(view, args) < 0)

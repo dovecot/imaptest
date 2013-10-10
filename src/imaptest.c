@@ -124,7 +124,7 @@ static void print_timeout(void *context ATTR_UNUSED)
 				    c[i]->global_id,
 				    (unsigned)(ioloop_time - c[i]->last_io));
 			cmds = array_get(&c[i]->commands, &cmdcount);
-			if (c[i]->login_state == LSTATE_NONAUTH)
+			if (c[i]->seen_bye)
 				str_append(str, "BYE, waiting for disconnect");
 			else if (cmdcount == 0)
 				str_append(str, states[c[i]->state].name);
