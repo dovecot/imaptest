@@ -1167,8 +1167,10 @@ static int test_execute(const struct test *test,
 		username = NULL;
 		if (i < test_conn_count)
 			username = test_conns[i].username;
-		ctx->clients[i] = client_new(array_count(&clients),
-					     ctx->source, user_get(username));
+		ctx->clients[i] = client_new(array_count(&clients), ctx->source,
+					     username != NULL ?
+					     user_get(username) :
+					     user_get_random());
 		if (ctx->clients[i] == NULL) {
 			test_execute_free(ctx);
 			return -1;
