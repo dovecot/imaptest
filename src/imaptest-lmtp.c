@@ -69,7 +69,7 @@ void imaptest_lmtp_send(unsigned int port, const char *rcpt_to,
 	d->client = lmtp_client_init(&lmtp_set, imaptest_lmtp_finish, d);
 	if (lmtp_client_connect_tcp(d->client, LMTP_CLIENT_PROTOCOL_LMTP,
 				    net_ip2addr(&conf.ips[0]), port) < 0) {
-		imaptest_lmtp_free(d);
+		lmtp_client_close(d->client);
 		return;
 	}
 	lmtp_client_add_rcpt(d->client, rcpt_to, imaptest_lmtp_rcpt_to_callback,
