@@ -238,7 +238,7 @@ static void user_timeout(struct user *user)
 		case USER_TIMESTAMP_WRITE_MAIL:
 			/* FIXME: write to Drafts first */
 			client = user_find_any_client(user);
-			if (client != NULL) {
+			if (client != NULL && client->state == STATE_IDLE) {
 				client_append_full(client, PROFILE_MAILBOX_SENT,
 						   0, "", state_callback, &cmd);
 			}
