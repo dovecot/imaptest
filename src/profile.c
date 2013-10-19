@@ -21,6 +21,8 @@
 #define weighted_rand(n) \
 	(int)RANDN2(n, n/2)
 
+static void user_mailbox_action_move(struct client *client,
+				     const char *mailbox, uint32_t uid);
 static void user_set_timeout(struct user *user);
 
 static void client_profile_init_mailbox(struct client *client)
@@ -125,7 +127,9 @@ static void client_profile_handle_fetch(struct client *client,
 			if (cache->uidnext <= uid && cache->uidvalidity != 0)
 				cache->uidnext = uid+1;
 
-			if (cache->next_action_timestamp == (time_t)-1) {
+			if ((unsigned)rand() % 100 < client->user->profile->mail_inbox_move_filter_percentage)
+				user_mailbox_action_move(client, PROFILE_MAILBOX_SPAM, uid);
+			else if (cache->next_action_timestamp == (time_t)-1) {
 				cache->next_action_timestamp = ioloop_time +
 					weighted_rand(client->user->profile->mail_action_delay);
 			}
@@ -188,24 +192,76 @@ static time_t user_get_next_timeout(struct user *user, enum user_timestamp ts)
 	return ioloop_time + weighted_rand(interval);
 }
 
-static void
+static void user_mailbox_action_delete(struct client *client, uint32_t uid)
+{
+	const char *cmd;
+
+	/* FIXME: support also deletion via Trash */
+	cmd = t_strdup_printf("UID STORE %u +FLAGS \\Deleted", uid);
+	client->state = STATE_STORE_DEL;
+	command_send(client, cmd, state_callback);
+
+	cmd = t_strdup_printf("UID EXPUNGE %u", uid);
+	client->state = STATE_EXPUNGE;
+	command_send(client, cmd, state_callback);
+}
+
+static void user_mailbox_action_move(struct client *client,
+				     const char *mailbox, uint32_t uid)
+{
+	string_t *cmd = t_str_new(128);
+
+	/* FIXME: should use MOVE if client supports it */
+	str_printfa(cmd, "UID COPY %u ", uid);
+	imap_append_astring(cmd, mailbox);
+	client->state = STATE_COPY;
+	command_send(client, str_c(cmd), state_callback);
+
+	user_mailbox_action_delete(client, uid);
+}
+
+static void user_mailbox_action_reply(struct client *client, uint32_t uid)
+{
+}
+
+static bool
 user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
 {
 	struct client *client;
 	const char *cmd;
+	uint32_t uid = cache->last_action_uid;
 
 	client = user_find_client_by_mailbox(user, cache->mailbox_name);
 	if (client == NULL)
-		return;
+		return FALSE;
 
-	/* fetch new messages' bodies (although perhaps we should do
-	   this one at a time with some delay?) */
-	cache = user_get_mailbox_cache(client->user, client->storage->name);
-	cmd = t_strdup_printf("UID FETCH %u:%u (%s)", cache->last_action_uid,
-			      cache->uidnext, client->profile->imap_fetch_manual);
-	cache->last_action_uid = cache->uidnext;
-	client->state = STATE_FETCH2;
-	command_send(client, cmd, state_callback);
+	if (uid >= cache->uidnext)
+		return FALSE;
+
+	if (!cache->last_action_uid_body_fetched) {
+		/* fetch the next new message's body */
+		cache = user_get_mailbox_cache(client->user, client->storage->name);
+		cmd = t_strdup_printf("UID FETCH %u (%s)", uid,
+				      client->profile->imap_fetch_manual);
+		client->state = STATE_FETCH2;
+		command_send(client, cmd, state_callback);
+		cache->last_action_uid_body_fetched = TRUE;
+		return TRUE;
+	}
+	/* handle the action for mails in INBOX */
+	cache->last_action_uid++;
+	cache->last_action_uid_body_fetched = FALSE;
+
+	if (strcasecmp(cache->mailbox_name, "INBOX") != 0)
+		return TRUE;
+
+	if ((unsigned)rand() % 100 < user->profile->mail_inbox_delete_percentage)
+		user_mailbox_action_delete(client, uid);
+	else if ((unsigned)rand() % 100 < user->profile->mail_inbox_move_percentage)
+		user_mailbox_action_move(client, PROFILE_MAILBOX_SPAM, uid);
+	else if ((unsigned)rand() % 100 < user->profile->mail_inbox_reply_percentage)
+		user_mailbox_action_reply(client, uid);
+	return TRUE;
 }
 
 static void deliver_new_mail(struct user *user, const char *mailbox)
@@ -217,15 +273,77 @@ static void deliver_new_mail(struct user *user, const char *mailbox)
 			   rcpt_to, mailbox_source);
 }
 
+static void user_draft_callback(struct client *client, struct command *cmd,
+				const struct imap_arg *args,
+				enum command_reply reply)
+{
+	const char *uidvalidity, *uidstr;
+	uint32_t uid;
+
+	i_assert(cmd == client->user->draft_cmd);
+	client->user->draft_cmd = NULL;
+
+	if (reply != REPLY_OK) {
+		state_callback(client, cmd, args, reply);
+		return;
+	}
+
+	if (!imap_arg_atom_equals(&args[1], "[APPENDUID"))
+		i_fatal("FIXME: currently we require server to support UIDPLUS");
+	if (!imap_arg_get_atom(&args[2], &uidvalidity) ||
+	    !imap_arg_get_atom(&args[3], &uidstr) ||
+	    str_to_uint32(t_strcut(uidstr, ']'), &uid) < 0 || uid == 0) {
+		client_input_error(client, "Server replied invalid line to APPEND");
+		return;
+	}
+	i_assert(client->user->draft_uid == 0);
+	client->user->draft_uid = uid;
+
+	client->user->timestamps[USER_TIMESTAMP_WRITE_MAIL] = ioloop_time +
+		weighted_rand(client->user->profile->mail_write_duration);
+	user_set_timeout(client->user);
+}
+
+static bool user_write_mail(struct user *user)
+{
+	struct client *client, *client2;
+	struct command *cmd;
+
+	i_assert(user->draft_cmd == NULL);
+
+	client = user_find_client_by_mailbox(user, PROFILE_MAILBOX_DRAFTS);
+	if (client == NULL)
+		return TRUE;
+
+	if (user->draft_uid == 0) {
+		/* start writing the mail as a draft */
+		if (client->state != STATE_IDLE)
+			return TRUE;
+		client_append_full(client, PROFILE_MAILBOX_DRAFTS,
+				   "\\Draft", "",
+				   user_draft_callback, &user->draft_cmd);
+		return FALSE;
+	} else {
+		/* save mail to Sent and delete draft */
+		client2 = user_find_any_client(user);
+		if (client2 != NULL && client2->state == STATE_IDLE) {
+			client_append_full(client2, PROFILE_MAILBOX_SENT,
+					   NULL, "", state_callback, &cmd);
+		}
+		user_mailbox_action_delete(client, user->draft_uid);
+		user->draft_uid = 0;
+		return TRUE;
+	}
+}
+
 static void user_timeout(struct user *user)
 {
 	struct user_mailbox_cache *const *mailboxp;
 	enum user_timestamp ts;
-	struct client *client;
-	struct command *cmd;
 
 	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++) {
-		if (user->timestamps[ts] > ioloop_time)
+		if (user->timestamps[ts] > ioloop_time ||
+		    user->timestamps[ts] == (time_t)-1)
 			continue;
 
 		switch (ts) {
@@ -236,13 +354,11 @@ static void user_timeout(struct user *user)
 			deliver_new_mail(user, "Spam");
 			break;
 		case USER_TIMESTAMP_WRITE_MAIL:
-			/* FIXME: write to Drafts first */
-			client = user_find_any_client(user);
-			if (client != NULL && client->state == STATE_IDLE) {
-				client_append_full(client, PROFILE_MAILBOX_SENT,
-						   0, "", state_callback, &cmd);
-			}
-			break;
+			user->timestamps[ts] = (time_t)-1;
+			if (user_write_mail(user))
+				break;
+			/* continue this operation with its own timeout */
+			continue;
 		case USER_TIMESTAMP_COUNT:
 			i_unreached();
 		}
@@ -251,8 +367,10 @@ static void user_timeout(struct user *user)
 	array_foreach(&user->mailboxes, mailboxp) {
 		if ((*mailboxp)->next_action_timestamp <= ioloop_time &&
 		    (*mailboxp)->next_action_timestamp != (time_t)-1) {
-			user_mailbox_action(user, *mailboxp);
-			(*mailboxp)->next_action_timestamp = (time_t)-1;
+			(*mailboxp)->next_action_timestamp =
+				user_mailbox_action(user, *mailboxp) ?
+				(ioloop_time + weighted_rand(user->profile->mail_action_repeat_delay)) :
+				(time_t)-1;
 		}
 	}
 	user_set_timeout(user);

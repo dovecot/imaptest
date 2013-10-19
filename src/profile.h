@@ -45,6 +45,9 @@ struct profile_user {
 
 	/* How long to wait before user reacts to the mail */
 	unsigned int mail_action_delay;
+	/* How long to wait between user's reactions to mail (fetch body ->
+	   [fetch body for more mails .. ->] do actions */
+	unsigned int mail_action_repeat_delay;
 	/* How long a user spends writing a mail approximately
 	   (and getting mail saved to Drafts) */
 	unsigned int mail_write_duration;

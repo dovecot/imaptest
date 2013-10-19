@@ -72,6 +72,7 @@ static const struct setting_define profile_user_setting_defines[] = {
 	DEF(SET_UINT, mail_inbox_move_filter_percentage),
 
 	DEF(SET_TIME, mail_action_delay),
+	DEF(SET_TIME, mail_action_repeat_delay),
 	DEF(SET_TIME, mail_write_duration),
 	DEF(SET_SIZE, mail_write_size),
 

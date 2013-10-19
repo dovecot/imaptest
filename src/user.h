@@ -12,6 +12,7 @@ struct user_mailbox_cache {
 
 	time_t next_action_timestamp;
 	uint32_t last_action_uid;
+	bool last_action_uid_body_fetched;
 };
 
 enum user_timestamp {
@@ -34,6 +35,9 @@ struct user {
 
 	struct timeout *to;
 	time_t timestamps[USER_TIMESTAMP_COUNT];
+
+	struct command *draft_cmd;
+	uint32_t draft_uid;
 };
 ARRAY_DEFINE_TYPE(user, struct user *);
 

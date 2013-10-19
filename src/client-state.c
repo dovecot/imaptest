@@ -907,6 +907,12 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		char type;
 		bool silent;
 
+		if (strncmp(cmd->cmdline, "UID STORE ", 10) == 0) {
+			/* FIXME: we should probably try handle this as well.
+			   used by profile. */
+			break;
+		}
+
 		i_assert(strncmp(cmd->cmdline, "STORE ", 6) == 0);
 		p = strchr(cmd->cmdline + 6, ' ');
 		i_assert(p != NULL);
