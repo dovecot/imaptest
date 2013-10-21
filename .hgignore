@@ -6,6 +6,7 @@ config.cache
 config.guess
 imaptest-config.h
 imaptest-config.h.in
+compile
 config.log
 config.status
 config.sub
