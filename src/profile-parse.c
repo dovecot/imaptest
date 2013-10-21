@@ -205,6 +205,12 @@ static void profile_parse_line_root(struct profile_parser *parser, char *line)
 					"Invalid port number '%s'",
 					key, parser->linenum, value);
 			}
+		} else if (strcmp(key, "lmtp_max_parallel_count") == 0) {
+			if (str_to_uint(value, &parser->profile->lmtp_max_parallel_count) < 0) {
+				i_fatal("Invalid setting %s at line %u: "
+					"Invalid port number '%s'",
+					key, parser->linenum, value);
+			}
 		} else {
 			i_fatal("Unknown setting at line %u: %s", parser->linenum, key);
 		}

@@ -12,7 +12,7 @@
 
 #include <sys/time.h>
 
-#define LMTP_DELIVERY_TIMEOUT_MSECS (1000*10)
+#define LMTP_DELIVERY_TIMEOUT_MSECS (1000*60)
 
 struct imaptest_lmtp_delivery {
 	struct imaptest_lmtp_delivery *prev, *next;
@@ -25,10 +25,13 @@ struct imaptest_lmtp_delivery {
 };
 
 static struct imaptest_lmtp_delivery *lmtp_deliveries = NULL;
+static unsigned int lmtp_count = 0;
+static time_t lmtp_last_warn;
 
 static void imaptest_lmtp_free(struct imaptest_lmtp_delivery *d)
 {
 	DLLIST_REMOVE(&lmtp_deliveries, d);
+	lmtp_count--;
 	lmtp_client_deinit(&d->client);
 	if (d->data_input != NULL)
 		i_stream_unref(&d->data_input);
@@ -70,8 +73,8 @@ static void imaptest_lmtp_timeout(struct imaptest_lmtp_delivery *d)
 	lmtp_client_close(d->client);
 }
 
-void imaptest_lmtp_send(unsigned int port, const char *rcpt_to,
-			struct mailbox_source *source)
+void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
+			const char *rcpt_to, struct mailbox_source *source)
 {
 	struct lmtp_client_settings lmtp_set;
 	struct imaptest_lmtp_delivery *d;
@@ -79,12 +82,23 @@ void imaptest_lmtp_send(unsigned int port, const char *rcpt_to,
 	time_t t;
 	int tz;
 
+	if (lmtp_count >= lmtp_max_parallel_count &&
+	    lmtp_max_parallel_count != 0) {
+		if (lmtp_last_warn + 30 < ioloop_time) {
+			lmtp_last_warn = ioloop_time;
+			i_warning("LMTP: Reached %u connections, throttling",
+				  lmtp_max_parallel_count);
+		}
+		return;
+	}
+
 	memset(&lmtp_set, 0, sizeof(lmtp_set));
 	lmtp_set.my_hostname = "localhost";
 	lmtp_set.mail_from = "<>";
 
 	d = i_new(struct imaptest_lmtp_delivery, 1);
 	DLLIST_PREPEND(&lmtp_deliveries, d);
+	lmtp_count++;
 	d->to = timeout_add(LMTP_DELIVERY_TIMEOUT_MSECS,
 			    imaptest_lmtp_timeout, d);
 	d->rcpt_to = i_strdup(rcpt_to);

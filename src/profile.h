@@ -70,6 +70,7 @@ struct profile {
 	ARRAY_TYPE(profile_user) users;
 	ARRAY_TYPE(profile_client) clients;
 	unsigned int lmtp_port;
+	unsigned int lmtp_max_parallel_count;
 	unsigned int total_user_count;
 };
 

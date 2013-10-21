@@ -275,6 +275,9 @@ static bool user_write_mail(struct user_client *uc)
 		/* start writing the mail as a draft */
 		if (client->state != STATE_IDLE)
 			return TRUE;
+
+		/* disable WRITE_MAIL timeout until writing is finished */
+		uc->user->timestamps[USER_TIMESTAMP_WRITE_MAIL] = (time_t)-1;
 		client_append_full(client, PROFILE_MAILBOX_DRAFTS,
 				   "\\Draft", "",
 				   user_draft_callback, &uc->draft_cmd);
@@ -362,6 +365,7 @@ static void deliver_new_mail(struct user *user, const char *mailbox)
 		t_strdup_printf("%s+%s", user->username, mailbox);
 
 	imaptest_lmtp_send(user->profile->profile->lmtp_port,
+			   user->profile->profile->lmtp_max_parallel_count,
 			   rcpt_to, mailbox_source);
 }
 
@@ -411,7 +415,6 @@ static void user_timeout(struct user *user)
 			deliver_new_mail(user, "Spam");
 			break;
 		case USER_TIMESTAMP_WRITE_MAIL:
-			user->timestamps[ts] = (time_t)-1;
 			if (user_write_mail(user->active_client))
 				break;
 			/* continue this operation with its own timeout */
