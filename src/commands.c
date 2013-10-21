@@ -194,6 +194,7 @@ command_send_binary(struct client *client, const char *cmdline,
 	iov[2].iov_base = "\r\n";
 	iov[2].iov_len = 2;
 	o_stream_sendv(client->output, iov, 3);
+	gettimeofday(&cmd->tv_start, NULL);
 
 	array_append(&client->commands, &cmd, 1);
 	client->last_cmd = cmd;
@@ -214,6 +215,7 @@ void command_unlink(struct client *client, struct command *cmd)
 	}
 	i_assert(i < count);
 
+	client_state_add_to_timer(cmd->state, &cmd->tv_start);
 	if (client->last_cmd == cmd)
 		client->last_cmd = NULL;
 }

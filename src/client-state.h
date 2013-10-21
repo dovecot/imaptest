@@ -76,9 +76,12 @@ typedef void command_callback_t(struct client *client, struct command *cmd,
 
 extern struct state states[STATE_COUNT];
 extern unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
+extern unsigned int timers[STATE_COUNT], timer_counts[STATE_COUNT];
 
 bool do_rand(enum client_state state);
 bool do_rand_again(enum client_state state);
+void client_state_add_to_timer(enum client_state state,
+			       const struct timeval *tv_start);
 
 int client_append(struct client *client, const char *args, bool add_datetime,
 		  command_callback_t *callback, struct command **cmd_r);

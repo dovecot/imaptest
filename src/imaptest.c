@@ -35,6 +35,22 @@ static bool profile_running = FALSE;
 #define STATE_IS_VISIBLE(state) \
 	(states[i].probability != 0)
 
+static void print_timers(void)
+{
+	unsigned int i;
+
+	for (i = 1; i < STATE_COUNT; i++) {
+		if (!STATE_IS_VISIBLE(i))
+			continue;
+
+		printf("%4d ", timer_counts[i] == 0 ? 0 :
+		       timers[i] / timer_counts[i]);
+		timers[i] = 0;
+		timer_counts[i] = 0;
+	}
+	printf("ms/cmd avg\n");
+}
+
 static void print_header(void)
 {
 	unsigned int i;
@@ -78,8 +94,10 @@ static void print_timeout(void *context ATTR_UNUSED)
         static int rowcount = 0;
 	unsigned int i, count, banner_waits, stall_count;
 
-        if ((rowcount++ % 10) == 0)
-                print_header();
+	if ((rowcount++ % 10) == 0) {
+		if (rowcount > 1) print_timers();
+		print_header();
+	}
 
         for (i = 1; i < STATE_COUNT; i++) {
 		if (!STATE_IS_VISIBLE(i))
@@ -161,6 +179,7 @@ static void print_total(void)
 {
         unsigned int i;
 
+	print_timers();
 	printf("\nTotals:\n");
 	print_header();
 

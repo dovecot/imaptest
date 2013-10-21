@@ -23,6 +23,7 @@ struct command {
 	ARRAY_TYPE(seq_range) seq_range;
 
 	command_callback_t *callback;
+	struct timeval tv_start;
 
 	unsigned int expect_bad:1;
 };

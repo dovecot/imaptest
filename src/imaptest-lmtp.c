@@ -63,8 +63,10 @@ imaptest_lmtp_data_callback(bool success, const char *reply, void *context)
 
 	if (!success)
 		i_error("LMTP: DATA for <%s> failed: %s", d->rcpt_to, reply);
-	else
+	else {
 		counters[STATE_LMTP]++;
+		client_state_add_to_timer(STATE_LMTP, &d->tv_start);
+	}
 }
 
 static void imaptest_lmtp_timeout(struct imaptest_lmtp_delivery *d)

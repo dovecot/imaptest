@@ -4,6 +4,7 @@
 #include "base64.h"
 #include "str.h"
 #include "strescape.h"
+#include "time-util.h"
 #include "istream.h"
 #include "istream-crlf.h"
 #include "ostream.h"
@@ -53,6 +54,7 @@ struct state states[STATE_COUNT] = {
 };
 
 unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
+unsigned int timers[STATE_COUNT], timer_counts[STATE_COUNT];
 
 bool do_rand(enum client_state state)
 {
@@ -62,6 +64,21 @@ bool do_rand(enum client_state state)
 bool do_rand_again(enum client_state state)
 {
 	return (rand() % 100) < states[state].probability_again;
+}
+
+void client_state_add_to_timer(enum client_state state,
+			       const struct timeval *tv_start)
+{
+	struct timeval tv_end;
+	int diff;
+
+	gettimeofday(&tv_end, NULL);
+	diff = timeval_diff_msecs(&tv_end, tv_start);
+	if (diff < 0)
+		diff = 0;
+	i_assert((unsigned int)diff < UINT_MAX - timers[state]);
+	timers[state] += diff;
+	timer_counts[state]++;
 }
 
 static void auth_plain_callback(struct client *client, struct command *cmd,
