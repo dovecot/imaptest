@@ -157,7 +157,8 @@ user_find_client_by_mailbox(struct user_client *uc, const char *mailbox)
 	struct client *const *clientp;
 
 	array_foreach(&uc->clients, clientp) {
-		if (strcmp((*clientp)->storage->name, mailbox) == 0)
+		if ((*clientp)->login_state != LSTATE_NONAUTH &&
+		    strcmp((*clientp)->storage->name, mailbox) == 0)
 			return *clientp;
 	}
 	return NULL;
