@@ -134,6 +134,8 @@ command_send_binary(struct client *client, const char *cmdline,
 		client->idle_done_sent = TRUE;
 		o_stream_send_str(client->output, "DONE\r\n");
 	}
+	if (client->state == STATE_LOGOUT)
+		client->logout_sent = TRUE;
 
 	cmd = i_new(struct command, 1);
 	T_BEGIN {

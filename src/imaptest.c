@@ -18,6 +18,7 @@
 #include "checkpoint.h"
 #include "commands.h"
 #include "test-exec.h"
+#include "imaptest-lmtp.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +30,7 @@ struct settings conf;
 static struct ioloop *ioloop;
 static int return_value = 0;
 static time_t next_checkpoint_time;
+static bool profile_running = FALSE;
 
 #define STATE_IS_VISIBLE(state) \
 	(states[i].probability != 0)
@@ -44,6 +46,9 @@ static void print_header(void)
 		printf("%s ", states[i].short_name);
 	}
 	printf("\n");
+	if (profile_running)
+		return;
+
 	for (i = 1; i < STATE_COUNT; i++) {
 		if (!STATE_IS_VISIBLE(i))
 			continue;
@@ -486,6 +491,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		/* profile=path */
 		if (strcmp(key, "profile") == 0) {
 			profile = profile_parse(value);
+			profile_running = TRUE;
 			continue;
 		}
 

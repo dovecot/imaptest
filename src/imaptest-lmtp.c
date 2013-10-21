@@ -2,13 +2,17 @@
 
 #include "lib.h"
 #include "llist.h"
+#include "ioloop.h"
 #include "istream.h"
 #include "lmtp-client.h"
 #include "settings.h"
 #include "mailbox-source.h"
+#include "client-state.h"
 #include "imaptest-lmtp.h"
 
 #include <sys/time.h>
+
+#define LMTP_DELIVERY_TIMEOUT_MSECS (1000*10)
 
 struct imaptest_lmtp_delivery {
 	struct imaptest_lmtp_delivery *prev, *next;
@@ -17,6 +21,7 @@ struct imaptest_lmtp_delivery {
 	struct lmtp_client *client;
 	char *rcpt_to;
 	struct istream *data_input;
+	struct timeout *to;
 };
 
 static struct imaptest_lmtp_delivery *lmtp_deliveries = NULL;
@@ -27,6 +32,7 @@ static void imaptest_lmtp_free(struct imaptest_lmtp_delivery *d)
 	lmtp_client_deinit(&d->client);
 	if (d->data_input != NULL)
 		i_stream_unref(&d->data_input);
+	timeout_remove(&d->to);
 	i_free(d->rcpt_to);
 	i_free(d);
 }
@@ -54,6 +60,14 @@ imaptest_lmtp_data_callback(bool success, const char *reply, void *context)
 
 	if (!success)
 		i_error("LMTP: DATA for <%s> failed: %s", d->rcpt_to, reply);
+	else
+		counters[STATE_LMTP]++;
+}
+
+static void imaptest_lmtp_timeout(struct imaptest_lmtp_delivery *d)
+{
+	i_error("LMTP: Timeout in %s", lmtp_client_state_to_string(d->client));
+	lmtp_client_close(d->client);
 }
 
 void imaptest_lmtp_send(unsigned int port, const char *rcpt_to,
@@ -71,6 +85,8 @@ void imaptest_lmtp_send(unsigned int port, const char *rcpt_to,
 
 	d = i_new(struct imaptest_lmtp_delivery, 1);
 	DLLIST_PREPEND(&lmtp_deliveries, d);
+	d->to = timeout_add(LMTP_DELIVERY_TIMEOUT_MSECS,
+			    imaptest_lmtp_timeout, d);
 	d->rcpt_to = i_strdup(rcpt_to);
 	gettimeofday(&d->tv_start, NULL);
 	d->client = lmtp_client_init(&lmtp_set, imaptest_lmtp_finish, d);
@@ -90,5 +106,5 @@ void imaptest_lmtp_send(unsigned int port, const char *rcpt_to,
 void imaptest_lmtp_delivery_deinit(void)
 {
 	while (lmtp_deliveries != NULL)
-		imaptest_lmtp_free(lmtp_deliveries);
+		lmtp_client_close(lmtp_deliveries->client);
 }

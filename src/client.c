@@ -361,11 +361,10 @@ int client_handle_untagged(struct client *client, const struct imap_arg *args)
 		} else if (!conf.no_tracking && strcmp(str, "FETCH") == 0)
 			mailbox_state_handle_fetch(client, num, args);
 	} else if (strcmp(str, "BYE") == 0) {
-		if (client->last_cmd == NULL ||
-		    client->last_cmd->state != STATE_LOGOUT)
+		if (!client->logout_sent)
 			client_input_warn(client, "Unexpected BYE");
 		else
-			counters[client->last_cmd->state]++;
+			counters[STATE_LOGOUT]++;
 		client_mailbox_close(client);
 		client->seen_bye = TRUE;
 		client->login_state = LSTATE_NONAUTH;

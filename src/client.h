@@ -99,8 +99,10 @@ struct client {
 	unsigned int disconnected:1;
 	unsigned int append_can_send:1;
 	unsigned int seen_bye:1;
+	unsigned int idle_wait_cont:1;
 	unsigned int idling:1;
 	unsigned int idle_done_sent:1;
+	unsigned int logout_sent:1;
 
 };
 ARRAY_DEFINE_TYPE(client, struct client *);

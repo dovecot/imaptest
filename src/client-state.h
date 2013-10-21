@@ -40,6 +40,7 @@ enum client_state {
         STATE_DISCONNECT,
         STATE_DELAY,
         STATE_CHECKPOINT,
+        STATE_LMTP,
 
         STATE_COUNT
 };

@@ -4,6 +4,7 @@
 #include "array.h"
 #include "istream.h"
 #include "settings-parser.h"
+#include "client-state.h"
 #include "profile.h"
 
 enum parser_state {
@@ -347,5 +348,6 @@ struct profile *profile_parse(const char *path)
 	i_stream_destroy(&input);
 
 	profile_finish(&parser);
+	states[STATE_LMTP].probability = 100;
 	return profile;
 }

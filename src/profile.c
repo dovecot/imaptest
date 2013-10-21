@@ -82,10 +82,15 @@ int client_profile_send_more_commands(struct client *client)
 	case LSTATE_SELECTED:
 		client_profile_init_mailbox(client);
 		str_append(cmd, "IDLE");
+		client->idle_wait_cont = TRUE;
 		client->state = STATE_IDLE;
 		break;
 	}
 	command_send(client, str_c(cmd), state_callback);
+	if (client->state == STATE_IDLE) {
+		/* set this after sending the command */
+		client->idling = TRUE;
+	}
 	return 0;
 }
 
@@ -360,13 +365,28 @@ static void deliver_new_mail(struct user *user, const char *mailbox)
 			   rcpt_to, mailbox_source);
 }
 
+static bool user_client_is_logging_out(struct user_client *uc)
+{
+	struct client *const *clientp;
+
+	array_foreach(&uc->clients, clientp) {
+		if ((*clientp)->state == STATE_LOGOUT)
+			return TRUE;
+	}
+	return FALSE;
+}
+
 static void user_logout(struct user_client *uc)
 {
 	struct client *const *clientp;
 
 	array_foreach(&uc->clients, clientp) {
-		(*clientp)->state = STATE_LOGOUT;
-		command_send(*clientp, "LOGOUT", state_callback);
+		if ((*clientp)->login_state == LSTATE_NONAUTH)
+			client_disconnect(*clientp);
+		else {
+			(*clientp)->state = STATE_LOGOUT;
+			command_send(*clientp, "LOGOUT", state_callback);
+		}
 	}
 }
 
@@ -374,6 +394,9 @@ static void user_timeout(struct user *user)
 {
 	struct user_mailbox_cache *const *mailboxp;
 	enum user_timestamp ts;
+
+	if (user_client_is_logging_out(user->active_client))
+		return;
 
 	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++) {
 		if (user->timestamps[ts] > ioloop_time ||

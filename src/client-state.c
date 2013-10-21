@@ -48,7 +48,8 @@ struct state states[STATE_COUNT] = {
 	{ "LOGOUT",	  "Logo", LSTATE_NONAUTH,  100, 0,  FLAG_STATECHANGE | FLAG_STATECHANGE_NONAUTH },
 	{ "DISCONNECT",	  "Disc", LSTATE_NONAUTH,  0,   0,  0 },
 	{ "DELAY",	  "Dela", LSTATE_NONAUTH,  0,   0,  0 },
-	{ "CHECKPOINT!",  "ChkP", LSTATE_NONAUTH,  0,   0,  0 }
+	{ "CHECKPOINT!",  "ChkP", LSTATE_NONAUTH,  0,   0,  0 },
+	{ "LMTP",         "LMTP", LSTATE_NONAUTH,  0,   0,  0 }
 };
 
 unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
@@ -783,7 +784,8 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	line = imap_args_to_str(args);
 	switch (reply) {
 	case REPLY_OK:
-		if (cmd->state != STATE_DISCONNECT)
+		if (cmd->state != STATE_DISCONNECT &&
+		    (cmd->state != STATE_LOGOUT || !client->seen_bye))
 			counters[cmd->state]++;
 		if (cmd->state == STATE_AUTHENTICATE ||
 		    cmd->state == STATE_LOGIN) {
@@ -856,8 +858,8 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				return -1;
 			return 0;
 		}
-		if (cmd->state == STATE_IDLE) {
-			client->idling = TRUE;
+		if (client->idle_wait_cont) {
+			client->idle_wait_cont = FALSE;
 			return 0;
 		}
 
@@ -1376,6 +1378,7 @@ int client_plan_send_next_cmd(struct client *client)
 	case STATE_DISCONNECT:
 	case STATE_DELAY:
 	case STATE_CHECKPOINT:
+	case STATE_LMTP:
 	case STATE_COUNT:
 		i_unreached();
 	}
