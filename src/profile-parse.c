@@ -188,7 +188,7 @@ static void parser_add_user(struct profile_parser *parser)
 
 static void profile_parse_line_root(struct profile_parser *parser, char *line)
 {
-	const char *key, *value, *nameline;
+	const char *key, *value, *nameline, *error;
 
 	if (try_parse_keyvalue(line, &key, &value)) {
 		if (strcmp(key, "total_user_count") == 0) {
@@ -208,8 +208,13 @@ static void profile_parse_line_root(struct profile_parser *parser, char *line)
 		} else if (strcmp(key, "lmtp_max_parallel_count") == 0) {
 			if (str_to_uint(value, &parser->profile->lmtp_max_parallel_count) < 0) {
 				i_fatal("Invalid setting %s at line %u: "
-					"Invalid port number '%s'",
-					key, parser->linenum, value);
+					"Invalid number",
+					key, parser->linenum);
+			}
+		} else if (strcmp(key, "rampup_time") == 0) {
+			if (settings_get_time(value, &parser->profile->rampup_time, &error) < 0) {
+				i_fatal("Invalid setting %s at line %u: %s",
+					key, parser->linenum, error);
 			}
 		} else {
 			i_fatal("Unknown setting at line %u: %s", parser->linenum, key);

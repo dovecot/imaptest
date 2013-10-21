@@ -72,6 +72,7 @@ struct profile {
 	unsigned int lmtp_port;
 	unsigned int lmtp_max_parallel_count;
 	unsigned int total_user_count;
+	unsigned int rampup_time;
 };
 
 struct profile *profile_parse(const char *path);

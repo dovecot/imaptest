@@ -192,13 +192,15 @@ user_get_timeout_interval(struct user *user, enum user_timestamp ts)
 	i_unreached();
 }
 
-static time_t user_get_next_timeout(struct user *user, enum user_timestamp ts)
+static time_t
+user_get_next_timeout(struct user *user, time_t start_time,
+		      enum user_timestamp ts)
 {
 	unsigned int interval = user_get_timeout_interval(user, ts);
 
 	if (interval == 0)
 		return 2147483647; /* TIME_T_MAX - lets assume this is far enough.. */
-	return ioloop_time + weighted_rand(interval);
+	return start_time + weighted_rand(interval);
 }
 
 static void user_mailbox_action_delete(struct client *client, uint32_t uid)
@@ -425,7 +427,8 @@ static void user_timeout(struct user *user)
 		case USER_TIMESTAMP_COUNT:
 			i_unreached();
 		}
-		user->timestamps[ts] = user_get_next_timeout(user, ts);
+		user->timestamps[ts] =
+			user_get_next_timeout(user, ioloop_time, ts);
 	}
 	array_foreach(&user->active_client->mailboxes, mailboxp) {
 		if ((*mailboxp)->next_action_timestamp <= ioloop_time &&
@@ -439,12 +442,14 @@ static void user_timeout(struct user *user)
 	user_set_timeout(user);
 }
 
-static void user_fill_timestamps(struct user *user)
+static void user_fill_timestamps(struct user *user, time_t start_time)
 {
 	enum user_timestamp ts;
 
-	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++)
-		user->timestamps[ts] = user_get_next_timeout(user, ts);
+	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++) {
+		user->timestamps[ts] =
+			user_get_next_timeout(user, start_time, ts);
+	}
 }
 
 static void user_set_timeout(struct user *user)
@@ -520,17 +525,21 @@ users_add_from_user_profile(const struct profile_user *user_profile,
 	struct user *user;
 	string_t *str = t_str_new(64);
 	unsigned int i, prefix_len;
+	time_t start_time;
 
 	str_append(str, user_profile->username_prefix);
 	prefix_len = str_len(str);
 
 	for (i = 1; i <= user_profile->user_count; i++) {
+		start_time = ioloop_time + profile->rampup_time *
+			i / user_profile->user_count;
+
 		str_truncate(str, prefix_len);
 		str_printfa(str, "%u", i);
 		user = user_get(str_c(str));
 		user->profile = user_profile;
 		user_init_client_profiles(user, profile);
-		user_fill_timestamps(user);
+		user_fill_timestamps(user, start_time);
 		array_append(users, &user, 1);
 	}
 }
