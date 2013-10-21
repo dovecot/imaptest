@@ -1,6 +1,7 @@
 /* Copyright (c) 2007-2008 Timo Sirainen */
 
 #include "lib.h"
+#include "llist.h"
 #include "istream.h"
 #include "lmtp-client.h"
 #include "settings.h"
@@ -10,14 +11,19 @@
 #include <sys/time.h>
 
 struct imaptest_lmtp_delivery {
+	struct imaptest_lmtp_delivery *prev, *next;
+
 	struct timeval tv_start;
 	struct lmtp_client *client;
 	char *rcpt_to;
 	struct istream *data_input;
 };
 
+static struct imaptest_lmtp_delivery *lmtp_deliveries = NULL;
+
 static void imaptest_lmtp_free(struct imaptest_lmtp_delivery *d)
 {
+	DLLIST_REMOVE(&lmtp_deliveries, d);
 	lmtp_client_deinit(&d->client);
 	if (d->data_input != NULL)
 		i_stream_unref(&d->data_input);
@@ -64,6 +70,7 @@ void imaptest_lmtp_send(unsigned int port, const char *rcpt_to,
 	lmtp_set.mail_from = "<>";
 
 	d = i_new(struct imaptest_lmtp_delivery, 1);
+	DLLIST_PREPEND(&lmtp_deliveries, d);
 	d->rcpt_to = i_strdup(rcpt_to);
 	gettimeofday(&d->tv_start, NULL);
 	d->client = lmtp_client_init(&lmtp_set, imaptest_lmtp_finish, d);
@@ -78,4 +85,10 @@ void imaptest_lmtp_send(unsigned int port, const char *rcpt_to,
 	mailbox_source_get_next_size(source, &mail_size, &vsize, &t, &tz);
 	d->data_input = i_stream_create_limit(source->input, mail_size);
 	lmtp_client_send(d->client, d->data_input);
+}
+
+void imaptest_lmtp_delivery_deinit(void)
+{
+	while (lmtp_deliveries != NULL)
+		imaptest_lmtp_free(lmtp_deliveries);
 }

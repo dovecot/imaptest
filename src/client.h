@@ -36,7 +36,7 @@ struct mailbox_list_entry {
 struct client {
 	int refcount;
 	struct user *user;
-	struct profile_client *profile;
+	struct user_client *user_client;
 
         unsigned int idx, global_id;
         unsigned int cur;

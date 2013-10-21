@@ -716,13 +716,13 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source,
 	client->tag_counter = 1;
 	client->idx = idx;
 	client->user = user;
-	client->profile = user_get_new_client_profile(user);
+	client->user_client = user_get_new_client_profile(user);
 	client->global_id = ++global_id_counter;
 
-	mailbox = user_get_new_mailbox(user, client);
+	mailbox = user_get_new_mailbox(client);
 	client->storage = mailbox_storage_get(source, user->username, mailbox);
 	client->view = mailbox_view_new(client->storage);
-	if (strchr(conf.mailbox, '%') != NULL || client->profile != NULL)
+	if (strchr(conf.mailbox, '%') != NULL || client->user_client != NULL)
 		client->try_create_mailbox = TRUE;
 	client->fd = fd;
 	client->rawlog_fd = -1;

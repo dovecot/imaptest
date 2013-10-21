@@ -62,6 +62,7 @@ static const struct setting_define profile_user_setting_defines[] = {
 	DEF(SET_STR, username_prefix),
 	DEF(SET_UINT, user_count),
 
+	DEF(SET_TIME, mail_session_length),
 	DEF(SET_TIME, mail_inbox_delivery_interval),
 	DEF(SET_TIME, mail_spam_delivery_interval),
 	DEF(SET_TIME, mail_send_interval),

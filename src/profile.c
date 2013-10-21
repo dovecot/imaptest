@@ -29,7 +29,8 @@ static void client_profile_init_mailbox(struct client *client)
 {
 	struct user_mailbox_cache *cache;
 
-	cache = user_get_mailbox_cache(client->user, client->storage->name);
+	cache = user_get_mailbox_cache(client->user_client,
+				       client->storage->name);
 	if (cache->uidvalidity != 0)
 		return;
 
@@ -94,9 +95,9 @@ static void client_profile_handle_exists(struct client *client)
 	const char *cmd;
 
 	/* fetch new messages */
-	cache = user_get_mailbox_cache(client->user, client->storage->name);
+	cache = user_get_mailbox_cache(client->user_client, client->storage->name);
 	cmd = t_strdup_printf("UID FETCH %u:* (%s)", cache->uidnext,
-			      client->profile->imap_fetch_immediate);
+			      client->user_client->profile->imap_fetch_immediate);
 	client->state = STATE_FETCH;
 	command_send(client, cmd, state_callback);
 }
@@ -123,7 +124,8 @@ static void client_profile_handle_fetch(struct client *client,
 			    str_to_uint32(value, &uid) < 0)
 				return;
 
-			cache = user_get_mailbox_cache(client->user, client->storage->name);
+			cache = user_get_mailbox_cache(client->user_client,
+						       client->storage->name);
 			if (cache->uidnext <= uid && cache->uidvalidity != 0)
 				cache->uidnext = uid+1;
 
@@ -153,12 +155,12 @@ int client_profile_handle_untagged(struct client *client,
 	return 0;
 }
 
-static struct client *user_find_any_client(struct user *user)
+static struct client *user_find_any_client(struct user_client *uc)
 {
 	struct client *const *clientp, *last_client = NULL;
 
 	/* try to find an idling client */
-	array_foreach(&user->clients, clientp) {
+	array_foreach(&uc->clients, clientp) {
 		last_client = *clientp;
 		if ((*clientp)->idling)
 			return *clientp;
@@ -177,6 +179,8 @@ user_get_timeout_interval(struct user *user, enum user_timestamp ts)
 		return user->profile->mail_spam_delivery_interval;
 	case USER_TIMESTAMP_WRITE_MAIL:
 		return user->profile->mail_send_interval;
+	case USER_TIMESTAMP_LOGOUT:
+		return user->profile->mail_session_length;
 	case USER_TIMESTAMP_COUNT:
 		break;
 	}
@@ -220,18 +224,96 @@ static void user_mailbox_action_move(struct client *client,
 	user_mailbox_action_delete(client, uid);
 }
 
+static void user_draft_callback(struct client *client, struct command *cmd,
+				const struct imap_arg *args,
+				enum command_reply reply)
+{
+	const char *uidvalidity, *uidstr;
+	uint32_t uid;
+
+	i_assert(cmd == client->user_client->draft_cmd);
+	client->user_client->draft_cmd = NULL;
+
+	if (reply != REPLY_OK) {
+		state_callback(client, cmd, args, reply);
+		return;
+	}
+
+	if (!imap_arg_atom_equals(&args[1], "[APPENDUID"))
+		i_fatal("FIXME: currently we require server to support UIDPLUS");
+	if (!imap_arg_get_atom(&args[2], &uidvalidity) ||
+	    !imap_arg_get_atom(&args[3], &uidstr) ||
+	    str_to_uint32(t_strcut(uidstr, ']'), &uid) < 0 || uid == 0) {
+		client_input_error(client, "Server replied invalid line to APPEND");
+		return;
+	}
+	i_assert(client->user_client->draft_uid == 0);
+	client->user_client->draft_uid = uid;
+
+	client->user->timestamps[USER_TIMESTAMP_WRITE_MAIL] = ioloop_time +
+		weighted_rand(client->user->profile->mail_write_duration);
+	user_set_timeout(client->user);
+}
+
+static bool user_write_mail(struct user_client *uc)
+{
+	struct client *client, *client2;
+	struct command *cmd;
+
+	i_assert(uc->draft_cmd == NULL);
+
+	client = user_find_client_by_mailbox(uc, PROFILE_MAILBOX_DRAFTS);
+	if (client == NULL)
+		return TRUE;
+
+	if (uc->draft_uid == 0) {
+		/* start writing the mail as a draft */
+		if (client->state != STATE_IDLE)
+			return TRUE;
+		client_append_full(client, PROFILE_MAILBOX_DRAFTS,
+				   "\\Draft", "",
+				   user_draft_callback, &uc->draft_cmd);
+		return FALSE;
+	} else {
+		/* save mail to Sent and delete draft */
+		client2 = user_find_any_client(uc);
+		if (client2 != NULL && client2->state == STATE_IDLE) {
+			client_append_full(client2, PROFILE_MAILBOX_SENT,
+					   NULL, "", state_callback, &cmd);
+		}
+		user_mailbox_action_delete(client, uc->draft_uid);
+		uc->draft_uid = 0;
+		return TRUE;
+	}
+}
+
 static void user_mailbox_action_reply(struct client *client, uint32_t uid)
 {
+	const char *cmd;
+
+	if (client->user_client->draft_cmd != NULL ||
+	    client->user_client->draft_cmd != 0)
+		return;
+
+	/* we'll do this the easy way, although it doesn't exactly emulate the
+	   user+client: start up a regular mail write and immediately mark the
+	   current message as \Answered */
+	user_write_mail(client->user_client);
+
+	cmd = t_strdup_printf("UID STORE %u +FLAGS \\Answered", uid);
+	client->state = STATE_STORE;
+	command_send(client, cmd, state_callback);
 }
 
 static bool
 user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
 {
+	struct user_client *uc = user->active_client;
 	struct client *client;
 	const char *cmd;
 	uint32_t uid = cache->last_action_uid;
 
-	client = user_find_client_by_mailbox(user, cache->mailbox_name);
+	client = user_find_client_by_mailbox(uc, cache->mailbox_name);
 	if (client == NULL)
 		return FALSE;
 
@@ -240,11 +322,16 @@ user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
 
 	if (!cache->last_action_uid_body_fetched) {
 		/* fetch the next new message's body */
-		cache = user_get_mailbox_cache(client->user, client->storage->name);
+		cache = user_get_mailbox_cache(uc, client->storage->name);
 		cmd = t_strdup_printf("UID FETCH %u (%s)", uid,
-				      client->profile->imap_fetch_manual);
+				      client->user_client->profile->imap_fetch_manual);
 		client->state = STATE_FETCH2;
 		command_send(client, cmd, state_callback);
+		/* and mark the message as \Seen */
+		cmd = t_strdup_printf("UID STORE %u +FLAGS \\Seen", uid);
+		client->state = STATE_STORE;
+		command_send(client, cmd, state_callback);
+
 		cache->last_action_uid_body_fetched = TRUE;
 		return TRUE;
 	}
@@ -273,66 +360,13 @@ static void deliver_new_mail(struct user *user, const char *mailbox)
 			   rcpt_to, mailbox_source);
 }
 
-static void user_draft_callback(struct client *client, struct command *cmd,
-				const struct imap_arg *args,
-				enum command_reply reply)
+static void user_logout(struct user_client *uc)
 {
-	const char *uidvalidity, *uidstr;
-	uint32_t uid;
+	struct client *const *clientp;
 
-	i_assert(cmd == client->user->draft_cmd);
-	client->user->draft_cmd = NULL;
-
-	if (reply != REPLY_OK) {
-		state_callback(client, cmd, args, reply);
-		return;
-	}
-
-	if (!imap_arg_atom_equals(&args[1], "[APPENDUID"))
-		i_fatal("FIXME: currently we require server to support UIDPLUS");
-	if (!imap_arg_get_atom(&args[2], &uidvalidity) ||
-	    !imap_arg_get_atom(&args[3], &uidstr) ||
-	    str_to_uint32(t_strcut(uidstr, ']'), &uid) < 0 || uid == 0) {
-		client_input_error(client, "Server replied invalid line to APPEND");
-		return;
-	}
-	i_assert(client->user->draft_uid == 0);
-	client->user->draft_uid = uid;
-
-	client->user->timestamps[USER_TIMESTAMP_WRITE_MAIL] = ioloop_time +
-		weighted_rand(client->user->profile->mail_write_duration);
-	user_set_timeout(client->user);
-}
-
-static bool user_write_mail(struct user *user)
-{
-	struct client *client, *client2;
-	struct command *cmd;
-
-	i_assert(user->draft_cmd == NULL);
-
-	client = user_find_client_by_mailbox(user, PROFILE_MAILBOX_DRAFTS);
-	if (client == NULL)
-		return TRUE;
-
-	if (user->draft_uid == 0) {
-		/* start writing the mail as a draft */
-		if (client->state != STATE_IDLE)
-			return TRUE;
-		client_append_full(client, PROFILE_MAILBOX_DRAFTS,
-				   "\\Draft", "",
-				   user_draft_callback, &user->draft_cmd);
-		return FALSE;
-	} else {
-		/* save mail to Sent and delete draft */
-		client2 = user_find_any_client(user);
-		if (client2 != NULL && client2->state == STATE_IDLE) {
-			client_append_full(client2, PROFILE_MAILBOX_SENT,
-					   NULL, "", state_callback, &cmd);
-		}
-		user_mailbox_action_delete(client, user->draft_uid);
-		user->draft_uid = 0;
-		return TRUE;
+	array_foreach(&uc->clients, clientp) {
+		(*clientp)->state = STATE_LOGOUT;
+		command_send(*clientp, "LOGOUT", state_callback);
 	}
 }
 
@@ -355,16 +389,19 @@ static void user_timeout(struct user *user)
 			break;
 		case USER_TIMESTAMP_WRITE_MAIL:
 			user->timestamps[ts] = (time_t)-1;
-			if (user_write_mail(user))
+			if (user_write_mail(user->active_client))
 				break;
 			/* continue this operation with its own timeout */
 			continue;
+		case USER_TIMESTAMP_LOGOUT:
+			user_logout(user->active_client);
+			return;
 		case USER_TIMESTAMP_COUNT:
 			i_unreached();
 		}
 		user->timestamps[ts] = user_get_next_timeout(user, ts);
 	}
-	array_foreach(&user->mailboxes, mailboxp) {
+	array_foreach(&user->active_client->mailboxes, mailboxp) {
 		if ((*mailboxp)->next_action_timestamp <= ioloop_time &&
 		    (*mailboxp)->next_action_timestamp != (time_t)-1) {
 			(*mailboxp)->next_action_timestamp =
@@ -395,7 +432,7 @@ static void user_set_timeout(struct user *user)
 		if (lowest_timestamp > user->timestamps[i])
 			lowest_timestamp = user->timestamps[i];
 	}
-	array_foreach(&user->mailboxes, mailboxp) {
+	array_foreach(&user->active_client->mailboxes, mailboxp) {
 		if ((*mailboxp)->next_action_timestamp != (time_t)-1 &&
 		    lowest_timestamp > (*mailboxp)->next_action_timestamp)
 			lowest_timestamp = (*mailboxp)->next_action_timestamp;
@@ -423,16 +460,29 @@ void profile_stop_user(struct user *user)
 }
 
 static void
+user_add_client_profile(struct user *user, struct profile_client *profile)
+{
+	struct user_client *uc;
+
+	uc = p_new(user->pool, struct user_client, 1);
+	uc->user = user;
+	uc->profile = profile;
+	p_array_init(&uc->clients, user->pool, 4);
+	p_array_init(&uc->mailboxes, user->pool, 2);
+	array_append(&user->clients, &uc, 1);
+}
+
+static void
 user_init_client_profiles(struct user *user, struct profile *profile)
 {
 	struct profile_client *const *clientp;
 
-	p_array_init(&user->client_profiles, user->pool,
+	p_array_init(&user->clients, user->pool,
 		     array_count(&profile->clients));
-	while (array_count(&user->client_profiles) == 0) {
+	while (array_count(&user->clients) == 0) {
 		array_foreach(&profile->clients, clientp) {
 			if ((unsigned int)rand() % 100 < (*clientp)->percentage)
-				array_append(&user->client_profiles, clientp, 1);
+				user_add_client_profile(user, *clientp);
 		}
 	}
 }

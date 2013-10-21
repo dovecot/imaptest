@@ -27,6 +27,13 @@ struct profile_user {
 	const char *username_prefix;
 	unsigned int percentage, user_count;
 
+	/* This is kind of tricky. we have connections for: a) desktop clients
+	   keeping them open ~forever, b) laptop clients keeping them open
+	   while the laptop is open, c) mobile clients either using IDLE or
+	   doing logins every n minutes to check for mails. For now this
+	   one setting is all we have.. */
+	unsigned int mail_session_length;
+
 	/* How often to deliver mails to this user's INBOX/Spam
 	   (approximately) */
 	unsigned int mail_inbox_delivery_interval;

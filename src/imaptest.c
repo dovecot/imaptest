@@ -549,6 +549,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		imaptest_run();
 	else
 		imaptest_run_tests(testpath);
+
+	imaptest_lmtp_delivery_deinit();
 	clients_deinit();
 	mailboxes_deinit();
 	users_deinit();

@@ -25,13 +25,12 @@ struct user *user_get(const char *username)
 	if (user != NULL)
 		return user;
 
-	pool = pool_alloconly_create("user", 512+256);
+	pool = pool_alloconly_create("user", 1024*2);
 	user = p_new(pool, struct user, 1);
 	user->pool = pool;
 	user->username = p_strdup(pool, username);
 	user->password = conf.password;
 	p_array_init(&user->clients, user->pool, 2);
-	p_array_init(&user->mailboxes, user->pool, 2);
 	hash_table_insert(users_hash, user->username, user);
 	return user;
 }
@@ -83,9 +82,33 @@ struct user *user_get_random(void)
 
 void user_add_client(struct user *user, struct client *client)
 {
-	if (array_count(&user->clients) == 0 && user->profile != NULL)
+	if (client->user_client == NULL)
+		return;
+
+	array_append(&client->user_client->clients, &client, 1);
+	if (user->active_client == NULL) {
+		user->active_client = client->user_client;
 		profile_start_user(user);
-	array_append(&user->clients, &client, 1);
+	}
+}
+
+static void user_update_active_client(struct user *user)
+{
+	struct user_client *const *clients, *uc;
+	unsigned int i, j, count;
+
+	clients = array_get(&user->clients, &count);
+	j = rand() % count;
+	for (i = 0; i < count; i++) {
+		uc = clients[(i+j)%count];
+		if (array_count(&uc->clients) > 0) {
+			user->active_client = uc;
+			return;
+		}
+	}
+	user->active_client = NULL;
+	profile_stop_user(user);
+	return;
 }
 
 void user_remove_client(struct user *user, struct client *client)
@@ -93,95 +116,84 @@ void user_remove_client(struct user *user, struct client *client)
 	struct client *const *clients;
 	unsigned int i, count;
 
-	clients = array_get(&user->clients, &count);
+	if (client->user_client == NULL)
+		return;
+
+	clients = array_get(&client->user_client->clients, &count);
 	for (i = 0; i < count; i++) {
 		if (clients[i] == client) {
-			array_delete(&user->clients, i, 1);
-			if (count == 1)
-				profile_stop_user(user);
+			array_delete(&client->user_client->clients, i, 1);
+			if (count == 1 && user->active_client == client->user_client)
+				user_update_active_client(user);
 			return;
 		}
 	}
 	i_unreached();
 }
 
-struct profile_client *user_get_new_client_profile(struct user *user)
+struct user_client *user_get_new_client_profile(struct user *user)
 {
-	struct profile_client *const *profiles, *lowest_profile = NULL;
-	unsigned int profile_count, lowest_count = UINT_MAX;
-	struct client *const *clientp;
-	unsigned int i, *counts;
+	struct user_client *const *user_clients, *lowest_uc = NULL;
+	unsigned int i, uc_count, lowest_count = UINT_MAX;
 
 	if (user->profile == NULL)
 		return NULL;
 
-	/* count how many clients we already have for different profiles */
-	profiles = array_get(&user->client_profiles, &profile_count);
-	i_assert(profile_count > 0);
-	counts = t_new(unsigned int, profile_count);
-
-	array_foreach(&user->clients, clientp) {
-		for (i = 0; i < profile_count; i++) {
-			if ((*clientp)->profile == profiles[i]) {
-				counts[i]++;
-				break;
-			}
-		}
-		i_assert(i < profile_count);
-	}
-	/* find the profile with the lowest count */
-	for (i = 0; i < profile_count; i++) {
-		if (lowest_count > counts[i]) {
-			lowest_count = counts[i];
-			lowest_profile = profiles[i];
+	/* find the user_client with the lowest connection count */
+	user_clients = array_get(&user->clients, &uc_count);
+	for (i = 0; i < uc_count; i++) {
+		if (lowest_count > array_count(&user_clients[i]->clients)) {
+			lowest_count = array_count(&user_clients[i]->clients);
+			lowest_uc = user_clients[i];
 		}
 	}
-	i_assert(lowest_profile != NULL);
-	return lowest_profile;
+	i_assert(lowest_uc != NULL);
+	return lowest_uc;
 }
 
 struct client *
-user_find_client_by_mailbox(struct user *user, const char *mailbox)
+user_find_client_by_mailbox(struct user_client *uc, const char *mailbox)
 {
 	struct client *const *clientp;
 
-	array_foreach(&user->clients, clientp) {
+	array_foreach(&uc->clients, clientp) {
 		if (strcmp((*clientp)->storage->name, mailbox) == 0)
 			return *clientp;
 	}
 	return NULL;
 }
 
-const char *user_get_new_mailbox(struct user *user, struct client *client)
+const char *user_get_new_mailbox(struct client *client)
 {
-	if (user->profile == NULL)
+	struct user_client *uc = client->user_client;
+
+	if (uc == NULL)
 		return t_strdup_printf(conf.mailbox, client->idx);
 
-	if (user_find_client_by_mailbox(user, "INBOX") == NULL)
+	if (user_find_client_by_mailbox(uc, "INBOX") == NULL)
 		return "INBOX";
-	if (user_find_client_by_mailbox(user, PROFILE_MAILBOX_SENT) == NULL)
+	if (user_find_client_by_mailbox(uc, PROFILE_MAILBOX_SENT) == NULL)
 		return PROFILE_MAILBOX_SENT;
-	if (user_find_client_by_mailbox(user, PROFILE_MAILBOX_DRAFTS) == NULL)
+	if (user_find_client_by_mailbox(uc, PROFILE_MAILBOX_DRAFTS) == NULL)
 		return PROFILE_MAILBOX_DRAFTS;
 	return "INBOX";
 }
 
 struct user_mailbox_cache *
-user_get_mailbox_cache(struct user *user, const char *name)
+user_get_mailbox_cache(struct user_client *uc, const char *name)
 {
 	struct user_mailbox_cache *const *mailboxp, *mailbox;
 
-	array_foreach(&user->mailboxes, mailboxp) {
+	array_foreach(&uc->mailboxes, mailboxp) {
 		if (strcmp((*mailboxp)->mailbox_name, name) == 0)
 			return *mailboxp;
 	}
-	mailbox = p_new(user->pool, struct user_mailbox_cache, 1);
-	mailbox->mailbox_name = p_strdup(user->pool, name);
+	mailbox = p_new(uc->user->pool, struct user_mailbox_cache, 1);
+	mailbox->mailbox_name = p_strdup(uc->user->pool, name);
 	mailbox->next_action_timestamp = (time_t)-1;
-	array_append(&user->mailboxes, &mailbox, 1);
+	array_append(&uc->mailboxes, &mailbox, 1);
 	return mailbox;
 }
-
 
 void users_init(struct profile *profile)
 {
