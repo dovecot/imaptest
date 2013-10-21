@@ -869,14 +869,14 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				  states[cmd->state].name);
 		return -1;
 	case REPLY_CONT:
+		if (client->idle_wait_cont) {
+			client->idle_wait_cont = FALSE;
+			return 0;
+		}
 		if (cmd->state == STATE_APPEND) {
 			/* finish appending */
 			if (client_append_continue(client) < 0)
 				return -1;
-			return 0;
-		}
-		if (client->idle_wait_cont) {
-			client->idle_wait_cont = FALSE;
 			return 0;
 		}
 
