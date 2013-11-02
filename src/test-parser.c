@@ -101,9 +101,9 @@ test_parse_imap_arg_dup(pool_t pool, const struct imap_arg *args,
 
 	dup->type = args->type;
 	switch (dup->type) {
-	case IMAP_ARG_NIL:
 	case IMAP_ARG_EOL:
 		break;
+	case IMAP_ARG_NIL:
 	case IMAP_ARG_ATOM:
 	case IMAP_ARG_STRING:
 	case IMAP_ARG_LITERAL:

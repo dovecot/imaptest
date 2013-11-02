@@ -6,3 +6,7 @@ ok search body nil
 * search 1
 
 ok list "" NIL
+
+ok store 1 +flags NIL
+ok fetch 1 flags
+* 1 fetch (flags (NIL))
