@@ -1,0 +1,8 @@
+
+ok search subject NIL
+* search 1
+
+ok search body nil
+* search 1
+
+ok list "" NIL
