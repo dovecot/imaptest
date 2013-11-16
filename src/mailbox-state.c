@@ -35,7 +35,8 @@ static void client_fetch_envelope(struct client *client,
 	struct message_global *msg;
 	pool_t pool = client->storage->source->messages_pool;
 
-	if (list_count < 9 || !imap_arg_get_astring(&args[9], &str))
+	if (list_count < 9 || !imap_arg_get_nstring(&args[9], &str) ||
+	    str == NULL)
 		return;
 	orig_str = str;
 
