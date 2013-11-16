@@ -818,13 +818,14 @@ static void test_send_next_command(struct test_exec_context *ctx,
 		(void)client_append(client, cmdline + 7, FALSE,
 				    test_cmd_callback, &cmd);
 	} else {
-		client->state = STATE_SELECT;
-		cmd = command_send_binary(client, cmdline, cmdline_len,
-					  test_cmd_callback);
 		if (test_cmd->linenum == 0) {
 			/* sending the logout command */
-			cmd->state = STATE_LOGOUT;
+			client->state = STATE_LOGOUT;
+		} else {
+			client->state = STATE_SELECT;
 		}
+		cmd = command_send_binary(client, cmdline, cmdline_len,
+					  test_cmd_callback);
 		if (imap_arg_is_bad(test_cmd->reply))
 			cmd->expect_bad = TRUE;
 	}
