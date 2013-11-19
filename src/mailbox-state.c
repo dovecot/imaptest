@@ -464,7 +464,7 @@ static void fetch_parse_body1(struct client *client, const struct imap_arg *arg,
 	} else {
 		p_array_init(&ms->msg->body_words, pool, MSG_MAX_BODY_WORDS);
 	}
-	if (!imap_arg_get_astring(arg, &body))
+	if (!imap_arg_get_nstring(arg, &body) || body == NULL)
 		return;
 	len = strlen(body);
 
