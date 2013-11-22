@@ -447,8 +447,8 @@ static void user_fill_timestamps(struct user *user, time_t start_time)
 	enum user_timestamp ts;
 
 	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++) {
-		user->timestamps[ts] =
-			user_get_next_timeout(user, start_time, ts);
+		user->timestamps[ts] = start_time +
+			rand() % user_get_timeout_interval(user, ts);
 	}
 }
 
