@@ -514,6 +514,13 @@ static void client_input(struct client *client)
 			return;
 		client->seen_banner = TRUE;
 
+		if (strncasecmp(line, "* PREAUTH ", 10) == 0) {
+			client->preauth = TRUE;
+			client->login_state = LSTATE_AUTH;
+		} else if (strncasecmp(line, "* OK ", 5) != 0) {
+			client_input_error(client,
+			                   "Malformed banner \"%s\"", line);
+		}
 		p = strstr(line, "[CAPABILITY ");
 		if (p == NULL)
 			command_send(client, "CAPABILITY", state_callback);

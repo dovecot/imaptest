@@ -103,7 +103,7 @@ struct client {
 	unsigned int idling:1;
 	unsigned int idle_done_sent:1;
 	unsigned int logout_sent:1;
-
+	unsigned int preauth:1;
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
 

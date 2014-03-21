@@ -1053,6 +1053,9 @@ static int test_send_lstate_commands(struct client *client)
 		return 0;
 	}
 
+	if (client->preauth && ctx->startup_state == TEST_STARTUP_STATE_NONAUTH)
+		ctx->startup_state = TEST_STARTUP_STATE_AUTH;
+
 	client->plan_size = 0;
 	switch (client->login_state) {
 	case LSTATE_NONAUTH:
