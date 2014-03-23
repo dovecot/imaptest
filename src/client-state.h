@@ -4,6 +4,7 @@
 #include "seq-range-array.h"
 
 enum command_reply;
+struct timeval;
 struct client;
 struct command;
 struct imap_arg;
