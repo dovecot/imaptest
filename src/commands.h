@@ -4,6 +4,8 @@
 #include "seq-range-array.h"
 #include "client-state.h"
 
+#include <sys/time.h>
+
 enum command_reply {
 	REPLY_BAD,
 	REPLY_OK,
