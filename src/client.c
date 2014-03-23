@@ -758,6 +758,18 @@ void client_disconnect(struct client *client)
 	client->to = timeout_add(0, client_input, client);
 }
 
+static void clients_unstalled(struct mailbox_storage *storage)
+{
+	const unsigned int *indexes;
+	unsigned int i, count;
+
+	indexes = array_get(&stalled_clients, &count);
+	for (i = 0; i < count && i < 3; i++) {
+		client_new(indexes[i], storage->source,
+			   user_get_random());
+	}
+}
+
 bool client_unref(struct client *client, bool reconnect)
 {
 	struct mailbox_storage *storage = client->storage;
@@ -819,18 +831,23 @@ bool client_unref(struct client *client, bool reconnect)
 		io_loop_stop(current_ioloop);
 	else if (io_loop_is_running(current_ioloop) && !no_new_clients &&
 		 !disconnect_clients && reconnect) {
-		client_new(idx, storage->source, user_get_random());
-		if (!stalled) {
-			const unsigned int *indexes;
-			unsigned int i, count;
+		struct user *user;
 
-			indexes = array_get(&stalled_clients, &count);
-			for (i = 0; i < count && i < 3; i++) {
-				client_new(indexes[i], storage->source,
-					   user_get_random());
-			}
-			array_delete(&stalled_clients, 0, i);
+		if (client->logout_sent) {
+			/* user successfully logged out, get another
+			   random user */
+			user = user_get_random();
+		} else {
+			/* server disconnected user. reconnect back with the
+			   same user. this is especially important when testing
+			   with profiles since real clients reconnect when they
+			   get disconnected (e.g. server crash/restart). */
+			user = client->user;
 		}
+		client_new(idx, storage->source, user);
+
+		if (!stalled)
+			clients_unstalled(storage);
 	}
 
 	if (array_is_created(&client->mailboxes_list)) {
