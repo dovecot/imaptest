@@ -55,6 +55,7 @@ struct state states[STATE_COUNT] = {
 
 unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
 unsigned int timers[STATE_COUNT], timer_counts[STATE_COUNT];
+static struct timeval timer_last_end[STATE_COUNT];
 
 bool do_rand(enum client_state state)
 {
@@ -73,12 +74,33 @@ void client_state_add_to_timer(enum client_state state,
 	int diff;
 
 	gettimeofday(&tv_end, NULL);
+	if (timeval_cmp(tv_start, &timer_last_end[state]) < 0) {
+		/* pipelining is being used. if command state was:
+
+		   1 Command A starts
+		   2 Command B starts
+		   3 Command A finishes
+		   4 Command B finishes
+
+		   So in total it took (4-1)=3 seconds for the two commands
+		   to run. That's the same as if the two commands were run
+		   sequentially and each took 3/2=1,5 seconds.
+
+		   When command A finishes we'll add 3-1=2 to the timer and
+		   remember that timer_last_end=3. When command B finishes
+		   we'll notice that tv_start=2 < timer_last_end=3 and we'll
+		   switch tv_start to be 3. Then we'll add 4-3=1 to the timer,
+		   so the result will be 3, which we wanted. */
+		tv_start = &timer_last_end[state];
+	}
+
 	diff = timeval_diff_msecs(&tv_end, tv_start);
 	if (diff < 0)
 		diff = 0;
 	i_assert((unsigned int)diff < UINT_MAX - timers[state]);
 	timers[state] += diff;
 	timer_counts[state]++;
+	timer_last_end[state] = tv_end;
 }
 
 static void auth_plain_callback(struct client *client, struct command *cmd,
