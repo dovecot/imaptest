@@ -574,7 +574,7 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 	const char *error, *cline;
 	string_t *line, *multiline;
 	const unsigned char *data, *p;
-	size_t size;
+	size_t size, min_size = 0;
 	struct test_command *cmd;
 	unsigned int len, linenum = 0, start_linenum = 0, start_pos = 0, last_line_end = 0;
 	int ret;
@@ -582,11 +582,14 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 
 	line = t_str_new(256);
 	multiline = t_str_new(256);
-	parser->cur_cmd_group = NULL;
-	while ((ret = i_stream_read_data(input, &data, &size, 0)) > 0) {
+	parser->cur_cmd_group = NULL; min_size = 0;
+	while ((ret = i_stream_read_data(input, &data, &size, min_size)) > 0) {
 		p = memchr(data, '\n', size);
-		if (p == NULL)
-			break;
+		if (p == NULL) {
+			min_size = size;
+			continue;
+		}
+		min_size = 0;
 		str_truncate(line, 0);
 		buffer_append(line, data, p-data);
 		i_stream_skip(input, p-data+1);
@@ -669,6 +672,10 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 
 		if (!ok)
 			return FALSE;
+	}
+	if (!i_stream_is_eof(input)) {
+		i_error("%s: Last line doesn't end with LF", test->path);
+		return FALSE;
 	}
 	if (continues) {
 		i_error("%s: Multiline reply at line %u not ended",
