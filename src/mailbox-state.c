@@ -562,7 +562,6 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 	}
 
 	/* the message is known, verify that everything looks ok */
-	t_push();
 	for (i = 0; i+1 < list_count; i += 2) {
 		if (!imap_arg_get_atom(&args[i], &name))
 			continue;
@@ -703,7 +702,6 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 			*sizep = value_size;
 		}
 	}
-	t_pop();
 
 	/* assign owner only after processing FETCH so that we don't think the
 	   FETCH changes caused a change yet */

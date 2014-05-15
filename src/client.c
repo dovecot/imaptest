@@ -562,9 +562,9 @@ static void client_input(struct client *client)
 			   literals too.. */
 			client->refcount++;
 			client->cur_args = imap_args;
-			t_push();
-			ret = client_input_args(client, imap_args);
-			t_pop();
+			T_BEGIN {
+				ret = client_input_args(client, imap_args);
+			} T_END;
 			client->cur_args = NULL;
 		}
 
