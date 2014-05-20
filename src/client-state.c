@@ -703,7 +703,7 @@ void client_handle_resp_text_code(struct client *client,
 	value = imap_args_to_str(args);
 	if (*value != '[') {
 		if (*value == '\0')
-			client_input_error(client, "Missing text in resp-text");
+			client_input_warn(client, "Missing text in resp-text");
 		return;
 	}
 	p = strchr(value, ']');
