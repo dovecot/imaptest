@@ -712,7 +712,7 @@ void client_handle_resp_text_code(struct client *client,
 		return;
 	}
 	if (p[1] == '\0' || p[1] != ' ' || p[2] == '\0')
-		client_input_error(client, "Missing text in resp-text");
+		client_input_warn(client, "Missing text in resp-text");
 	key = t_strdup_until(value + 1, p);
 
 	value = strchr(key, ' ');
