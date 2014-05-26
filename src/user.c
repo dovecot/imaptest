@@ -50,6 +50,8 @@ static struct user *user_get_random_from_conf(void)
 			user = user_get(*userp);
 		} else {
 			user = user_get(t_strdup_until(*userp, p));
+			if (strncmp(p + 1, "{PLAIN}", 7) == 0)
+				p += 7;
 			user->password = p_strdup(user->pool, p+1);
 		}
 	} else {
