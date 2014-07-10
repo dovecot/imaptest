@@ -1326,16 +1326,22 @@ int client_plan_send_next_cmd(struct client *client)
 			/* own_msgs - only one client can delete messages */
 			break;
 		}
+		/* Find a bound for the maximum we're interested in deleting.
+		   firstly, we want to vary around the mean mailbox size, so
+		   must balance our deletions against our appends */
+		count = 1 + (states[STATE_APPEND].probability + states[state].probability/2)
+			/ (states[state].probability);
+		/* If the mailbox is too large, be prepared to delete more */
+		if (msgs > conf.message_count_threshold + 5)
+			count += msgs - conf.message_count_threshold;
 
-		if (msgs > conf.message_count_threshold + 5) {
-			count = rand() % (msgs - conf.message_count_threshold);
-			if (count > 1000) {
-				/* avoid "command line too long" errors */
-				count = 1000;
-			}
-		} else {
-			count = rand() % 5;
-		}
+		/* Now delete less than that bound */
+		count = rand() % count;
+		if (count > 1000) /* avoid "command line too long" errors */
+			count = 1000;
+		if (count == 0 && rand() % 10 > 0) /* only rarely do nothing */
+			break;
+
 		flag_type = conf.checkpoint_interval == 0 && rand() % 2 == 0 ?
 			CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT :
 			CLIENT_RANDOM_FLAG_TYPE_STORE;
@@ -1367,7 +1373,7 @@ int client_plan_send_next_cmd(struct client *client)
 		command_send(client, "EXPUNGE", state_callback);
 		break;
 	case STATE_APPEND:
-		if (msgs >= conf.message_count_threshold)
+		if (msgs - (msgs>>3) >= conf.message_count_threshold)
 			break;
 
 		if (client_append_random(client) < 0)
