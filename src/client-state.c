@@ -961,6 +961,10 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				command_send(client, str, state_callback);
 				break;
 			}
+			if (imap_arg_atom_equals(args, "[EXPUNGEISSUED]")) {
+				/* this isn't an error */
+				break;
+			}
 			client_state_error(client, "COPY failed");
 		}
 		break;
