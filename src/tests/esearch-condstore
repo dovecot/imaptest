@@ -1,6 +1,11 @@
 capabilities: ESEARCH CONDSTORE
 
-ok enable condstore
+# ENABLE is valid only in authenticated state. we could do enable+select
+# manually here also, but lets just make sure that switching it on via
+# condstore-enabling command works as well (since that is valid)
+ok fetch 1 modseq
+* ok [highestmodseq $highestmodseq]
+
 ok store 1 +flags \seen
 * 1 fetch (modseq ($modseq1))
 ok store 3 +flags \seen
