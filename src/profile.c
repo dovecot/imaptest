@@ -423,7 +423,7 @@ static void user_timeout(struct user *user)
 			continue;
 		case USER_TIMESTAMP_LOGOUT:
 			user_logout(user->active_client);
-			return;
+			break;
 		case USER_TIMESTAMP_COUNT:
 			i_unreached();
 		}
