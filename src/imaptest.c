@@ -228,9 +228,11 @@ static void sig_die(const siginfo_t *si ATTR_UNUSED, void *context ATTR_UNUSED)
 	if (!disconnect_clients) {
 		/* try a nice way first by letting the clients
 		   disconnect themselves */
+		i_info("Received SIGINT - waiting for existing clients to finish");
 		disconnect_clients = TRUE;
 	} else {
 		/* second time, die now */
+		i_info("Received second SIGINT - stopping immediately");
 		io_loop_stop(ioloop);
 	}
 	return_value = 1;
