@@ -404,6 +404,11 @@ static void user_timeout(struct user *user)
 	if (user_client_is_logging_out(user->active_client))
 		return;
 
+	if (disconnect_clients) {
+		user_logout(user->active_client);
+		return;
+	}
+
 	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++) {
 		if (user->timestamps[ts] > ioloop_time ||
 		    user->timestamps[ts] == (time_t)-1)
