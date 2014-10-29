@@ -48,20 +48,22 @@ static void imaptest_lmtp_finish(void *context)
 }
 
 static void
-imaptest_lmtp_rcpt_to_callback(bool success, const char *reply, void *context)
+imaptest_lmtp_rcpt_to_callback(enum lmtp_client_result result,
+			       const char *reply, void *context)
 {
 	struct imaptest_lmtp_delivery *d = context;
 
-	if (!success)
+	if (result != LMTP_CLIENT_RESULT_OK)
 		i_error("LMTP: RCPT TO <%s> failed: %s", d->rcpt_to, reply);
 }
 
 static void
-imaptest_lmtp_data_callback(bool success, const char *reply, void *context)
+imaptest_lmtp_data_callback(enum lmtp_client_result result,
+			    const char *reply, void *context)
 {
 	struct imaptest_lmtp_delivery *d = context;
 
-	if (!success)
+	if (result != LMTP_CLIENT_RESULT_OK)
 		i_error("LMTP: DATA for <%s> failed: %s", d->rcpt_to, reply);
 	else {
 		counters[STATE_LMTP]++;
