@@ -39,6 +39,9 @@ static void print_timers(void)
 {
 	unsigned int i;
 
+	if (isatty(STDOUT_FILENO))
+		printf("\x1b[1m");
+
 	for (i = 1; i < STATE_COUNT; i++) {
 		if (!STATE_IS_VISIBLE(i))
 			continue;
@@ -49,6 +52,8 @@ static void print_timers(void)
 		timer_counts[i] = 0;
 	}
 	printf("ms/cmd avg\n");
+	if (isatty(STDOUT_FILENO))
+		printf("\x1b[0m");
 }
 
 static void print_header(void)
