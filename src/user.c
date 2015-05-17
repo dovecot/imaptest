@@ -73,7 +73,9 @@ static struct user *user_get_random_from_conf(void)
 }
 
 #define USER_CLIENT_CAN_CONNECT(uc) \
-	(ioloop_time - uc->last_logout >= uc->profile->login_interval)
+	(uc->last_logout <= 0 ? \
+	 (ioloop_time >= uc->user->timestamps[USER_TIMESTAMP_LOGIN]) : \
+	 (ioloop_time - uc->last_logout >= uc->profile->login_interval))
 
 static bool user_can_connect_clients(struct user *user)
 {
@@ -158,13 +160,14 @@ void user_remove_client(struct user *user, struct client *client)
 	i_unreached();
 }
 
-struct user_client *user_get_new_client_profile(struct user *user)
+bool user_get_new_client_profile(struct user *user,
+				 struct user_client **user_client_r)
 {
 	struct user_client *const *user_clients, *lowest_uc = NULL;
 	unsigned int i, uc_count, lowest_count = UINT_MAX;
 
 	if (user->profile == NULL)
-		return NULL;
+		return FALSE;
 
 	/* find the user_client with the lowest connection count.
 	   we also must be able to connect to it. */
@@ -176,8 +179,10 @@ struct user_client *user_get_new_client_profile(struct user *user)
 			lowest_uc = user_clients[i];
 		}
 	}
-	i_assert(lowest_uc != NULL);
-	return lowest_uc;
+	if (lowest_uc == NULL)
+		return FALSE;
+	*user_client_r = lowest_uc;
+	return TRUE;
 }
 
 time_t user_get_next_login_time(struct user *user)
@@ -197,6 +202,10 @@ time_t user_get_next_login_time(struct user *user)
 			user_clients[i]->profile->login_interval;
 		if (lowest_next_login_time > next_login)
 			lowest_next_login_time = next_login;
+	}
+	if (lowest_next_login_time == INT_MAX) {
+		/* first login for user */
+		return user->timestamps[USER_TIMESTAMP_LOGIN];
 	}
 	return lowest_next_login_time;
 }

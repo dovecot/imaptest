@@ -64,7 +64,8 @@ bool user_get_random(struct user **user_r);
 void user_add_client(struct user *user, struct client *client);
 void user_remove_client(struct user *user, struct client *client);
 
-struct user_client *user_get_new_client_profile(struct user *user);
+bool user_get_new_client_profile(struct user *user,
+				 struct user_client **user_client_r);
 time_t user_get_next_login_time(struct user *user);
 const char *user_get_new_mailbox(struct client *client);
 

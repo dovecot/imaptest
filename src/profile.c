@@ -496,6 +496,7 @@ static void user_fill_timestamps(struct user *user, time_t start_time)
 		user->timestamps[ts] = interval == 0 ? (time_t)-1 :
 			start_time + rand() % interval;
 	}
+	user->timestamps[USER_TIMESTAMP_LOGIN] = start_time;
 }
 
 static void user_set_timeout(struct user *user)
@@ -521,7 +522,6 @@ static void user_set_timeout(struct user *user)
 		timeout_remove(&user->to);
 	if (lowest_timestamp == (time_t)-1) {
 		/* we don't want to do anything for the user anymore */
-		abort();//FIXME
 	} else if (lowest_timestamp <= ioloop_time)
 		user->to = timeout_add_short(0, user_timeout, user);
 	else {

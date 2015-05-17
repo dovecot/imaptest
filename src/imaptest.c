@@ -301,8 +301,10 @@ static void imaptest_run(void)
 
 	next_checkpoint_time = ioloop_time + conf.checkpoint_interval;
 	to = timeout_add(1000, print_timeout, NULL);
-	for (i = 0; i < INIT_CLIENT_COUNT && i < conf.clients_count; i++)
-		client_new_random(i);
+	if (!profile_running) {
+		for (i = 0; i < INIT_CLIENT_COUNT && i < conf.clients_count; i++)
+			client_new_random(i);
+	}
 
         io_loop_run(ioloop);
 

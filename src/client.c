@@ -178,12 +178,10 @@ struct client *client_new_user(struct user *user)
 	struct client *const *clientp;
 	struct user_client *uc;
 
-	if (user_get_next_login_time(user) > ioloop_time)
+	if (!user_get_new_client_profile(user, &uc))
 		return NULL;
-
-	uc = user_get_new_client_profile(user);
-	while (client_min_free_idx < array_count(&clients)) {
-		clientp = array_idx(&clients, client_min_free_idx);
+	while (client_min_free_idx < conf.clients_count) {
+		clientp = array_idx_modifiable(&clients, client_min_free_idx);
 		if (*clientp == NULL)
 			return client_new_full(client_min_free_idx, user, uc);
 		client_min_free_idx++;
@@ -198,7 +196,8 @@ struct client *client_new_random(unsigned int i)
 
 	if (!user_get_random(&user))
 		return NULL;
-	uc = user_get_new_client_profile(user);
+	if (!user_get_new_client_profile(user, &uc))
+		return NULL;
 	return client_new_full(i, user, uc);
 }
 
