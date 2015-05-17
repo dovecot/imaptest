@@ -396,7 +396,6 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	conf.password = PASSWORD;
 	conf.username_template = USERNAME_TEMPLATE;
 	conf.host = HOST;
-	conf.port = PORT;
 	conf.mbox_path = home_expand(MBOX_PATH);
 	conf.clients_count = CLIENTS_COUNT;
 	conf.message_count_threshold = MESSAGE_COUNT_THRESHOLD;

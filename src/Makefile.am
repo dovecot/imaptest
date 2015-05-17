@@ -7,12 +7,14 @@ imaptest_SOURCES = \
 	client.c \
 	client-state.c \
 	commands.c \
+	imap-client.c \
 	imapurl.c \
 	imaptest.c \
 	imaptest-lmtp.c \
 	mailbox.c \
 	mailbox-source.c \
 	mailbox-state.c \
+	pop3-client.c \
 	profile.c \
 	profile-parse.c \
 	search.c \
@@ -25,11 +27,13 @@ noinst_HEADERS = \
 	client.h \
 	client-state.h \
 	commands.h \
+	imap-client.h \
 	imapurl.h \
 	imaptest-lmtp.h \
 	mailbox.h \
 	mailbox-source.h \
 	mailbox-state.h \
+	pop3-client.h \
 	profile.h \
 	search.h \
 	settings.h \

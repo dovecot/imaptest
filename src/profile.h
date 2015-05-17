@@ -12,8 +12,10 @@ struct imap_client;
 
 struct profile_client {
 	const char *name;
+	const char *protocol;
 	unsigned int percentage;
 	unsigned int connection_max_count;
+	bool pop3_keep_mails;
 	bool imap_idle;
 	const char *imap_fetch_immediate;
 	const char *imap_fetch_manual;

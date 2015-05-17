@@ -31,7 +31,9 @@ struct profile_parser {
 
 static const struct setting_define profile_client_setting_defines[] = {
 	DEF(SET_STR, name),
+	DEF(SET_ENUM, protocol),
 	DEF(SET_UINT, connection_max_count),
+	DEF(SET_BOOL, pop3_keep_mails),
 	DEF(SET_BOOL, imap_idle),
 	DEF(SET_STR, imap_fetch_immediate),
 	DEF(SET_STR, imap_fetch_manual),
@@ -41,7 +43,8 @@ static const struct setting_define profile_client_setting_defines[] = {
 };
 
 const struct profile_client profile_client_default_settings = {
-	.name = ""
+	.name = "",
+	.protocol = "imap:pop3"
 };
 
 const struct setting_parser_info profile_client_setting_parser_info = {

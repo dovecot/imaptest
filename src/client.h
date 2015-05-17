@@ -4,6 +4,11 @@
 #include "client-state.h"
 #include "user.h"
 
+enum client_protocol {
+	CLIENT_PROTOCOL_IMAP = 0,
+	CLIENT_PROTOCOL_POP3
+};
+
 struct mailbox_source;
 
 struct client_vfuncs {
@@ -21,6 +26,7 @@ struct client {
 	struct user_client *user_client;
 	struct client_vfuncs v;
 	enum client_protocol protocol;
+	unsigned int port;
 
         unsigned int idx, global_id;
         unsigned int cur;

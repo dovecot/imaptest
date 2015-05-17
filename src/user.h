@@ -4,10 +4,6 @@
 struct profile;
 struct profile_user;
 
-enum client_protocol {
-	CLIENT_PROTOCOL_IMAP = 0
-};
-
 struct user_mailbox_cache {
 	const char *mailbox_name;
 	uint32_t uidvalidity;
@@ -31,11 +27,13 @@ enum user_timestamp {
 struct user_client {
 	struct user *user;
 	struct profile_client *profile;
-	enum client_protocol protocol;
 
 	/* connections created by this client */
 	ARRAY(struct client *) clients;
 	ARRAY(struct user_mailbox_cache *) mailboxes;
+
+	pool_t pop3_uidls_pool;
+	ARRAY_TYPE(const_string) pop3_uidls;
 
 	struct command *draft_cmd;
 	uint32_t draft_uid;

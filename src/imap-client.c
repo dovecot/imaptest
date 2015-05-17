@@ -638,7 +638,6 @@ static void imap_client_logout(struct client *_client)
 {
 	struct imap_client *client = (struct imap_client *)_client;
 
-	_client->state = STATE_LOGOUT;
 	command_send(client, "LOGOUT", state_callback);
 }
 
@@ -705,6 +704,7 @@ imap_client_new(unsigned int idx, struct user *user, struct user_client *uc)
 
 	client = i_new(struct imap_client, 1);
 	client->client.protocol = CLIENT_PROTOCOL_IMAP;
+	client->client.port = conf.port != 0 ? conf.port : 143;
 	if (client_init(&client->client, idx, user, uc) < 0) {
 		i_free(client);
 		return NULL;

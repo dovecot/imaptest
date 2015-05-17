@@ -11,6 +11,7 @@
 #include "imap-parser.h"
 
 #include "imap-client.h"
+#include "pop3-client.h"
 #include "imap-util.h"
 #include "settings.h"
 #include "mailbox.h"
@@ -161,10 +162,12 @@ struct client *client_new(unsigned int i, struct user *user)
 	struct user_client *uc;
 
 	uc = user_get_new_client_profile(user);
-	switch (uc->protocol) {
-	case CLIENT_PROTOCOL_IMAP:
+	if (uc->profile == NULL || strcmp(uc->profile->protocol, "imap") == 0)
 		return &imap_client_new(i, user, uc)->client;
-	}
+	else if (strcmp(uc->profile->protocol, "pop3") == 0)
+		return &pop3_client_new(i, user, uc)->client;
+	else
+		i_unreached();
 }
 
 int client_init(struct client *client, unsigned int idx,
@@ -181,7 +184,7 @@ int client_init(struct client *client, unsigned int idx,
 	}*/
 
 	ip = &conf.ips[conf.ip_idx];
-	fd = net_connect_ip(ip, conf.port, NULL);
+	fd = net_connect_ip(ip, client->port, NULL);
 	if (++conf.ip_idx == conf.ips_count)
 		conf.ip_idx = 0;
 
@@ -200,6 +203,7 @@ int client_init(struct client *client, unsigned int idx,
 	client->rawlog_fd = -1;
 	client->input = i_stream_create_fd(fd, 1024*64, FALSE);
 	client->output = o_stream_create_fd(fd, (size_t)-1, FALSE);
+	o_stream_set_no_error_handling(client->output, TRUE);
 	o_stream_set_flush_callback(client->output, client_output, client);
 	client->io = io_add(fd, IO_WRITE, client_wait_connect, client);
         client->last_io = ioloop_time;
@@ -212,6 +216,7 @@ int client_init(struct client *client, unsigned int idx,
 
 void client_logout(struct client *client)
 {
+	client->state = STATE_LOGOUT;
 	client->v.logout(client);
 }
 
