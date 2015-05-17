@@ -4,6 +4,10 @@
 struct profile;
 struct profile_user;
 
+enum client_protocol {
+	CLIENT_PROTOCOL_IMAP = 0
+};
+
 struct user_mailbox_cache {
 	const char *mailbox_name;
 	uint32_t uidvalidity;
@@ -27,6 +31,7 @@ enum user_timestamp {
 struct user_client {
 	struct user *user;
 	struct profile_client *profile;
+	enum client_protocol protocol;
 
 	/* connections created by this client */
 	ARRAY(struct client *) clients;
@@ -41,6 +46,7 @@ struct user {
 	const char *username;
 	const char *password;
 	const struct profile_user *profile;
+	struct mailbox_source *mailbox_source;
 
 	/* all of the user's clients (e.g. desktop client, mobile client) */
 	ARRAY(struct user_client *) clients;
@@ -61,12 +67,12 @@ void user_remove_client(struct user *user, struct client *client);
 struct user_client *user_get_new_client_profile(struct user *user);
 const char *user_get_new_mailbox(struct client *client);
 
-struct client *
+struct imap_client *
 user_find_client_by_mailbox(struct user_client *uc, const char *mailbox);
 struct user_mailbox_cache *
 user_get_mailbox_cache(struct user_client *uc, const char *name);
 
-void users_init(struct profile *profile);
+void users_init(struct profile *profile, struct mailbox_source *source);
 void users_deinit(void);
 
 #endif

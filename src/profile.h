@@ -8,7 +8,7 @@
 #define PROFILE_MAILBOX_SENT "Sent"
 
 struct imap_arg;
-struct client;
+struct imap_client;
 
 struct profile_client {
 	const char *name;
@@ -76,9 +76,9 @@ struct profile {
 };
 
 struct profile *profile_parse(const char *path);
-int client_profile_send_more_commands(struct client *client);
-int client_profile_handle_untagged(struct client *client,
-				   const struct imap_arg *args);
+int imap_client_profile_send_more_commands(struct client *client);
+int imap_client_profile_handle_untagged(struct imap_client *client,
+					const struct imap_arg *args);
 
 void profile_start_user(struct user *user);
 void profile_stop_user(struct user *user);

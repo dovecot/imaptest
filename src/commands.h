@@ -13,7 +13,7 @@ enum command_reply {
 	REPLY_CONT
 };
 
-struct client;
+struct imap_client;
 struct command;
 
 struct command {
@@ -30,16 +30,16 @@ struct command {
 	unsigned int expect_bad:1;
 };
 
-struct command *command_send(struct client *client, const char *cmdline,
+struct command *command_send(struct imap_client *client, const char *cmdline,
 			     command_callback_t *callback);
 struct command *
-command_send_binary(struct client *client, const char *cmdline,
+command_send_binary(struct imap_client *client, const char *cmdline,
 		    unsigned int cmdline_len,
 		    command_callback_t *callback);
 
-void command_unlink(struct client *client, struct command *cmd);
+void command_unlink(struct imap_client *client, struct command *cmd);
 void command_free(struct command *cmd);
 
-struct command *command_lookup(struct client *client, unsigned int tag);
+struct command *command_lookup(struct imap_client *client, unsigned int tag);
 
 #endif

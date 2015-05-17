@@ -19,7 +19,7 @@
 #include "checkpoint.h"
 #include "commands.h"
 #include "search.h"
-#include "client.h"
+#include "imap-client.h"
 #include "client-state.h"
 
 #include <stdlib.h>
@@ -81,10 +81,11 @@ void client_state_add_to_timer(enum client_state state,
 	timer_counts[state]++;
 }
 
-static void auth_plain_callback(struct client *client, struct command *cmd,
+static void auth_plain_callback(struct imap_client *client, struct command *cmd,
 				const struct imap_arg *args,
 				enum command_reply reply)
 {
+	struct client *_client = &client->client;
 	buffer_t *str, *buf;
 
 	if (reply == REPLY_OK) {
@@ -92,8 +93,8 @@ static void auth_plain_callback(struct client *client, struct command *cmd,
 		return;
 	}
 	if (reply != REPLY_CONT) {
-		client_state_error(client, "AUTHENTICATE failed");
-		client_disconnect(client);
+		imap_client_state_error(client, "AUTHENTICATE failed");
+		client_disconnect(_client);
 		return;
 	}
 
@@ -101,24 +102,24 @@ static void auth_plain_callback(struct client *client, struct command *cmd,
 
 	buf = t_str_new(512);
 	if (conf.master_user != NULL) {
-		str_append(buf, client->user->username);
+		str_append(buf, _client->user->username);
 		str_append_c(buf, '\0');
 		str_append(buf, conf.master_user);
 	} else {
 		str_append_c(buf, '\0');
-		str_append(buf, client->user->username);
+		str_append(buf, _client->user->username);
 	}
 	str_append_c(buf, '\0');
-	str_append(buf, client->user->password);
+	str_append(buf, _client->user->password);
 
 	str = t_str_new(512);
 	base64_encode(buf->data, buf->used, str);
 	str_append(str, "\r\n");
 
-	o_stream_send_str(client->output, str_c(str));
+	o_stream_send_str(_client->output, str_c(str));
 }
 
-static enum client_state client_eat_first_plan(struct client *client)
+static enum client_state client_eat_first_plan(struct imap_client *client)
 {
 	enum client_state state;
 
@@ -172,14 +173,14 @@ static enum login_state flags2login_state(enum state_flags flags)
 }
 
 static enum state_flags
-client_get_pending_cmd_flags(struct client *client,
+client_get_pending_cmd_flags(struct imap_client *client,
 			     enum login_state *new_lstate_r)
 {
 	enum state_flags state_flags = 0;
 	struct command *const *cmds;
 	unsigned int i, count;
 
-	*new_lstate_r = client->login_state;
+	*new_lstate_r = client->client.login_state;
 	cmds = array_get(&client->commands, &count);
 	for (i = 0; i < count; i++) {
 		enum state_flags flags = states[cmds[i]->state].flags;
@@ -191,7 +192,7 @@ client_get_pending_cmd_flags(struct client *client,
 	return state_flags;
 }
 
-static enum client_state client_update_plan(struct client *client)
+static enum client_state client_update_plan(struct imap_client *client)
 {
 	enum client_state state;
 	enum login_state lstate;
@@ -213,7 +214,7 @@ static enum client_state client_update_plan(struct client *client)
 
 	while (client->plan_size <
 	       sizeof(client->plan)/sizeof(client->plan[0])) {
-		switch (client->login_state) {
+		switch (client->client.login_state) {
 		case LSTATE_NONAUTH:
 			/* we begin with LOGIN/AUTHENTICATE commands */
 			i_assert(client->plan_size == 0);
@@ -228,8 +229,8 @@ static enum client_state client_update_plan(struct client *client)
 		}
 		i_assert(state <= STATE_LOGOUT);
 
-		if (states[state].login_state > client->login_state ||
-		    (client->login_state != LSTATE_NONAUTH &&
+		if (states[state].login_state > client->client.login_state ||
+		    (client->client.login_state != LSTATE_NONAUTH &&
 		     (state == STATE_AUTHENTICATE || state == STATE_LOGIN))) {
 			/* can't do this now */
 			continue;
@@ -242,11 +243,11 @@ static enum client_state client_update_plan(struct client *client)
 
 	i_assert(client->plan_size > 0);
 	state = client->plan[0];
-	i_assert(states[state].login_state <= client->login_state);
+	i_assert(states[state].login_state <= client->client.login_state);
 	return state;
 }
 
-static bool client_pending_cmds_allow_statechange(struct client *client,
+static bool client_pending_cmds_allow_statechange(struct imap_client *client,
 						  enum client_state state)
 {
 	enum login_state old_lstate, new_lstate = 0;
@@ -269,8 +270,9 @@ static bool client_pending_cmds_allow_statechange(struct client *client,
 	return TRUE;
 }
 
-int client_plan_send_more_commands(struct client *client)
+int imap_client_plan_send_more_commands(struct client *_client)
 {
+	struct imap_client *client = (struct imap_client *)_client;
 	enum state_flags pending_flags;
 	enum login_state new_lstate;
 	enum client_state state;
@@ -300,7 +302,7 @@ int client_plan_send_more_commands(struct client *client)
 			   required login_state is lower than the current
 			   state or the state we're changing to. */
 			if (new_lstate <= states[state].login_state ||
-			    client->login_state < states[state].login_state)
+			    _client->login_state < states[state].login_state)
 				break;
 		}
 		if ((states[state].flags & FLAG_MSGSET) != 0 &&
@@ -313,18 +315,18 @@ int client_plan_send_more_commands(struct client *client)
 			continue;
 		}
 
-		if (client_plan_send_next_cmd(client) < 0)
+		if (imap_client_plan_send_next_cmd(client) < 0)
 			return -1;
 	}
 
-	if (!client->delayed && do_rand(STATE_DELAY)) {
+	if (!_client->delayed && do_rand(STATE_DELAY)) {
 		counters[STATE_DELAY]++;
-		client_delay(client, rand() % DELAY_MSECS);
+		client_delay(&client->client, rand() % DELAY_MSECS);
 	}
 	return 0;
 }
 
-static int client_append_more(struct client *client)
+static int client_append_more(struct imap_client *client)
 {
 	struct mailbox_source *source = client->storage->source;
 	struct istream *input, *input2;
@@ -335,7 +337,7 @@ static int client_append_more(struct client *client)
 	input = i_stream_create_limit(source->input, client->append_psize);
 	input2 = i_stream_create_crlf(input);
 	i_stream_skip(input2, client->append_skip);
-	ret = o_stream_send_istream(client->output, input2);
+	ret = o_stream_send_istream(client->client.output, input2);
 	errno = input->stream_errno;
 	i_stream_unref(&input2);
 	i_stream_unref(&input);
@@ -351,7 +353,7 @@ static int client_append_more(struct client *client)
 
 	if (client->append_vsize_left > 0) {
 		/* unfinished */
-		o_stream_set_flush_pending(client->output, TRUE);
+		o_stream_set_flush_pending(client->client.output, TRUE);
 		return 0;
 	}
 
@@ -362,7 +364,7 @@ static int client_append_more(struct client *client)
 	    client->plan_size > 0 && client->plan[0] == STATE_APPEND) {
 		/* we want to append another message.
 		   do it in the same transaction. */
-		if (client_plan_send_next_cmd(client) < 0)
+		if (imap_client_plan_send_next_cmd(client) < 0)
 			return -1;
 		if (client->append_started || !client->append_unfinished) {
 			/* multiappend started / finished */
@@ -373,12 +375,12 @@ static int client_append_more(struct client *client)
 
 	client->append_unfinished = FALSE;
 	client->append_can_send = FALSE;
-	o_stream_send_str(client->output, "\r\n");
+	o_stream_send_str(client->client.output, "\r\n");
 	return 0;
 }
 
-int client_append(struct client *client, const char *args, bool add_datetime,
-		  command_callback_t *callback, struct command **cmd_r)
+int imap_client_append(struct imap_client *client, const char *args, bool add_datetime,
+		       command_callback_t *callback, struct command **cmd_r)
 {
 	struct mailbox_source *source = client->storage->source;
 	string_t *cmd;
@@ -412,9 +414,9 @@ int client_append(struct client *client, const char *args, bool add_datetime,
 	if (client->append_unfinished) {
 		/* continues the last APPEND call */
 		str_append(cmd, "\r\n");
-		o_stream_send_str(client->output, str_c(cmd));
+		o_stream_send_str(client->client.output, str_c(cmd));
 	} else {
-		client->state = STATE_APPEND;
+		client->client.state = STATE_APPEND;
 		*cmd_r = command_send(client, str_c(cmd), callback);
 		client->append_unfinished = TRUE;
 	}
@@ -429,9 +431,9 @@ int client_append(struct client *client, const char *args, bool add_datetime,
 	return client_append_more(client);
 }
 
-int client_append_full(struct client *client, const char *mailbox,
-		       const char *flags, const char *datetime,
-		       command_callback_t *callback, struct command **cmd_r)
+int imap_client_append_full(struct imap_client *client, const char *mailbox,
+			    const char *flags, const char *datetime,
+			    command_callback_t *callback, struct command **cmd_r)
 {
 	string_t *args;
 	bool add_datetime = FALSE;
@@ -448,26 +450,26 @@ int client_append_full(struct client *client, const char *mailbox,
 	else if (*datetime != '\0')
 		str_printfa(args, " \"%s\"", datetime);
 
-	return client_append(client, str_c(args), add_datetime,
-			     callback, cmd_r);
+	return imap_client_append(client, str_c(args), add_datetime,
+				  callback, cmd_r);
 }
 
-int client_append_random(struct client *client)
+int imap_client_append_random(struct imap_client *client)
 {
 	const char *flags = NULL, *datetime = NULL;
 	struct command *cmd;
 
 	if ((rand() % 2) == 0) {
 		flags = mailbox_view_get_random_flags(client->view,
-						      client->idx);
+						      client->client.idx);
 	}
 	if ((rand() % 2) == 0)
 		datetime = "";
-	return client_append_full(client, NULL, flags, datetime,
-				  state_callback, &cmd);
+	return imap_client_append_full(client, NULL, flags, datetime,
+				       state_callback, &cmd);
 }
 
-int client_append_continue(struct client *client)
+int imap_client_append_continue(struct imap_client *client)
 {
 	i_stream_seek(client->storage->source->input,
 		      client->append_offset);
@@ -487,7 +489,7 @@ metadata_update_dirty(struct message_metadata_dynamic *metadata, bool set)
 }
 
 static void
-seq_range_flags_ref(struct client *client,
+seq_range_flags_ref(struct imap_client *client,
 		    const ARRAY_TYPE(seq_range) *seq_range,
 		    int diff, bool update_dirty)
 {
@@ -520,7 +522,7 @@ seq_range_flags_ref(struct client *client,
 }
 
 struct store_verify_context {
-	struct client *client;
+	struct imap_client *client;
 	enum mail_flags flags_mask;
 	uint8_t *keywords_bitmask;
 	unsigned int max_keyword_bit;
@@ -528,7 +530,7 @@ struct store_verify_context {
 };
 
 static bool
-store_verify_parse(struct store_verify_context *ctx, struct client *client,
+store_verify_parse(struct store_verify_context *ctx, struct imap_client *client,
 		   char type, const char *flags)
 {
 	const char *const *tmp;
@@ -551,7 +553,7 @@ store_verify_parse(struct store_verify_context *ctx, struct client *client,
 		if (**tmp == '\\')
 			ctx->flags_mask |= mail_flag_parse(*tmp);
 		else if (!mailbox_view_keyword_find(client->view, *tmp, &idx)) {
-			client_state_error(client,
+			imap_client_state_error(client,
 				"STORE didn't create keyword: %s", *tmp);
 		} else {
 			/* @UNSAFE */
@@ -577,7 +579,7 @@ store_verify_seq(struct store_verify_context *ctx, uint32_t seq)
 		metadata->ms->expunged ? "yes" : "no";
 	if ((metadata->mail_flags & MAIL_FLAGS_SET) == 0 ||
 	    metadata->flagchange_dirty_type == FLAGCHANGE_DIRTY_YES) {
-		client_state_error(ctx->client,
+		imap_client_state_error(ctx->client,
 			"STORE didn't return FETCH FLAGS for seq %u "
 			"(expunged=%s)", seq, expunge_state);
 		return FALSE;
@@ -598,7 +600,7 @@ store_verify_seq(struct store_verify_context *ctx, uint32_t seq)
 	}
 
 	if (test_flags != test_flags_result) {
-		client_state_error(ctx->client,
+		imap_client_state_error(ctx->client,
 			"STORE didn't update flags for seq %u (expunged=%s)",
 			seq, expunge_state);
 		return FALSE;
@@ -625,7 +627,7 @@ store_verify_seq(struct store_verify_context *ctx, uint32_t seq)
 			struct mailbox_keyword *kw;
 
 			kw = mailbox_view_keyword_get(ctx->client->view, i);
-			client_state_error(ctx->client,
+			imap_client_state_error(ctx->client,
 				"STORE didn't update keyword %s for seq %u "
 				"(expunged=%s)",
 				kw->name->name, seq, expunge_state);
@@ -636,7 +638,7 @@ store_verify_seq(struct store_verify_context *ctx, uint32_t seq)
 }
 
 static void
-store_verify_result(struct client *client, char type, const char *flags,
+store_verify_result(struct imap_client *client, char type, const char *flags,
 		    const ARRAY_TYPE(seq_range) *seq_range)
 {
 	const struct seq_range *range;
@@ -655,7 +657,7 @@ store_verify_result(struct client *client, char type, const char *flags,
 	}
 }
 
-static void client_try_create_mailbox(struct client *client)
+static void imap_client_try_create_mailbox(struct imap_client *client)
 {
 	const char *str;
 
@@ -663,34 +665,34 @@ static void client_try_create_mailbox(struct client *client)
 		return;
 
 	str = t_strdup_printf("CREATE \"%s\"", client->storage->name);
-	client->state = STATE_MCREATE;
+	client->client.state = STATE_MCREATE;
 	command_send(client, str, state_callback);
 }
 
-void client_handle_resp_text_code(struct client *client,
-				  const struct imap_arg *args)
+void imap_client_handle_resp_text_code(struct imap_client *client,
+				       const struct imap_arg *args)
 {
 	struct mailbox_view *view = client->view;
 	const char *key, *value, *p;
 
 	if (args->type != IMAP_ARG_ATOM) {
-		client_input_error(client, "Invalid resp-text");
+		imap_client_input_error(client, "Invalid resp-text");
 		return;
 	}
 
 	value = imap_args_to_str(args);
 	if (*value != '[') {
 		if (*value == '\0')
-			client_input_warn(client, "Missing text in resp-text");
+			imap_client_input_warn(client, "Missing text in resp-text");
 		return;
 	}
 	p = strchr(value, ']');
 	if (p == NULL) {
-		client_input_error(client, "Missing ']' in resp-text");
+		imap_client_input_error(client, "Missing ']' in resp-text");
 		return;
 	}
 	if (p[1] == '\0' || p[1] != ' ' || p[2] == '\0')
-		client_input_warn(client, "Missing text in resp-text");
+		imap_client_input_warn(client, "Missing text in resp-text");
 	key = t_strdup_until(value + 1, p);
 
 	value = strchr(key, ' ');
@@ -705,24 +707,24 @@ void client_handle_resp_text_code(struct client *client,
 		/* reset previous MODSEQ updates */
 		client->highest_untagged_modseq = 0;
 		if (str_to_uint64(value, &view->highest_modseq) < 0) {
-			client_input_warn(client,
-					  "Invalid HIGHESTMODSEQ %s", value);
+			imap_client_input_warn(client,
+				"Invalid HIGHESTMODSEQ %s", value);
 		}
 	} else if (strcmp(key, "CAPABILITY") == 0) {
-		client_capability_parse(client, value);
+		imap_client_capability_parse(client, value);
 	} else if (strcmp(key, "CLOSED") == 0) {
 		/* QRESYNC: SELECTing another mailbox in SELECTED state */
-		if (client->login_state != LSTATE_SELECTED) {
-			client_input_warn(client,
+		if (client->client.login_state != LSTATE_SELECTED) {
+			imap_client_input_warn(client,
 				"CLOSED code sent in non-selected state %d",
-				client->login_state);
+				client->client.login_state);
 		} else {
 			/* we're temporarily in AUTHENTICATED state */
-			client_mailbox_close(client);
+			imap_client_mailbox_close(client);
 		}
 	} else if (strcmp(key, "PERMANENTFLAGS") == 0) {
 		if (mailbox_state_set_permanent_flags(view, args + 1) < 0)
-			client_input_error(client, "Broken PERMANENTFLAGS");
+			imap_client_input_error(client, "Broken PERMANENTFLAGS");
 	} else if (strcmp(key, "UIDNEXT") == 0) {
 		if (view->select_uidnext == 0)
 			view->select_uidnext = strtoul(value, NULL, 10);
@@ -747,14 +749,14 @@ void client_handle_resp_text_code(struct client *client,
 				array_count(&view->uidmap);
 			mailbox_view_restore_offline_cache(view,
 				client->qresync_select_cache);
-			client_log_mailbox_view(client);
+			imap_client_log_mailbox_view(client);
 		}
 	}
 }
 
-void client_handle_tagged_reply(struct client *client, struct command *cmd,
-				const struct imap_arg *args,
-				enum command_reply reply)
+void imap_client_handle_tagged_reply(struct imap_client *client, struct command *cmd,
+				     const struct imap_arg *args,
+				     enum command_reply reply)
 {
 	const char *arg;
 
@@ -772,26 +774,27 @@ void client_handle_tagged_reply(struct client *client, struct command *cmd,
 	if (strncasecmp(cmd->cmdline, "select ", 7) == 0 ||
 	    strncasecmp(cmd->cmdline, "examine ", 8) == 0) {
 		if (reply == REPLY_OK)
-			client->login_state = LSTATE_SELECTED;
+			client->client.login_state = LSTATE_SELECTED;
 		if (client->qresync_select_cache != NULL) {
 			/* SELECT with QRESYNC finished */
 			if (reply == REPLY_OK) {
-				client_exists(client,
-					      client->qresync_pending_exists);
+				imap_client_exists(client,
+						   client->qresync_pending_exists);
 				client->qresync_pending_exists = 0;
 			}
 			mailbox_offline_cache_unref(&client->qresync_select_cache);
 		}
 	} else if (strcasecmp(cmd->cmdline, "close") == 0 ||
 		   strcasecmp(cmd->cmdline, "unselect") == 0) {
-		if (reply == REPLY_OK && client->login_state == LSTATE_SELECTED)
-			client_mailbox_close(client);
+		if (reply == REPLY_OK &&
+		    client->client.login_state == LSTATE_SELECTED)
+			imap_client_mailbox_close(client);
 	}
 
-	client_handle_resp_text_code(client, args);
+	imap_client_handle_resp_text_code(client, args);
 }
 
-static int client_handle_cmd_reply(struct client *client, struct command *cmd,
+static int client_handle_cmd_reply(struct imap_client *client, struct command *cmd,
 				   const struct imap_arg *args,
 				   enum command_reply reply)
 {
@@ -808,7 +811,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		    cmd->state == STATE_LOGIN) {
 			/* update before handling resp-text, so that
 			   postlogin_capability is set */
-			client->login_state = LSTATE_AUTH;
+			client->client.login_state = LSTATE_AUTH;
 		}
 		break;
 	case REPLY_NO:
@@ -858,15 +861,15 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				break;
 			/* fall through */
 		default:
-			client_state_error(client, "%s failed",
-					   states[cmd->state].name);
+			imap_client_state_error(client, "%s failed",
+						states[cmd->state].name);
 			break;
 		}
 		break;
 
 	case REPLY_BAD:
-		client_input_warn(client, "%s replied BAD",
-				  states[cmd->state].name);
+		imap_client_input_warn(client, "%s replied BAD",
+				       states[cmd->state].name);
 		return -1;
 	case REPLY_CONT:
 		if (client->idle_wait_cont) {
@@ -875,17 +878,17 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 		}
 		if (cmd->state == STATE_APPEND) {
 			/* finish appending */
-			if (client_append_continue(client) < 0)
+			if (imap_client_append_continue(client) < 0)
 				return -1;
 			return 0;
 		}
 
-		client_input_error(client, "%s: Unexpected continuation",
-				   states[cmd->state].name);
+		imap_client_input_error(client, "%s: Unexpected continuation",
+					states[cmd->state].name);
 		return -1;
 	}
 	/* call after login_state has been updated */
-	client_handle_tagged_reply(client, cmd, args, reply);
+	imap_client_handle_tagged_reply(client, cmd, args, reply);
 
 	switch (cmd->state) {
 	case STATE_AUTHENTICATE:
@@ -901,21 +904,20 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				break;
 
 			client_new(array_count(&clients),
-				   client->storage->source,
 				   user_get_random());
 		}
 		break;
 	case STATE_LIST:
 		if (reply == REPLY_OK)
-			client_mailboxes_list_end(client);
+			imap_client_mailboxes_list_end(client);
 		break;
 	case STATE_SELECT:
 		if (reply == REPLY_NO)
-			client_try_create_mailbox(client);
+			imap_client_try_create_mailbox(client);
 		break;
 	case STATE_STATUS:
 		if (reply == REPLY_NO)
-			client_try_create_mailbox(client);
+			imap_client_try_create_mailbox(client);
 		break;
 	case STATE_FETCH:
 		seq_range_flags_ref(client, &cmd->seq_range, -1, TRUE);
@@ -957,7 +959,7 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 			if (imap_arg_atom_equals(args, "[TRYCREATE]")) {
 				str = t_strdup_printf("CREATE \"%s\"",
 						      conf.copy_dest);
-				client->state = STATE_COPY;
+				client->client.state = STATE_COPY;
 				command_send(client, str, state_callback);
 				break;
 			}
@@ -965,23 +967,23 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 				/* this isn't an error */
 				break;
 			}
-			client_state_error(client, "COPY failed");
+			imap_client_state_error(client, "COPY failed");
 		}
 		break;
 	case STATE_APPEND:
 		if (reply == REPLY_NO)
-			client_try_create_mailbox(client);
+			imap_client_try_create_mailbox(client);
 		break;
 	case STATE_LOGOUT:
-		if (client->login_state != LSTATE_NONAUTH) {
+		if (client->client.login_state != LSTATE_NONAUTH) {
 			/* untagged BYE sets state to DISCONNECT, so we
 			   shouldn't get here. */
-			client_state_error(client, "Server didn't send BYE");
+			imap_client_state_error(client, "Server didn't send BYE");
 		}
-		client->login_state = LSTATE_NONAUTH;
+		client->client.login_state = LSTATE_NONAUTH;
 		return -1;
 	case STATE_IDLE:
-		client->idling = FALSE;
+		client->client.idling = FALSE;
 		client->idle_done_sent = FALSE;
 		break;
 	case STATE_DISCONNECT:
@@ -993,10 +995,10 @@ static int client_handle_cmd_reply(struct client *client, struct command *cmd,
 	return 0;
 }
 
-bool client_get_random_seq_range(struct client *client,
-				 ARRAY_TYPE(seq_range) *range,
-				 unsigned int count,
-				 enum client_random_flag_type flag_type)
+bool imap_client_get_random_seq_range(struct imap_client *client,
+				      ARRAY_TYPE(seq_range) *range,
+				      unsigned int count,
+				      enum client_random_flag_type flag_type)
 {
 	struct message_metadata_dynamic *metadata;
 	unsigned int i, msgs, seq, owner, tries;
@@ -1017,7 +1019,7 @@ bool client_get_random_seq_range(struct client *client,
 			metadata->ms->owner_client_idx1;
 
 		if (dirty_flags) {
-			if (owner == client->idx+1) {
+			if (owner == client->client.idx+1) {
 				/* we can change this */
 			} else if (owner != 0) {
 				/* someone else owns this */
@@ -1043,7 +1045,7 @@ bool client_get_random_seq_range(struct client *client,
 }
 
 static void
-client_dirty_all_flags(struct client *client, ARRAY_TYPE(seq_range) *seq_range,
+client_dirty_all_flags(struct imap_client *client, ARRAY_TYPE(seq_range) *seq_range,
 		       enum client_random_flag_type flag_type)
 {
 	struct seq_range range;
@@ -1074,7 +1076,7 @@ static void seq_range_to_imap_range(const ARRAY_TYPE(seq_range) *seq_range,
 	}
 }
 
-static void client_select_qresync(struct client *client)
+static void client_select_qresync(struct imap_client *client)
 {
 	struct mailbox_offline_cache *cache = client->storage->cache;
 	string_t *cmd;
@@ -1095,8 +1097,9 @@ static void client_select_qresync(struct client *client)
 	command_send(client, str_c(cmd), state_callback);
 }
 
-int client_plan_send_next_cmd(struct client *client)
+int imap_client_plan_send_next_cmd(struct imap_client *client)
 {
+	struct client *_client = &client->client;
 	enum client_state state;
 	struct command *icmd;
 	string_t *cmd;
@@ -1115,28 +1118,28 @@ int client_plan_send_next_cmd(struct client *client)
 
 	if (client->append_unfinished && state != STATE_APPEND) {
 		i_assert(state == STATE_LOGOUT);
-		client_disconnect(client);
+		client_disconnect(&client->client);
 		return -1;
 	}
 
-	client->state = state;
+	client->client.state = state;
 	switch (state) {
 	case STATE_AUTHENTICATE:
 		command_send(client, "AUTHENTICATE plain", auth_plain_callback);
 		break;
 	case STATE_LOGIN:
-		o_stream_cork(client->output);
+		o_stream_cork(_client->output);
 		str = t_strdup_printf("LOGIN \"%s\" \"%s\"",
-				      str_escape(client->user->username),
-				      str_escape(client->user->password));
+				      str_escape(_client->user->username),
+				      str_escape(_client->user->password));
 		command_send(client, str, state_callback);
 		if (conf.qresync)
 			command_send(client, "ENABLE QRESYNC", state_callback);
-		o_stream_uncork(client->output);
+		o_stream_uncork(_client->output);
 		break;
 	case STATE_LIST:
 		//str = t_strdup_printf("LIST \"\" * RETURN (X-STATUS (MESSAGES))");
-		client_mailboxes_list_begin(client);
+		imap_client_mailboxes_list_begin(client);
 		str = t_strdup_printf("LIST \"\" *");
 		command_send(client, str, state_callback);
 		break;
@@ -1161,7 +1164,7 @@ int client_plan_send_next_cmd(struct client *client)
 		command_send(client, str, state_callback);
 		break;
 	case STATE_SELECT:
-		if (client->login_state == LSTATE_SELECTED) {
+		if (_client->login_state == LSTATE_SELECTED) {
 			/* already selected, don't do it agai */
 			break;
 		}
@@ -1184,8 +1187,8 @@ int client_plan_send_next_cmd(struct client *client)
 			"In-Reply-To", "Message-ID", "Delivered-To"
 		};
 		count = I_MIN(msgs, 100);
-		if (!client_get_random_seq_range(client, &seq_range, count,
-						 CLIENT_RANDOM_FLAG_TYPE_FETCH))
+		if (!imap_client_get_random_seq_range(client, &seq_range, count,
+						      CLIENT_RANDOM_FLAG_TYPE_FETCH))
 			break;
 
 		cmd = t_str_new(512);
@@ -1290,8 +1293,8 @@ int client_plan_send_next_cmd(struct client *client)
 		flag_type = conf.checkpoint_interval == 0 && rand() % 2 == 0 ?
 			CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT :
 			CLIENT_RANDOM_FLAG_TYPE_STORE;
-		if (!client_get_random_seq_range(client, &seq_range, count,
-						 flag_type))
+		if (!imap_client_get_random_seq_range(client, &seq_range, count,
+						      flag_type))
 			break;
 
 		cmd = t_str_new(512);
@@ -1317,7 +1320,7 @@ int client_plan_send_next_cmd(struct client *client)
 			str_append(cmd, ".SILENT");
 		str_printfa(cmd, " (%s)",
 			    mailbox_view_get_random_flags(client->view,
-							  client->idx));
+							  _client->idx));
 
 		icmd = command_send(client, str_c(cmd), state_callback);
 		icmd->seq_range = seq_range;
@@ -1326,7 +1329,7 @@ int client_plan_send_next_cmd(struct client *client)
 		owner = client->storage->
 			flags_owner_client_idx1[MAIL_FLAG_DELETED_IDX];
 		if (client->storage->assign_flag_owners &&
-		    owner != client->idx + 1) {
+		    owner != _client->idx + 1) {
 			/* own_msgs - only one client can delete messages */
 			break;
 		}
@@ -1357,8 +1360,8 @@ int client_plan_send_next_cmd(struct client *client)
 			   counts */
 			client_dirty_all_flags(client, &seq_range, flag_type);
 		} else {
-			if (!client_get_random_seq_range(client, &seq_range,
-							 count, flag_type))
+			if (!imap_client_get_random_seq_range(client, &seq_range,
+							      count, flag_type))
 				break;
 		}
 
@@ -1380,7 +1383,7 @@ int client_plan_send_next_cmd(struct client *client)
 		if (msgs - (msgs>>3) >= conf.message_count_threshold)
 			break;
 
-		if (client_append_random(client) < 0)
+		if (imap_client_append_random(client) < 0)
 			return -1;
 		break;
 	case STATE_STATUS:
@@ -1412,14 +1415,14 @@ int client_plan_send_next_cmd(struct client *client)
 	return 0;
 }
 
-void state_callback(struct client *client, struct command *cmd,
+void state_callback(struct imap_client *client, struct command *cmd,
 		    const struct imap_arg *args, enum command_reply reply)
 {
 	if (client_handle_cmd_reply(client, cmd, args + 1, reply) < 0)
-		client_disconnect(client);
+		client_disconnect(&client->client);
 }
 
-void client_cmd_reply_finish(struct client *client)
+void imap_client_cmd_reply_finish(struct imap_client *client)
 {
 	if (client->checkpointing != NULL) {
 		/* we're checkpointing */
@@ -1431,10 +1434,10 @@ void client_cmd_reply_finish(struct client *client)
 	} else if (client->storage->checkpoint != NULL) {
 		/* don't do anything until checkpointing is finished */
 		return;
-	} else if (client->state == STATE_LOGOUT) {
+	} else if (client->client.state == STATE_LOGOUT) {
 		return;
 	}
 
-	if (client_send_more_commands(client) < 0)
-		client_disconnect(client);
+	if (client_send_more_commands(&client->client) < 0)
+		client_disconnect(&client->client);
 }

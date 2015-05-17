@@ -5,38 +5,22 @@
 #include "user.h"
 
 struct mailbox_source;
-struct imap_arg;
 
-enum imap_capability {
-	CAP_LITERALPLUS		= 0x01,
-	CAP_MULTIAPPEND		= 0x02,
-	CAP_CONDSTORE		= 0x04,
-	CAP_QRESYNC		= 0x08
-};
-
-struct imap_capability_name {
-	const char *name;
-	enum imap_capability capability;
-};
-
-static const struct imap_capability_name cap_names[] = {
-	{ "LITERAL+", CAP_LITERALPLUS },
-	{ "MULTIAPPEND", CAP_MULTIAPPEND },
-	{ "CONDSTORE", CAP_CONDSTORE },
-	{ "QRESYNC", CAP_QRESYNC },
-
-	{ NULL, 0 }
-};
-
-struct mailbox_list_entry {
-	char *name;
-	bool found;
+struct client_vfuncs {
+	void (*input)(struct client *client);
+	int (*output)(struct client *client);
+	void (*connected)(struct client *client);
+	int (*send_more_commands)(struct client *client);
+	void (*logout)(struct client *client);
+	void (*free)(struct client *client);
 };
 
 struct client {
 	int refcount;
 	struct user *user;
 	struct user_client *user_client;
+	struct client_vfuncs v;
+	enum client_protocol protocol;
 
         unsigned int idx, global_id;
         unsigned int cur;
@@ -45,64 +29,17 @@ struct client {
 	struct istream *input;
 	struct ostream *output;
 	struct ssl_iostream *ssl_iostream;
-	struct imap_parser *parser;
 	struct io *io;
 	struct timeout *to;
 
-	enum client_state state;
 	enum login_state login_state;
-	enum imap_capability capabilities;
-	char **capabilities_list;
-
-	/* plan[0] contains always the next state we move to. */
-	enum client_state plan[STATE_COUNT];
-	unsigned int plan_size;
-
-	/* LIST reply */
-	ARRAY(struct mailbox_list_entry) mailboxes_list;
-
-	const struct imap_arg *cur_args;
-	uoff_t append_offset, append_psize, append_vsize_left, append_skip;
-	uoff_t literal_left;
-
-	struct search_context *search_ctx;
-	struct test_exec_context *test_exec_ctx;
-
-	struct mailbox_storage *storage;
-	struct mailbox_view *view;
-	struct mailbox_storage *checkpointing;
-	ARRAY(struct command *) commands;
-	struct command *last_cmd;
-	unsigned int tag_counter;
-
-	/* Highest MODSEQ seen in untagged FETCH replies. Tagged reply
-	   handler updates highest_modseq based on this and resets to 0. */
-	uint64_t highest_untagged_modseq;
-	/* non-NULL when SELECTing a mailbox using QRESYNC */
-	struct mailbox_offline_cache *qresync_select_cache;
-	/* Value of EXISTS reply */
-	unsigned int qresync_pending_exists;
-
-	int (*send_more_commands)(struct client *client);
-	int (*handle_untagged)(struct client *, const struct imap_arg *);
-
+	enum client_state state;
         time_t last_io;
 
 	unsigned int delayed:1;
-	unsigned int seen_banner:1;
-	unsigned int append_unfinished:1;
-	unsigned int append_started:1;
-	unsigned int try_create_mailbox:1;
-	unsigned int postlogin_capability:1;
-	unsigned int qresync_enabled:1;
 	unsigned int disconnected:1;
-	unsigned int append_can_send:1;
-	unsigned int seen_bye:1;
-	unsigned int idle_wait_cont:1;
-	unsigned int idling:1;
-	unsigned int idle_done_sent:1;
 	unsigned int logout_sent:1;
-	unsigned int preauth:1;
+	unsigned int idling:1;
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
 
@@ -111,33 +48,17 @@ extern unsigned int total_disconnects;
 extern ARRAY_TYPE(client) clients;
 extern bool stalled, disconnect_clients, no_new_clients;
 
-struct client *client_new(unsigned int idx, struct mailbox_source *source,
-			  struct user *user);
+struct client *client_new(unsigned int i, struct user *user);
+int client_init(struct client *client, unsigned int idx,
+		struct user *user, struct user_client *uc);
 bool client_unref(struct client *client, bool reconnect);
+void client_logout(struct client *client);
 void client_disconnect(struct client *client);
 
 void client_input_stop(struct client *client);
 void client_input_continue(struct client *client);
-
-void client_exists(struct client *client, unsigned int msgs);
-void client_mailbox_close(struct client *client);
 void client_delay(struct client *client, unsigned int msecs);
-int client_handle_untagged(struct client *client, const struct imap_arg *args);
-void client_capability_parse(struct client *client, const char *line);
-void client_log_mailbox_view(struct client *client);
-void client_mailboxes_list_begin(struct client *client);
-void client_mailboxes_list_end(struct client *client);
-struct mailbox_list_entry *
-client_mailboxes_list_find(struct client *client, const char *name);
-
 int client_send_more_commands(struct client *client);
-
-int client_input_error(struct client *client, const char *fmt, ...)
-	ATTR_FORMAT(2, 3);
-int client_input_warn(struct client *client, const char *fmt, ...)
-	ATTR_FORMAT(2, 3);
-int client_state_error(struct client *client, const char *fmt, ...)
-	ATTR_FORMAT(2, 3);
 
 unsigned int clients_get_random_idx(void);
 

@@ -6,6 +6,7 @@
 enum command_reply;
 struct timeval;
 struct client;
+struct imap_client;
 struct command;
 struct imap_arg;
 
@@ -71,7 +72,7 @@ enum client_random_flag_type {
 	CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT
 };
 
-typedef void command_callback_t(struct client *client, struct command *cmd,
+typedef void command_callback_t(struct imap_client *client, struct command *cmd,
 				const struct imap_arg *args,
 				enum command_reply reply);
 
@@ -84,29 +85,29 @@ bool do_rand_again(enum client_state state);
 void client_state_add_to_timer(enum client_state state,
 			       const struct timeval *tv_start);
 
-int client_append(struct client *client, const char *args, bool add_datetime,
-		  command_callback_t *callback, struct command **cmd_r);
-int client_append_full(struct client *client, const char *mailbox,
-		       const char *flags, const char *datetime,
+int imap_client_append(struct imap_client *client, const char *args, bool add_datetime,
 		       command_callback_t *callback, struct command **cmd_r);
-int client_append_random(struct client *client);
-int client_append_continue(struct client *client);
-int client_plan_send_next_cmd(struct client *client);
-int client_plan_send_more_commands(struct client *client);
+int imap_client_append_full(struct imap_client *client, const char *mailbox,
+			    const char *flags, const char *datetime,
+			    command_callback_t *callback, struct command **cmd_r);
+int imap_client_append_random(struct imap_client *client);
+int imap_client_append_continue(struct imap_client *client);
+int imap_client_plan_send_next_cmd(struct imap_client *client);
+int imap_client_plan_send_more_commands(struct client *client);
 
-void client_handle_resp_text_code(struct client *client,
-				  const struct imap_arg *args);
-void client_handle_tagged_reply(struct client *client, struct command *cmd,
-				const struct imap_arg *args,
-				enum command_reply reply);
+void imap_client_handle_resp_text_code(struct imap_client *client,
+				       const struct imap_arg *args);
+void imap_client_handle_tagged_reply(struct imap_client *client, struct command *cmd,
+				     const struct imap_arg *args,
+				     enum command_reply reply);
 
-bool client_get_random_seq_range(struct client *client,
-				 ARRAY_TYPE(seq_range) *range,
-				 unsigned int count,
-				 enum client_random_flag_type flag_type);
+bool imap_client_get_random_seq_range(struct imap_client *client,
+				      ARRAY_TYPE(seq_range) *range,
+				      unsigned int count,
+				      enum client_random_flag_type flag_type);
 
-void state_callback(struct client *client, struct command *cmd,
+void state_callback(struct imap_client *client, struct command *cmd,
 		    const struct imap_arg *args, enum command_reply reply);
-void client_cmd_reply_finish(struct client *client);
+void imap_client_cmd_reply_finish(struct imap_client *client);
 
 #endif

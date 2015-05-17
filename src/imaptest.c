@@ -12,7 +12,7 @@
 #include "settings.h"
 #include "mailbox.h"
 #include "mailbox-source.h"
-#include "client.h"
+#include "imap-client.h"
 #include "user.h"
 #include "profile.h"
 #include "checkpoint.h"
@@ -92,6 +92,22 @@ static void print_header(void)
 	}
 }
 
+static void print_stalled_imap_client(string_t *str, struct imap_client *client)
+{
+	struct command *const *cmds;
+	unsigned int cmdcount;
+
+	cmds = array_get(&client->commands, &cmdcount);
+	if (client->seen_bye)
+		str_append(str, "BYE, waiting for disconnect");
+	else if (cmdcount == 0)
+		str_append(str, states[client->client.state].name);
+	else {
+		str_printfa(str, "command: %u %s",
+			    cmds[0]->tag, cmds[0]->cmdline);
+	}
+}
+
 static void print_timeout(void *context ATTR_UNUSED)
 {
 	struct client *const *c;
@@ -144,22 +160,14 @@ static void print_timeout(void *context ATTR_UNUSED)
 		if (c[i] != NULL && c[i]->state != STATE_BANNER &&
 		    c[i]->to == NULL && !c[i]->idling &&
 		    c[i]->last_io < ioloop_time - STALL_PRINT_SECS) {
-			struct command *const *cmds;
-			unsigned int cmdcount;
+			struct imap_client *client = imap_client(c[i]);
 
 			str_truncate(str, 0);
 			str_printfa(str, " - %d stalled for %u secs in ",
 				    c[i]->global_id,
 				    (unsigned)(ioloop_time - c[i]->last_io));
-			cmds = array_get(&c[i]->commands, &cmdcount);
-			if (c[i]->seen_bye)
-				str_append(str, "BYE, waiting for disconnect");
-			else if (cmdcount == 0)
-				str_append(str, states[c[i]->state].name);
-			else {
-				str_printfa(str, "command: %u %s",
-					    cmds[0]->tag, cmds[0]->cmdline);
-			}
+			if (client != NULL)
+				print_stalled_imap_client(str, client);
 
 			stalled = TRUE;
                         printf("%s\n", str_c(str));
@@ -272,12 +280,10 @@ static void clients_unref(void)
         }
 }
 
-static void imaptest_run(void)
+static struct mailbox_source *imaptest_mailbox_source(void)
 {
 	const char *mbox_path = conf.mbox_path;
 	struct state *state;
-	struct timeout *to;
-	unsigned int i;
 
 	state = state_find("APPEND");
 	if (state->probability == 0) {
@@ -285,18 +291,23 @@ static void imaptest_run(void)
 		   if mbox_path doesn't exist. */
 		mbox_path = "/dev/null";
 	}
+	return mailbox_source_new(mbox_path);
+}
+
+static void imaptest_run(void)
+{
+	struct timeout *to;
+	unsigned int i;
 
 	next_checkpoint_time = ioloop_time + conf.checkpoint_interval;
-	mailbox_source = mailbox_source_new(mbox_path);
 	to = timeout_add(1000, print_timeout, NULL);
 	for (i = 0; i < INIT_CLIENT_COUNT && i < conf.clients_count; i++)
-		client_new(i, mailbox_source, user_get_random());
+		client_new(i, user_get_random());
 
         io_loop_run(ioloop);
 
 	timeout_remove(&to);
 	clients_unref();
-	mailbox_source_unref(&mailbox_source);
 
 	print_total();
 }
@@ -573,7 +584,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	}
 
 	fix_probabilities();
-	users_init(profile);
+	mailbox_source = imaptest_mailbox_source();
+	users_init(profile, mailbox_source);
 	mailboxes_init();
 	clients_init();
 
@@ -589,6 +601,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	users_deinit();
 	if (profile != NULL)
 		pool_unref(&profile->pool);
+	mailbox_source_unref(&mailbox_source);
 
 	if (to_stop != NULL)
 		timeout_remove(&to_stop);

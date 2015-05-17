@@ -9,7 +9,7 @@
 #include "imap-arg.h"
 #include "commands.h"
 #include "mailbox.h"
-#include "client.h"
+#include "imap-client.h"
 #include "search.h"
 
 #include <time.h>
@@ -72,14 +72,14 @@ struct search_node {
 
 struct search_context {
 	pool_t pool;
-	struct client *client;
+	struct imap_client *client;
 	struct search_node root;
 
 	ARRAY_TYPE(seq_range) result;
 };
 
 static int
-search_node_verify_msg(struct client *client, struct search_node *node,
+search_node_verify_msg(struct imap_client *client, struct search_node *node,
 		       const struct message_metadata_static *ms)
 {
 	const char *str, *const *words;
@@ -171,7 +171,7 @@ search_node_verify_msg(struct client *client, struct search_node *node,
 }
 
 static int
-search_node_verify(struct client *client, struct search_node *node,
+search_node_verify(struct imap_client *client, struct search_node *node,
 		   uint32_t seq, bool parent_or)
 {
 	const struct message_metadata_static *ms;
@@ -211,7 +211,7 @@ search_node_verify(struct client *client, struct search_node *node,
 	return ret2;
 }
 
-static void search_verify_result(struct client *client)
+static void search_verify_result(struct imap_client *client)
 {
 	struct search_context *ctx = client->search_ctx;
 	const uint32_t *uids;
@@ -224,27 +224,27 @@ static void search_verify_result(struct client *client)
 		ret = search_node_verify(client, &ctx->root, seq, FALSE);
 		found = seq_range_exists(&ctx->result, seq);
 		if (ret > 0 && !found) {
-			client_input_warn(client,
+			imap_client_input_warn(client,
 				"SEARCH result missing seq %u (uid %u)",
 				seq, uids[seq-1]);
 		} else if (ret == 0 && found) {
-			client_input_warn(client,
+			imap_client_input_warn(client,
 				"SEARCH result has extra seq %u (uid %u)",
 				seq, uids[seq-1]);
 		}
 	}
 }
 
-static void search_callback(struct client *client, struct command *cmd,
+static void search_callback(struct imap_client *client, struct command *cmd,
 			    const struct imap_arg *args ATTR_UNUSED,
 			    enum command_reply reply)
 {
 	i_assert(client->search_ctx != NULL);
 
 	if (reply != REPLY_OK)
-		client_input_warn(client, "SEARCH failed");
+		imap_client_input_warn(client, "SEARCH failed");
 	else if (!array_is_created(&client->search_ctx->result))
-		client_input_warn(client, "Missing untagged SEARCH");
+		imap_client_input_warn(client, "Missing untagged SEARCH");
 	else {
 		counters[cmd->state]++;
 		search_verify_result(client);
@@ -313,7 +313,7 @@ static bool
 search_command_build(struct search_context *ctx, struct search_node *parent,
 		     int probability)
 {
-	struct client *client = ctx->client;
+	struct imap_client *client = ctx->client;
 	pool_t pool = client->search_ctx->pool;
 	struct message_metadata_static *const *ms, *m1 = NULL, *m2 = NULL;
 	struct search_node *node;
@@ -353,9 +353,9 @@ again:
 	case SEARCH_SEQSET:
 		p_array_init(&node->seqset, pool, 5);
 		msgs = array_count(&client->view->uidmap);
-		if (!client_get_random_seq_range(client, &node->seqset,
-						 msgs / 2 + 1,
-						 CLIENT_RANDOM_FLAG_TYPE_NONE))
+		if (!imap_client_get_random_seq_range(client, &node->seqset,
+						      msgs / 2 + 1,
+						      CLIENT_RANDOM_FLAG_TYPE_NONE))
 			goto again;
 		break;
 	case SEARCH_SMALLER:
@@ -602,7 +602,7 @@ static void search_command_append(string_t *cmd, const struct search_node *node)
 	}
 }
 
-void search_command_send(struct client *client)
+void search_command_send(struct imap_client *client)
 {
 	pool_t pool;
 	string_t *cmd;
@@ -628,7 +628,7 @@ void search_command_send(struct client *client)
 	command_send(client, str_c(cmd), search_callback);
 }
 
-void search_result(struct client *client, const struct imap_arg *args)
+void search_result(struct imap_client *client, const struct imap_arg *args)
 {
 	const char *str;
 	uint32_t num;
@@ -638,7 +638,7 @@ void search_result(struct client *client, const struct imap_arg *args)
 		return;
 
 	if (array_is_created(&client->search_ctx->result)) {
-		client_input_error(client, "duplicate SEARCH reply");
+		imap_client_input_error(client, "duplicate SEARCH reply");
 		return;
 	}
 
@@ -646,18 +646,18 @@ void search_result(struct client *client, const struct imap_arg *args)
 	p_array_init(&client->search_ctx->result, client->search_ctx->pool, 64);
 	for (; args->type != IMAP_ARG_EOL; args++) {
 		if (!imap_arg_get_atom(args, &str)) {
-			client_input_error(client,
-					   "SEARCH reply contains non-atoms");
+			imap_client_input_error(client,
+				"SEARCH reply contains non-atoms");
 			return;
 		}
 		if (str_to_uint32(str, &num) < 0 || num == 0) {
-			client_input_error(client,
+			imap_client_input_error(client,
 				"SEARCH reply contains invalid numbers");
 			return;
 		}
 		if (num > msgs_count) {
-			client_input_error(client,
-					   "SEARCH reply seq %u > %u EXISTS",
+			imap_client_input_error(client,
+				"SEARCH reply seq %u > %u EXISTS",
 					   num, msgs_count);
 			break;
 		}

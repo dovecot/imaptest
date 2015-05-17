@@ -7,7 +7,7 @@
 #include "ostream.h"
 #include "imap-parser.h"
 #include "mailbox.h"
-#include "client.h"
+#include "imap-client.h"
 #include "commands.h"
 
 #include <ctype.h>
@@ -58,7 +58,7 @@ ends_with_literal(const unsigned char *line, const unsigned char *p,
 }
 
 static void
-command_get_cmdline(struct client *client, const char **_cmdline,
+command_get_cmdline(struct imap_client *client, const char **_cmdline,
 		    unsigned int *_cmdline_len)
 {
 	const unsigned char *cmdline = (const void *)*_cmdline;
@@ -112,14 +112,14 @@ command_get_cmdline(struct client *client, const char **_cmdline,
 	*_cmdline_len = str_len(str);
 }
 
-struct command *command_send(struct client *client, const char *cmdline,
+struct command *command_send(struct imap_client *client, const char *cmdline,
 			     command_callback_t *callback)
 {
 	return command_send_binary(client, cmdline, strlen(cmdline), callback);
 }
 
 struct command *
-command_send_binary(struct client *client, const char *cmdline,
+command_send_binary(struct imap_client *client, const char *cmdline,
 		    unsigned int cmdline_len,
 		    command_callback_t *callback)
 {
@@ -130,12 +130,12 @@ command_send_binary(struct client *client, const char *cmdline,
 
 	i_assert(!client->append_unfinished);
 
-	if (client->idling && !client->idle_done_sent) {
+	if (client->client.idling && !client->idle_done_sent) {
 		client->idle_done_sent = TRUE;
-		o_stream_send_str(client->output, "DONE\r\n");
+		o_stream_send_str(client->client.output, "DONE\r\n");
 	}
-	if (client->state == STATE_LOGOUT)
-		client->logout_sent = TRUE;
+	if (client->client.state == STATE_LOGOUT)
+		client->client.logout_sent = TRUE;
 
 	cmd = i_new(struct command, 1);
 	T_BEGIN {
@@ -144,7 +144,7 @@ command_send_binary(struct client *client, const char *cmdline,
 		memcpy(cmd->cmdline, cmdline, cmdline_len);
 		cmd->cmdline_len = cmdline_len;
 	} T_END;
-	cmd->state = client->state;
+	cmd->state = client->client.state;
 	cmd->tag = tag;
 	cmd->callback = callback;
 
@@ -166,7 +166,7 @@ command_send_binary(struct client *client, const char *cmdline,
 			mailbox_view_free(&client->view);
 			mailbox_storage_unref(&client->storage);
 			client->storage = mailbox_storage_get(source,
-				client->user->username, name);
+				client->client.user->username, name);
 			client->view = mailbox_view_new(client->storage);
 		}
 	} else if (strcasecmp(cmdname, "DELETE") == 0 ||
@@ -179,21 +179,21 @@ command_send_binary(struct client *client, const char *cmdline,
 		name = get_astring(argp);
 		if (name != NULL) {
 			storage = mailbox_storage_lookup(client->storage->source,
-							 client->user->username,
+							 client->client.user->username,
 							 name);
 			if (storage != NULL)
 				mailbox_storage_reset(storage);
 		}
 	}
 
-	prefix = t_strdup_printf("%u.%u ", client->global_id, tag);
+	prefix = t_strdup_printf("%u.%u ", client->client.global_id, tag);
 	iov[0].iov_base = prefix;
 	iov[0].iov_len = strlen(prefix);
 	iov[1].iov_base = cmd->cmdline;
 	iov[1].iov_len = cmd->cmdline_len;
 	iov[2].iov_base = "\r\n";
 	iov[2].iov_len = 2;
-	o_stream_sendv(client->output, iov, 3);
+	o_stream_sendv(client->client.output, iov, 3);
 	gettimeofday(&cmd->tv_start, NULL);
 
 	array_append(&client->commands, &cmd, 1);
@@ -201,7 +201,7 @@ command_send_binary(struct client *client, const char *cmdline,
 	return cmd;
 }
 
-void command_unlink(struct client *client, struct command *cmd)
+void command_unlink(struct imap_client *client, struct command *cmd)
 {
 	struct command *const *cmds;
 	unsigned int i, count;
@@ -228,7 +228,7 @@ void command_free(struct command *cmd)
 	i_free(cmd);
 }
 
-struct command *command_lookup(struct client *client, unsigned int tag)
+struct command *command_lookup(struct imap_client *client, unsigned int tag)
 {
 	struct command *const *cmds;
 	unsigned int i, count;

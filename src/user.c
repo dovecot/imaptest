@@ -6,7 +6,7 @@
 #include "str.h"
 #include "settings.h"
 #include "profile.h"
-#include "client.h"
+#include "imap-client.h"
 #include "mailbox.h"
 #include "user.h"
 
@@ -15,6 +15,7 @@
 static HASH_TABLE(const char *, struct user *) users_hash;
 static ARRAY_TYPE(user) users = ARRAY_INIT;
 static struct profile *users_profile;
+static struct mailbox_source *users_mailbox_source;
 
 struct user *user_get(const char *username)
 {
@@ -30,6 +31,7 @@ struct user *user_get(const char *username)
 	user->pool = pool;
 	user->username = p_strdup(pool, username);
 	user->password = conf.password;
+	user->mailbox_source = users_mailbox_source;
 	p_array_init(&user->clients, user->pool, 2);
 	hash_table_insert(users_hash, user->username, user);
 	return user;
@@ -153,15 +155,16 @@ struct user_client *user_get_new_client_profile(struct user *user)
 	return lowest_uc;
 }
 
-struct client *
+struct imap_client *
 user_find_client_by_mailbox(struct user_client *uc, const char *mailbox)
 {
 	struct client *const *clientp;
 
 	array_foreach(&uc->clients, clientp) {
-		if ((*clientp)->login_state != LSTATE_NONAUTH &&
-		    strcmp((*clientp)->storage->name, mailbox) == 0)
-			return *clientp;
+		struct imap_client *client = imap_client(*clientp);
+		if (client->client.login_state != LSTATE_NONAUTH &&
+		    strcmp(client->storage->name, mailbox) == 0)
+			return client;
 	}
 	return NULL;
 }
@@ -198,10 +201,11 @@ user_get_mailbox_cache(struct user_client *uc, const char *name)
 	return mailbox;
 }
 
-void users_init(struct profile *profile)
+void users_init(struct profile *profile, struct mailbox_source *source)
 {
 	hash_table_create(&users_hash, default_pool, 0, str_hash, strcmp);
 	users_profile = profile;
+	users_mailbox_source = source;
 
 	if (profile != NULL)
 		profile_add_users(profile, &users);

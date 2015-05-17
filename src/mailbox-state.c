@@ -11,7 +11,7 @@
 #include "message-header-parser.h"
 
 #include "settings.h"
-#include "client.h"
+#include "imap-client.h"
 #include "mailbox.h"
 #include "mailbox-source.h"
 #include "mailbox-state.h"
@@ -26,7 +26,7 @@
 #define INTERNALDATE_NIL_TIMESTAMP 0
 #define RFC822_SIZE_NIL_REPLY "0"
 
-static void client_fetch_envelope(struct client *client,
+static void client_fetch_envelope(struct imap_client *client,
 				  struct message_metadata_dynamic *metadata,
 				  const struct imap_arg *args,
 				  unsigned int list_count, uint32_t uid)
@@ -42,8 +42,8 @@ static void client_fetch_envelope(struct client *client,
 
 	message_id = message_id_get_next(&str);
 	if (message_id == NULL || message_id_get_next(&str) != NULL) {
-		client_input_warn(client, "UID %u has invalid Message-Id: %s",
-				  uid, orig_str);
+		imap_client_input_warn(client, "UID %u has invalid Message-Id: %s",
+				       uid, orig_str);
 		message_id = orig_str;
 	}
 
@@ -51,7 +51,7 @@ static void client_fetch_envelope(struct client *client,
 		if (strcmp(metadata->ms->msg->message_id, message_id) == 0)
 			return;
 
-		client_input_warn(client,
+		imap_client_input_warn(client,
 			"UID %u changed Message-Id: %s -> %s",
 			uid, metadata->ms->msg->message_id, message_id);
 		return;
@@ -91,7 +91,7 @@ struct msg_old_flags {
 };
 
 static bool
-have_unexpected_changes(struct client *client, const struct msg_old_flags *old,
+have_unexpected_changes(struct imap_client *client, const struct msg_old_flags *old,
 			const struct message_metadata_dynamic *metadata)
 {
 	if (metadata->mail_flags != old->flags)
@@ -104,7 +104,7 @@ have_unexpected_changes(struct client *client, const struct msg_old_flags *old,
 }
 
 static void
-check_unexpected_flag_changes(struct client *client,
+check_unexpected_flag_changes(struct imap_client *client,
 			      const struct msg_old_flags *old,
 			      const struct message_metadata_dynamic *metadata)
 {
@@ -121,9 +121,9 @@ check_unexpected_flag_changes(struct client *client,
 		old_set = (old->flags & (1 << i)) != 0;
 		new_set = (metadata->mail_flags & (1 << i)) != 0;
 		if (old_set != new_set &&
-		    storage->flags_owner_client_idx1[i] == client->idx + 1) {
-			client_state_error(client, "Owned flag changed: %s%s",
-					   mail_flag_names[i], expunge_state);
+		    storage->flags_owner_client_idx1[i] == client->client.idx + 1) {
+			imap_client_state_error(client, "Owned flag changed: %s%s",
+						mail_flag_names[i], expunge_state);
 		}
 	}
 
@@ -135,17 +135,16 @@ check_unexpected_flag_changes(struct client *client,
 			(old->keyword_bitmask[i/8] & (1 << (i%8))) != 0;
 		new_set = (metadata->keyword_bitmask[i/8] & (1 << (i%8))) != 0;
 		if (old_set != new_set &&
-		    keywords[i].name->owner_client_idx1 == client->idx + 1) {
-			client_state_error(client,
-					   "Owned keyword changed: %s%s",
-					   keywords[i].name->name,
-					   expunge_state);
+		    keywords[i].name->owner_client_idx1 == client->client.idx + 1) {
+			imap_client_state_error(client,
+				"Owned keyword changed: %s%s",
+				keywords[i].name->name, expunge_state);
 		}
 	}
 }
 
 static void
-message_metadata_set_flags(struct client *client, const struct imap_arg *args,
+message_metadata_set_flags(struct imap_client *client, const struct imap_arg *args,
 			   struct message_metadata_dynamic *metadata)
 {
 	struct mailbox_view *view = client->view;
@@ -167,7 +166,7 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 	mailbox_keywords_clear(view, metadata);
 	while (!IMAP_ARG_IS_EOL(args)) {
 		if (!imap_arg_get_atom(args, &atom)) {
-			client_input_error(client,
+			imap_client_input_error(client,
 				"Flags list contains non-atoms.");
 			return;
 		}
@@ -178,12 +177,12 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 			if (flag != 0)
 				flags |= flag;
 			else {
-				client_input_error(client,
+				imap_client_input_error(client,
 					"Invalid system flag: %s", atom);
 			}
 		} else {
 			if (!mailbox_view_keyword_find(view, atom, &idx)) {
-				client_state_error(client,
+				imap_client_state_error(client,
 					"Keyword used without being in FLAGS: "
 					"%s", atom);
 				mailbox_view_keyword_add(view, atom);
@@ -209,9 +208,9 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 		/* we're changing the flags ourself */
 	} else if (metadata->ms == NULL) {
 		/* UID now known yet, don't do any owning checks */
-	} else if (metadata->ms->owner_client_idx1 == client->idx+1) {
+	} else if (metadata->ms->owner_client_idx1 == client->client.idx+1) {
 		if (have_unexpected_changes(client, &old_flags, metadata)) {
-			client_state_error(client,
+			imap_client_state_error(client,
 				"Flags unexpectedly changed for owned message");
 		}
 	} else if (client->storage->assign_flag_owners)
@@ -222,14 +221,14 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 		if (metadata->ms->recent_client_global_id == 0) {
 			if (client->view->readwrite) {
 				metadata->ms->recent_client_global_id =
-					client->global_id;
+					client->client.global_id;
 			}
 		} else if (metadata->ms->recent_client_global_id !=
-			   client->global_id) {
+			   client->client.global_id) {
 			i_error("Message UID=%u has \\Recent flag in "
 				"multiple sessions: %u and %u",
 				metadata->ms->uid,
-				client->global_id,
+				client->client.global_id,
 				metadata->ms->recent_client_global_id);
 			client->storage->dont_track_recent = TRUE;
 		}
@@ -247,21 +246,21 @@ message_metadata_set_flags(struct client *client, const struct imap_arg *args,
 }
 
 static void
-message_metadata_set_modseq(struct client *client, const char *value,
+message_metadata_set_modseq(struct imap_client *client, const char *value,
 			    struct message_metadata_dynamic *metadata)
 {
 	uint64_t modseq;
 	uint32_t uid = metadata->ms == NULL ? 0 : metadata->ms->uid;
 
 	if (str_to_uint64(value, &modseq) < 0 || modseq == 0) {
-		client_input_error(client, "UID=%u Invalid MODSEQ %s returned",
-				   uid, value);
+		imap_client_input_error(client, "UID=%u Invalid MODSEQ %s returned",
+					uid, value);
 		return;
 	}
 	if (modseq < metadata->modseq) {
-		client_input_warn(client,
-				  "UID=%u MODSEQ dropped %s -> %s", uid,
-				  dec2str(metadata->modseq), dec2str(modseq));
+		imap_client_input_warn(client,
+				       "UID=%u MODSEQ dropped %s -> %s", uid,
+				       dec2str(metadata->modseq), dec2str(modseq));
 	}
 
 	if (metadata->flagchange_dirty_type != FLAGCHANGE_DIRTY_NO ||
@@ -269,9 +268,9 @@ message_metadata_set_modseq(struct client *client, const char *value,
 		/* we're changing the flags ourself */
 	} else if (metadata->ms == NULL) {
 		/* UID now known yet, don't do any owning checks */
-	} else if (metadata->ms->owner_client_idx1 == client->idx+1 &&
+	} else if (metadata->ms->owner_client_idx1 == client->client.idx+1 &&
 		   modseq != metadata->modseq) {
-		client_state_error(client,
+		imap_client_state_error(client,
 			"UID=%u MODSEQ changed for owned message: %s -> %s",
 			uid, dec2str(metadata->modseq), dec2str(modseq));
 	}
@@ -282,7 +281,7 @@ message_metadata_set_modseq(struct client *client, const char *value,
 }
 
 static void
-headers_parse(struct client *client, struct istream *input,
+headers_parse(struct imap_client *client, struct istream *input,
 	      ARRAY_TYPE(message_header) *headers_arr)
 {
 	struct message_header_parser_ctx *parser;
@@ -306,7 +305,7 @@ headers_parse(struct client *client, struct istream *input,
 				break;
 		}
 		if (i == count) {
-			client_state_error(client, 
+			imap_client_state_error(client,
 				"Unexpected header in reply: %s", hdr->name);
 		} else if (headers[i].value_len == 0) {
 			/* first header */
@@ -336,7 +335,7 @@ headers_parse(struct client *client, struct istream *input,
 }
 
 static void
-headers_match(struct client *client, ARRAY_TYPE(message_header) *headers_arr,
+headers_match(struct imap_client *client, ARRAY_TYPE(message_header) *headers_arr,
 	      struct message_global *msg)
 {
 	pool_t pool = client->storage->source->messages_pool;
@@ -375,7 +374,7 @@ headers_match(struct client *client, ARRAY_TYPE(message_header) *headers_arr,
 			   memcmp(fetch_headers[i].value,
 				  orig_headers[j].value,
 				  fetch_headers[i].value_len) != 0) {
-			client_state_error(client, 
+			imap_client_state_error(client,
 				"%s: Header %s changed '%.*s' -> '%.*s'",
 				msg->message_id, fetch_headers[i].name,
 				(int)orig_headers[j].value_len,
@@ -387,7 +386,7 @@ headers_match(struct client *client, ARRAY_TYPE(message_header) *headers_arr,
 }
 
 static int
-fetch_parse_header_fields(struct client *client, const struct imap_arg *args,
+fetch_parse_header_fields(struct imap_client *client, const struct imap_arg *args,
 			  struct message_metadata_static *ms)
 {
 	const struct imap_arg *header_args, *arg;
@@ -451,7 +450,7 @@ fetch_parse_header_fields(struct client *client, const struct imap_arg *args,
 	return 0;
 }
 
-static void fetch_parse_body1(struct client *client, const struct imap_arg *arg,
+static void fetch_parse_body1(struct imap_client *client, const struct imap_arg *arg,
 			      struct message_metadata_static *ms)
 {
 	pool_t pool = client->storage->source->messages_pool;
@@ -490,7 +489,7 @@ static void fetch_parse_body1(struct client *client, const struct imap_arg *arg,
 	}
 }
 
-void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
+void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 				const struct imap_arg *args)
 {
 	struct mailbox_view *view = client->view;
@@ -505,24 +504,24 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 	uidp = array_idx_modifiable(&view->uidmap, seq-1);
 
 	if (!imap_arg_get_list_full(args, &args, &list_count)) {
-		client_input_error(client, "FETCH didn't return a list");
+		imap_client_input_error(client, "FETCH didn't return a list");
 		return;
 	}
 
 	arg = fetch_list_get(args, "UID");
 	if (arg == NULL && client->qresync_enabled) {
-		client_input_error(client,
+		imap_client_input_error(client,
 			"FETCH didn't return UID while QRESYNC was enabled");
 	}
 	if (arg != NULL && imap_arg_get_atom(arg, &value)) {
 		if (str_to_uint32(value, &uid) < 0 || uid == 0)
-			client_input_error(client, "Invalid UID number %s",
-					   value);
+			imap_client_input_error(client, "Invalid UID number %s",
+						value);
 		else if (*uidp == 0) {
 			view->known_uid_count++;
 			*uidp = uid;
 		} else if (*uidp != uid) {
-			client_input_error(client,
+			imap_client_input_error(client,
 				"UID changed for sequence %u: %u -> %u",
 				seq, *uidp, uid);
 			uid_changed = TRUE;
@@ -551,7 +550,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 
 			if (!imap_arg_get_list_full(arg, &env_args,
 						    &env_list_count)) {
-				client_input_error(client,
+				imap_client_input_error(client,
 					"FETCH ENVELOPE didn't return a list");
 				return;
 			}
@@ -580,8 +579,8 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 
 		if (strcmp(name, "FLAGS") == 0) {
 			if (listargs == NULL) {
-				client_input_error(client,
-						   "FLAGS reply isn't a list");
+				imap_client_input_error(client,
+					"FLAGS reply isn't a list");
 				continue;
 			}
 			message_metadata_set_flags(client, listargs, metadata);
@@ -602,8 +601,8 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 			int tz_offset;
 
 			if (!imap_parse_datetime(value, &t, &tz_offset)) {
-				client_input_error(client,
-						   "Broken INTERNALDATE");
+				imap_client_input_error(client,
+					"Broken INTERNALDATE");
 			} else if (t == INTERNALDATE_NIL_TIMESTAMP) {
 				/* ignore */
 			} else if (metadata->ms->internaldate == 0) {
@@ -611,7 +610,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 				metadata->ms->internaldate_tz = tz_offset;
 			} else if (metadata->ms->internaldate != t ||
 				   metadata->ms->internaldate_tz != tz_offset) {
-				client_input_error(client,
+				imap_client_input_error(client,
 					"UID=%u INTERNALDATE changed "
 					"%s+%d -> %s+%d", uid,
 					dec2str(metadata->ms->internaldate),
@@ -657,7 +656,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 			if (strcmp(name + 5, "HEADER.FIELDS") == 0) {
 				if (fetch_parse_header_fields(client,
 						args + i+1, metadata->ms) < 0) {
-					client_input_error(client,
+					imap_client_input_error(client,
 						"Broken HEADER.FIELDS");
 				}
 			} else if (strcmp(name + 5, "]") == 0)
@@ -675,7 +674,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 
 		if (p != NULL && (*p == NULL || strcasecmp(*p, value) != 0)) {
 			if (*p != NULL) {
-				client_state_error(client,
+				imap_client_state_error(client,
 					"uid=%u %s: %s changed '%s' -> '%s'",
 					metadata->ms->uid,
 					metadata->ms->msg->message_id, name,
@@ -692,7 +691,7 @@ void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
 					value_size = strlen(value);
 			}
 			if (*sizep != value_size && *sizep != 0) {
-				client_state_error(client,
+				imap_client_state_error(client,
 					"uid=%u %s: %s size changed %"PRIuUOFF_T
 					" -> '%"PRIuUOFF_T"'",
 					metadata->ms->uid,

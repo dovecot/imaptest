@@ -10,7 +10,7 @@
 #include "str.h"
 #include "imap-parser.h"
 
-#include "imap-seqset.h"
+#include "imap-client.h"
 #include "imap-util.h"
 #include "settings.h"
 #include "mailbox.h"
@@ -37,460 +37,8 @@ static struct ssl_iostream_context *ssl_ctx = NULL;
 
 static const struct ssl_iostream_settings ssl_set;
 
-int client_input_error(struct client *client, const char *fmt, ...)
-{
-	va_list va;
-
-	va_start(va, fmt);
-	i_error("%s[%u]: %s: %s", client->user->username, client->global_id,
-		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
-		imap_args_to_str(client->cur_args));
-	va_end(va);
-
-	client_disconnect(client);
-	if (conf.error_quit)
-		exit(2);
-	return -1;
-}
-
-int client_input_warn(struct client *client, const char *fmt, ...)
-{
-	va_list va;
-
-	va_start(va, fmt);
-	i_error("%s[%u]: %s: %s", client->user->username, client->global_id,
-		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
-		imap_args_to_str(client->cur_args));
-	va_end(va);
-	return -1;
-}
-
-int client_state_error(struct client *client, const char *fmt, ...)
-{
-	va_list va;
-
-	va_start(va, fmt);
-	i_error("%s[%u]: %s: %s", client->user->username, client->global_id,
-		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
-		imap_args_to_str(client->cur_args));
-	va_end(va);
-
-	if (conf.error_quit)
-		exit(2);
-	return -1;
-}
-
-void client_exists(struct client *client, unsigned int msgs)
-{
-	unsigned int old_count = array_count(&client->view->uidmap);
-
-	if (msgs < old_count) {
-		client_input_error(client, "Message count dropped %u -> %u",
-				   old_count, msgs);
-		array_delete(&client->view->uidmap, msgs, old_count - msgs);
-		return;
-	}
-	for (; old_count < msgs; old_count++)
-		(void)array_append_space(&client->view->uidmap);
-}
-
-static int client_expunge(struct client *client, unsigned int seq)
-{
-	struct message_metadata_dynamic *metadata;
-	unsigned int count = array_count(&client->view->uidmap);
-
-	if (seq == 0) {
-		client_input_error(client, "Tried to expunge sequence 0");
-		return -1;
-	}
-	if (seq > count) {
-		client_input_error(client,
-			"Tried to expunge sequence %u with only %u msgs",
-			seq, count);
-		return -1;
-	}
-
-	metadata = array_idx_modifiable(&client->view->messages, seq - 1);
-	if (metadata->fetch_refcount > 0) {
-		client_input_error(client,
-			"Referenced message expunged seq=%u uid=%u",
-			seq, metadata->ms == NULL ? 0 : metadata->ms->uid);
-		return -1;
-	}
-	mailbox_view_expunge(client->view, seq);
-	return 0;
-}
-
-static int client_expunge_uid(struct client *client, uint32_t uid)
-{
-	const uint32_t *uidmap;
-	unsigned int i, count;
-
-	/* if there are unknown UIDs we don't really know which one of them
-	   we should expunge, but it doesn't matter because they contain no
-	   metadata at that point. */
-	uidmap = array_get(&client->view->uidmap, &count);
-	for (i = 0; i < count; i++) {
-		if (uid <= uidmap[i]) {
-			if (uid == uidmap[i]) {
-				/* found it */
-				client_expunge(client, i + 1);
-				return 0;
-			}
-			break;
-		}
-	}
-
-	/* there are one or more unknown messages. expunge the last one of them
-	   (none of them should have any attached metadata) */
-	if (i == 0 || uidmap[i-1] != 0) {
-		client_input_error(client, "VANISHED UID=%u not found", uid);
-		return -1;
-	}
-
-	client_expunge(client, i);
-	return 0;
-}
-
-static void
-client_expunge_uid_range(struct client *client,
-			 const ARRAY_TYPE(seq_range) *expunged_uids)
-{
-	const uint32_t *uidmap;
-	unsigned int seq, uid_count;
-
-	uidmap = array_get(&client->view->uidmap, &uid_count);
-	for (seq = uid_count; seq > 0; seq--) {
-		i_assert(uidmap[seq-1] != 0);
-
-		if (seq_range_exists(expunged_uids, uidmap[seq-1])) {
-			client_expunge(client, seq);
-			uidmap = array_get(&client->view->uidmap, &uid_count);
-		}
-	}
-}
-
-static void client_enabled(struct client *client, const struct imap_arg *args)
-{
-	const char *str;
-
-	for (; imap_arg_get_atom(args, &str); args++) {
-		if (strcasecmp(str, "QRESYNC") == 0)
-			client->qresync_enabled = TRUE;
-	}
-}
-
-static int client_vanished(struct client *client, const struct imap_arg *args)
-{
-	struct mailbox_view *view = client->view;
-	const struct imap_arg *subargs;
-	ARRAY_TYPE(seq_range) uids;
-	const struct seq_range *range;
-	unsigned int i, count;
-	const char *uidset;
-	uint32_t uid;
-
-	if (!client->qresync_enabled) {
-		client_input_error(client,
-			"Server sent VANISHED but we hadn't enabled QRESYNC");
-		return -1;
-	}
-
-	if (imap_arg_get_list(args, &subargs)) {
-		if (imap_arg_atom_equals(&subargs[0], "EARLIER") &&
-		    IMAP_ARG_IS_EOL(&subargs[1])) {
-			if (client->qresync_select_cache == NULL) {
-				/* we don't care */
-				return 0;
-			}
-			/* SELECTing with QRESYNC */
-			args++;
-		}
-	}
-
-	if (!imap_arg_get_atom(&args[0], &uidset) ||
-	    !IMAP_ARG_IS_EOL(&args[1])) {
-		client_input_error(client, "Invalid VANISHED parameters");
-		return -1;
-	}
-
-	t_array_init(&uids, 16);
-	if (imap_seq_set_parse(uidset, &uids) < 0) {
-		client_input_error(client, "Invalid VANISHED sequence-set");
-		return -1;
-	}
-
-	if (view->known_uid_count == array_count(&view->uidmap)) {
-		/* all UIDs are known - we can handle UIDs that are already
-		   expunged. this happens normally when doing a SELECT QRESYNC
-		   and server couldn't keep track of only the new expunges. */
-		client_expunge_uid_range(client, &uids);
-		return 0;
-	}
-
-	/* we assume that there are no extra UIDs in the reply, even though
-	   it's only a SHOULD in the spec. way too difficult to handle
-	   otherwise. */
-	range = array_get(&uids, &count);
-	for (i = 0; i < count; i++) {
-		for (uid = range[i].seq1; uid <= range[i].seq2; uid++)
-			client_expunge_uid(client, uid);
-	}
-	return 0;
-}
-
-static void
-client_list_result(struct client *client, const struct imap_arg *args)
-{
-	struct mailbox_list_entry *list;
-	const char *name;
-
-	if (args[0].type != IMAP_ARG_LIST ||
-	    !IMAP_ARG_IS_NSTRING(&args[1]) ||
-	    !imap_arg_get_astring(&args[2], &name))
-		return;
-
-	if (!array_is_created(&client->mailboxes_list))
-		i_array_init(&client->mailboxes_list, 4);
-
-	/* don't add duplicates */
-	array_foreach_modifiable(&client->mailboxes_list, list) {
-		if (strcmp(list->name, name) == 0) {
-			list->found = TRUE;
-			return;
-		}
-	}
-	list = array_append_space(&client->mailboxes_list);
-	list->name = i_strdup(name);
-	list->found = TRUE;
-}
-
-void client_mailboxes_list_begin(struct client *client)
-{
-	struct mailbox_list_entry *list;
-
-	if (!array_is_created(&client->mailboxes_list))
-		return;
-	array_foreach_modifiable(&client->mailboxes_list, list)
-		list->found = FALSE;
-}
-
-void client_mailboxes_list_end(struct client *client)
-{
-	struct mailbox_list_entry *lists;
-	unsigned int i, count;
-
-	lists = array_get_modifiable(&client->mailboxes_list, &count);
-	for (i = count; i > 0; i--) {
-		if (!lists[i-1].found) {
-			i_free(lists[i-1].name);
-			array_delete(&client->mailboxes_list, i-1, 1);
-		}
-	}
-}
-
-struct mailbox_list_entry *
-client_mailboxes_list_find(struct client *client, const char *name)
-{
-	struct mailbox_list_entry *list;
-
-	array_foreach_modifiable(&client->mailboxes_list, list) {
-		if (strcmp(list->name, name) == 0)
-			return list;
-	}
-	return NULL;
-}
-
-void client_capability_parse(struct client *client, const char *line)
-{
-	const char *const *tmp;
-	unsigned int i;
-
-	if (client->login_state != LSTATE_NONAUTH)
-		client->postlogin_capability = TRUE;
-
-	client->capabilities = 0;
-	if (client->capabilities_list != NULL)
-		p_strsplit_free(default_pool, client->capabilities_list);
-	client->capabilities_list = p_strsplit(default_pool, line, " ");
-
-	for (tmp = t_strsplit(line, " "); *tmp != NULL; tmp++) {
-		for (i = 0; cap_names[i].name != NULL; i++) {
-			if (strcasecmp(*tmp, cap_names[i].name) == 0) {
-				client->capabilities |= cap_names[i].capability;
-				break;
-			}
-		}
-	}
-}
-
-int client_handle_untagged(struct client *client, const struct imap_arg *args)
-{
-	struct mailbox_view *view = client->view;
-	const char *str;
-	unsigned int num;
-
-	if (!imap_arg_get_atom(args, &str))
-		return -1;
-	str = t_str_ucase(str);
-	args++;
-
-	if (str_to_uint(str, &num) == 0) {
-		if (!imap_arg_get_atom(args, &str))
-			return -1;
-		str = t_str_ucase(str);
-		args++;
-
-		if (strcmp(str, "EXISTS") == 0)
-			client_exists(client, num);
-
-                if (num > array_count(&view->uidmap) &&
-		    client->last_cmd->state > STATE_SELECT) {
-			client_input_warn(client,
-				"seq too high (%u > %u, state=%s)",
-				num, array_count(&view->uidmap),
-                                states[client->last_cmd->state].name);
-		} else if (strcmp(str, "EXPUNGE") == 0) {
-			if (client_expunge(client, num) < 0)
-				return -1;
-		} else if (strcmp(str, "RECENT") == 0) {
-			view->recent_count = num;
-			if (view->recent_count ==
-			    array_count(&view->uidmap))
-				view->storage->seen_all_recent = TRUE;
-		} else if (!conf.no_tracking && strcmp(str, "FETCH") == 0)
-			mailbox_state_handle_fetch(client, num, args);
-	} else if (strcmp(str, "BYE") == 0) {
-		if (!client->logout_sent || client->seen_bye)
-			client_input_warn(client, "Unexpected BYE");
-		else
-			counters[STATE_LOGOUT]++;
-		client_mailbox_close(client);
-		client->seen_bye = TRUE;
-		client->login_state = LSTATE_NONAUTH;
-	} else if (strcmp(str, "FLAGS") == 0) {
-		if (mailbox_state_set_flags(view, args) < 0)
-			client_input_error(client, "Broken FLAGS");
-	} else if (strcmp(str, "CAPABILITY") == 0)
-		client_capability_parse(client, imap_args_to_str(args));
-	else if (strcmp(str, "SEARCH") == 0)
-		search_result(client, args);
-	else if (strcmp(str, "LIST") == 0)
-		client_list_result(client, args);
-	else if (strcmp(str, "ENABLED") == 0)
-		client_enabled(client, args);
-	else if (strcmp(str, "VANISHED") == 0) {
-		if (client_vanished(client, args) < 0)
-			return -1;
-	} else if (strcmp(str, "THREAD") == 0) {
-		i_free(view->last_thread_reply);
-		view->last_thread_reply = IMAP_ARG_IS_EOL(args) ?
-			i_strdup("") :
-			i_strdup(imap_args_to_str(args + 1));
-	} else if (strcmp(str, "OK") == 0) {
-		client_handle_resp_text_code(client, args);
-	} else if (strcmp(str, "NO") == 0) {
-		/*i_info("%s: %s", client->user->username, line + 2);*/
-	} else if (strcmp(str, "BAD") == 0) {
-		client_input_warn(client, "BAD received");
-	}
-	return 0;
-}
-
-static int
-client_input_args(struct client *client, const struct imap_arg *args)
-{
-	const char *p, *tag, *tag_status;
-	struct command *cmd;
-	enum command_reply reply;
-
-	if (!imap_arg_get_atom(args, &tag))
-		return client_input_error(client, "Broken tag");
-	args++;
-
-	if (strcmp(tag, "+") == 0) {
-		if (client->last_cmd == NULL) {
-			return client_input_error(client,
-				"Unexpected command continuation");
-		}
-		client->last_cmd->callback(client, client->last_cmd,
-					   args, REPLY_CONT);
-		return 0;
-	}
-	if (strcmp(tag, "*") == 0) {
-		if (client->handle_untagged(client, args) < 0) {
-			return client_input_error(client,
-						  "Invalid untagged input");
-		}
-		return 0;
-	}
-
-	/* tagged reply */
-	if (!imap_arg_get_atom(args, &tag_status))
-		return client_input_error(client, "Broken tagged reply");
-
-	p = strchr(tag, '.');
-	cmd = p != NULL &&
-		atoi(t_strdup_until(tag, p)) == (int)client->global_id ?
-		command_lookup(client, atoi(t_strcut(p+1, ' '))) : NULL;
-	if (cmd == NULL) {
-		return client_input_error(client, "Unexpected tagged reply: %s",
-					  tag);
-	}
-
-	if (strcasecmp(tag_status, "OK") == 0)
-		reply = REPLY_OK;
-	else if (strcasecmp(tag_status, "NO") == 0)
-		reply = REPLY_NO;
-	else if (strcasecmp(tag_status, "BAD") == 0) {
-		reply = REPLY_BAD;
-		if (!cmd->expect_bad) {
-			client_input_error(client, "BAD reply for command: %s",
-					   cmd->cmdline);
-		}
-	} else {
-		return client_input_error(client, "Broken tagged reply");
-	}
-
-	command_unlink(client, cmd);
-
-	o_stream_cork(client->output);
-	cmd->callback(client, cmd, args, reply);
-	client_cmd_reply_finish(client);
-	o_stream_uncork(client->output);
-	command_free(cmd);
-	return 0;
-}
-
-static bool client_skip_literal(struct client *client)
-{
-	size_t size;
-
-	if (client->literal_left == 0)
-		return TRUE;
-
-	(void)i_stream_get_data(client->input, &size);
-	if (size < client->literal_left) {
-		client->literal_left -= size;
-		i_stream_skip(client->input, size);
-		return FALSE;
-	} else {
-		i_stream_skip(client->input, client->literal_left);
-		client->literal_left = 0;
-		return TRUE;
-	}
-}
-
 static void client_input(struct client *client)
 {
-	const struct imap_arg *imap_args;
-	const char *line, *p;
-	uoff_t literal_size;
-	const unsigned char *data;
-	size_t size;
-	bool fatal;
-	int ret;
-
 	client->last_io = ioloop_time;
 
 	switch (i_stream_read(client->input)) {
@@ -506,101 +54,17 @@ static void client_input(struct client *client)
 		client_unref(client, TRUE);
 		return;
 	}
-
-	if (!client->seen_banner) {
-		/* we haven't received the banner yet */
-		line = i_stream_next_line(client->input);
-		if (line == NULL)
-			return;
-		client->seen_banner = TRUE;
-
-		if (strncasecmp(line, "* PREAUTH ", 10) == 0) {
-			client->preauth = TRUE;
-			client->login_state = LSTATE_AUTH;
-		} else if (strncasecmp(line, "* OK ", 5) != 0) {
-			client_input_error(client,
-			                   "Malformed banner \"%s\"", line);
-		}
-		p = strstr(line, "[CAPABILITY ");
-		if (p == NULL)
-			command_send(client, "CAPABILITY", state_callback);
-		else {
-			client_capability_parse(client, t_strcut(p + 12, ']'));
-			(void)client_send_more_commands(client);
-		}
-	}
-
-	while (client_skip_literal(client)) {
-		ret = imap_parser_read_args(client->parser, 0,
-					    IMAP_PARSE_FLAG_LITERAL_SIZE |
-					    IMAP_PARSE_FLAG_LITERAL8 |
-					    IMAP_PARSE_FLAG_ATOM_ALLCHARS,
-					    &imap_args);
-		if (ret == -2) {
-			/* need more data */
-			break;
-		}
-		if (ret < 0) {
-			/* some error */
-			client_input_error(client,
-				"error parsing input: %s",
-				imap_parser_get_error(client->parser, &fatal));
-			return;
-		}
-		if (imap_args->type == IMAP_ARG_EOL) {
-			/* FIXME: we get here, but we shouldn't.. */
-			client->refcount++;
-		} else {
-			if (imap_parser_get_literal_size(client->parser,
-							 &literal_size)) {
-				if (literal_size <= MAX_INLINE_LITERAL_SIZE) {
-					/* read the literal */
-					imap_parser_read_last_literal(
-						client->parser);
-					continue;
-				}
-				/* literal too large. we still have to skip it
-				   though. */
-				client->literal_left = literal_size;
-				continue;
-			}
-
-			/* FIXME: we should call this for large
-			   literals too.. */
-			client->refcount++;
-			client->cur_args = imap_args;
-			T_BEGIN {
-				ret = client_input_args(client, imap_args);
-			} T_END;
-			client->cur_args = NULL;
-		}
-
-		if (client->literal_left == 0) {
-			/* end of command - skip CRLF */
-			imap_parser_reset(client->parser);
-
-			data = i_stream_get_data(client->input, &size);
-			if (size > 0 && data[0] == '\r') {
-				i_stream_skip(client->input, 1);
-				data = i_stream_get_data(client->input, &size);
-			}
-			if (size > 0 && data[0] == '\n')
-				i_stream_skip(client->input, 1);
-		}
-
-		if (!client_unref(client, TRUE) || ret < 0)
-			return;
-	}
-
+	client->refcount++;
+	client->v.input(client);
 	if (do_rand(STATE_DISCONNECT)) {
 		/* random disconnection */
 		counters[STATE_DISCONNECT]++;
 		client_unref(client, TRUE);
-		return;
+	} else {
+		if (client->input->closed)
+			client_unref(client, TRUE);
 	}
-
-	if (client->input->closed)
-		client_unref(client, TRUE);
+	client_unref(client, TRUE);
 }
 
 void client_input_stop(struct client *client)
@@ -647,12 +111,13 @@ static int client_output(struct client *client)
 	ret = o_stream_flush(client->output);
 	client->last_io = ioloop_time;
 
-	if (client->append_vsize_left > 0 && client->append_can_send) {
-		if (client_append_continue(client) < 0)
-			client_unref(client, TRUE);
+	if (ret > 0) {
+		if (client->v.output(client) < 0)
+			ret = -1;
 	}
 	o_stream_uncork(client->output);
-
+	if (ret < 0)
+		client_unref(client, TRUE);
         return ret;
 }
 
@@ -688,15 +153,24 @@ static void client_wait_connect(struct client *client)
 
 	io_remove(&client->io);
 	client->io = io_add(client->fd, IO_READ, client_input, client);
-	client->parser = imap_parser_create(client->input, NULL, (size_t)-1);
+	client->v.connected(client);
 }
 
-struct client *client_new(unsigned int idx, struct mailbox_source *source,
-			  struct user *user)
+struct client *client_new(unsigned int i, struct user *user)
 {
-	struct client *client;
+	struct user_client *uc;
+
+	uc = user_get_new_client_profile(user);
+	switch (uc->protocol) {
+	case CLIENT_PROTOCOL_IMAP:
+		return &imap_client_new(i, user, uc)->client;
+	}
+}
+
+int client_init(struct client *client, unsigned int idx,
+		struct user *user, struct user_client *uc)
+{
 	const struct ip_addr *ip;
-	const char *mailbox;
 	int fd;
 
 	i_assert(idx >= array_count(&clients) ||
@@ -713,22 +187,15 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source,
 
 	if (fd < 0) {
 		i_error("connect() failed: %m");
-		return NULL;
+		return -1;
 	}
 
-	client = i_new(struct client, 1);
 	client->refcount = 1;
-	client->tag_counter = 1;
 	client->idx = idx;
 	client->user = user;
-	client->user_client = user_get_new_client_profile(user);
+	client->user_client = uc;
 	client->global_id = ++global_id_counter;
 
-	mailbox = user_get_new_mailbox(client);
-	client->storage = mailbox_storage_get(source, user->username, mailbox);
-	client->view = mailbox_view_new(client->storage);
-	if (strchr(conf.mailbox, '%') != NULL || client->user_client != NULL)
-		client->try_create_mailbox = TRUE;
 	client->fd = fd;
 	client->rawlog_fd = -1;
 	client->input = i_stream_create_fd(fd, 1024*64, FALSE);
@@ -736,18 +203,16 @@ struct client *client_new(unsigned int idx, struct mailbox_source *source,
 	o_stream_set_flush_callback(client->output, client_output, client);
 	client->io = io_add(fd, IO_WRITE, client_wait_connect, client);
         client->last_io = ioloop_time;
-	i_array_init(&client->commands, 16);
+
 	clients_count++;
-
-	client->handle_untagged = user->profile != NULL ?
-		client_profile_handle_untagged : client_handle_untagged;
-	client->send_more_commands = user->profile != NULL ?
-		client_profile_send_more_commands :
-		client_plan_send_more_commands;
-
 	user_add_client(user, client);
         array_idx_set(&clients, idx, &client);
-        return client;
+	return 0;
+}
+
+void client_logout(struct client *client)
+{
+	client->v.logout(client);
 }
 
 void client_disconnect(struct client *client)
@@ -764,50 +229,31 @@ void client_disconnect(struct client *client)
 	client->to = timeout_add(0, client_input, client);
 }
 
-static void clients_unstalled(struct mailbox_storage *storage)
+static void clients_unstalled(void)
 {
 	const unsigned int *indexes;
 	unsigned int i, count;
 
 	indexes = array_get(&stalled_clients, &count);
-	for (i = 0; i < count && i < 3; i++) {
-		client_new(indexes[i], storage->source,
-			   user_get_random());
-	}
+	for (i = 0; i < count && i < 3; i++)
+		client_new(indexes[i], user_get_random());
 }
 
 bool client_unref(struct client *client, bool reconnect)
 {
-	struct mailbox_storage *storage = client->storage;
-	struct mailbox_list_entry *list;
 	unsigned int idx = client->idx;
-	struct command *const *cmds;
-	unsigned int i, count;
-	bool checkpoint;
 
 	i_assert(client->refcount > 0);
 	if (--client->refcount > 0)
 		return TRUE;
 
 	total_disconnects++;
-	if (conf.disconnect_quit && client->login_state != LSTATE_NONAUTH)
-		exit(1);
 
 	if (--clients_count == 0)
 		stalled = FALSE;
 	array_idx_clear(&clients, idx);
 
-	cmds = array_get(&client->commands, &count);
-	checkpoint = client->checkpointing != NULL && count > 0;
-	for (i = 0; i < count; i++)
-		command_free(cmds[i]);
-	array_free(&client->commands);
-
-	if (client->qresync_select_cache != NULL)
-		mailbox_offline_cache_unref(&client->qresync_select_cache);
-
-	client_mailbox_close(client);
-	mailbox_view_free(&client->view);
+	client->v.free(client);
 
 	o_stream_destroy(&client->output);
 	i_stream_destroy(&client->input);
@@ -819,18 +265,6 @@ bool client_unref(struct client *client, bool reconnect)
 		timeout_remove(&client->to);
 	if (close(client->fd) < 0)
 		i_error("close(client) failed: %m");
-
-	if (client->test_exec_ctx != NULL) {
-		/* storage must be fully unreferenced before new test can
-		   begin. */
-		mailbox_storage_unref(&storage);
-		test_execute_cancel_by_client(client);
-	}
-	if (client->parser != NULL)
-		imap_parser_unref(&client->parser);
-
-	if (client->capabilities_list != NULL)
-		p_strsplit_free(default_pool, client->capabilities_list);
 	user_remove_client(client->user, client);
 
 	if (clients_count == 0 && disconnect_clients)
@@ -850,74 +284,13 @@ bool client_unref(struct client *client, bool reconnect)
 			   get disconnected (e.g. server crash/restart). */
 			user = client->user;
 		}
-		client_new(idx, storage->source, user);
+		client_new(idx, user);
 
 		if (!stalled)
-			clients_unstalled(storage);
-	}
-
-	if (array_is_created(&client->mailboxes_list)) {
-		array_foreach_modifiable(&client->mailboxes_list, list)
-			i_free(list->name);
-		array_free(&client->mailboxes_list);
+			clients_unstalled();
 	}
 	i_free(client);
-
-	if (storage != NULL) {
-		if (checkpoint)
-			checkpoint_neg(storage);
-		mailbox_storage_unref(&storage);
-	}
 	return FALSE;
-}
-
-void client_log_mailbox_view(struct client *client)
-{
-	const struct message_metadata_dynamic *metadata;
-	const uint32_t *uidmap;
-	unsigned int i, count, metadata_count;
-	string_t *str;
-
-	if (client->rawlog_fd == -1)
-		return;
-	(void)o_stream_flush(client->output);
-
-	str = t_str_new(256);
-	str_printfa(str, "** view: highest_modseq=%llu\r\n",
-		    (unsigned long long)client->view->highest_modseq);
-	write(client->rawlog_fd, str_data(str), str_len(str));
-
-	uidmap = array_get(&client->view->uidmap, &count);
-	metadata = array_get(&client->view->messages, &metadata_count);
-	i_assert(metadata_count == count);
-
-	for (i = 0; i < count; i++) {
-		str_truncate(str, 0);
-		str_printfa(str, "seq=%u uid=%u modseq=%llu flags=(",
-			    i+1, uidmap[i],
-			    (unsigned long long)metadata[i].modseq);
-		imap_write_flags(str, metadata[i].mail_flags, NULL);
-		str_append(str, ") keywords=(");
-		mailbox_view_keywords_write(client->view,
-					    metadata[i].keyword_bitmask, str);
-		str_append(str, ")\r\n");
-		write(client->rawlog_fd, str_data(str), str_len(str));
-	}
-	write(client->rawlog_fd, "**\r\n", 4);
-}
-
-void client_mailbox_close(struct client *client)
-{
-	if (client->login_state == LSTATE_SELECTED && conf.qresync) {
-		if (rand() % 3 == 0) {
-			if (mailbox_view_save_offline_cache(client->view))
-				client_log_mailbox_view(client);
-		}
-
-		client->login_state = LSTATE_AUTH;
-	}
-	mailbox_view_free(&client->view);
-	client->view = mailbox_view_new(client->storage);
 }
 
 int client_send_more_commands(struct client *client)
@@ -925,7 +298,7 @@ int client_send_more_commands(struct client *client)
 	int ret;
 
 	o_stream_cork(client->output);
-	ret = client->send_more_commands(client);
+	ret = client->v.send_more_commands(client);
 	o_stream_uncork(client->output);
 	return ret;
 }

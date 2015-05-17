@@ -6,7 +6,7 @@
 #include "mail-types.h"
 #include "settings.h"
 #include "mailbox.h"
-#include "client.h"
+#include "imap-client.h"
 #include "checkpoint.h"
 
 #include <stdlib.h>
@@ -32,7 +32,7 @@ struct checkpoint_context {
 };
 
 static void
-keyword_map_update(struct checkpoint_context *ctx, struct client *client)
+keyword_map_update(struct checkpoint_context *ctx, struct imap_client *client)
 {
 	const struct mailbox_keyword *kw_my;
 	const char *const *kw_all, *name;
@@ -53,7 +53,7 @@ keyword_map_update(struct checkpoint_context *ctx, struct client *client)
 			if (!ctx->first) {
 				i_error("Checkpoint: client %u: "
 					"Missing keyword %s",
-					client->idx, name);
+					client->client.idx, name);
 			}
 			array_append(&ctx->all_keywords, &name, 1);
 			kw_all = array_get(&ctx->all_keywords, &all_count);
@@ -99,8 +99,9 @@ checkpoint_keywords_to_str(struct checkpoint_context *ctx,
 	}
 	return str_c(str);
 }
+
 static void
-checkpoint_update(struct checkpoint_context *ctx, struct client *client)
+checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 {
 	struct mailbox_view *view = client->view;
 	const struct message_metadata_dynamic *msgs;
@@ -116,7 +117,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 		ctx->errors = TRUE;
 		i_error("Checkpoint: client %u: "
 			"Mailbox has only %u of %u messages",
-			client->global_id, count, ctx->count);
+			client->client.global_id, count, ctx->count);
 	}
 
 	if (!view->storage->checkpoint->thread_sent) {
@@ -124,14 +125,14 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 	} else if (client->view->last_thread_reply == NULL) {
 		ctx->errors = TRUE;
 		i_error("Checkpoint: client %u: Missing THREAD reply",
-			client->global_id);
+			client->client.global_id);
 	} else if (ctx->thread_reply == NULL)
 		ctx->thread_reply = client->view->last_thread_reply;
 	else if (strcmp(client->view->last_thread_reply,
 			ctx->thread_reply) != 0) {
 		ctx->errors = TRUE;
 		i_error("Checkpoint: client %u: THREAD reply differs: %s != %s",
-			client->global_id, client->view->last_thread_reply,
+			client->client.global_id, client->view->last_thread_reply,
 			ctx->thread_reply);
 	}
 
@@ -150,7 +151,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 			ctx->errors = TRUE;
 			i_error("Checkpoint: client %u: "
 				"Message seq=%u UID %u != %u",
-				client->global_id, i + 1,
+				client->client.global_id, i + 1,
 				uids[i], ctx->uids[i]);
 			break;
 		}
@@ -164,7 +165,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 				i_error("Checkpoint: client %u: "
 					"Message seq=%u UID=%u "
 					"modseqs differ: %s vs %s",
-					client->global_id, i + 1, uids[i],
+					client->client.global_id, i + 1, uids[i],
 					dec2str(msgs[i].modseq),
 					dec2str(ctx->messages[i].modseq));
 			}
@@ -195,7 +196,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 				i_error("Checkpoint: client %u: "
 					"Message seq=%u UID=%u "
 					"has \\Recent flag in multiple sessions",
-					client->global_id, i + 1, uids[i]);
+					client->client.global_id, i + 1, uids[i]);
 				view->storage->dont_track_recent = TRUE;
 			}
 		}
@@ -206,7 +207,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 			ctx->errors = TRUE;
 			i_error("Checkpoint: client %u: Message seq=%u UID=%u "
 				"flags differ: (%s) vs (%s)",
-				client->global_id, i + 1, uids[i],
+				client->client.global_id, i + 1, uids[i],
 				mail_flags_to_str(this_flags),
 				mail_flags_to_str(other_flags));
 		}
@@ -215,7 +216,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct client *client)
 			ctx->errors = TRUE;
 			i_error("Checkpoint: client %u: Message seq=%u UID=%u "
 				"keywords differ: (%s) vs (%s)",
-				client->global_id, i + 1, uids[i],
+				client->client.global_id, i + 1, uids[i],
 				checkpoint_keywords_to_str(ctx, keywords_remapped),
 				checkpoint_keywords_to_str(ctx, ctx->messages[i].keyword_bitmask));
 		}
@@ -253,13 +254,15 @@ static void checkpoint_send_state_cmd(struct mailbox_storage *storage,
 
 	c = array_get(&clients, &count);
 	for (i = 0; i < count; i++) {
-		if (c[i] == NULL || c[i]->checkpointing != storage)
+		struct imap_client *client = imap_client(c[i]);
+
+		if (client == NULL || client->checkpointing != storage)
 			continue;
 
 		/* send the checkpoint command */
-		c[i]->plan[0] = state;
-		c[i]->plan_size = 1;
-		(void)client_plan_send_next_cmd(c[i]);
+		client->plan[0] = state;
+		client->plan_size = 1;
+		(void)imap_client_plan_send_next_cmd(client);
 		storage->checkpoint->clients_left++;
 	}
 }
@@ -304,17 +307,18 @@ void checkpoint_neg(struct mailbox_storage *storage)
 	/* get maximum number of messages in mailbox */
 	recent_total = 0;
 	for (i = 0; i < count; i++) {
-		if (c[i] == NULL || c[i]->checkpointing != storage)
+		struct imap_client *client = imap_client(c[i]);
+		if (client == NULL || client->checkpointing != storage)
 			continue;
 
-		i_assert(array_count(&c[i]->commands) == 0);
-		if (c[i]->view->select_uidnext != 0) {
+		i_assert(array_count(&client->commands) == 0);
+		if (client->view->select_uidnext != 0) {
 			min_uidnext = I_MIN(min_uidnext,
-					    c[i]->view->select_uidnext);
+					    client->view->select_uidnext);
 		}
-		recent_total += c[i]->view->recent_count;
+		recent_total += client->view->recent_count;
 		max_msgs_count = I_MAX(max_msgs_count,
-				       array_count(&c[i]->view->uidmap));
+				       array_count(&client->view->uidmap));
 	}
 
 	/* make sure everyone has the same idea of what the mailbox
@@ -330,11 +334,12 @@ void checkpoint_neg(struct mailbox_storage *storage)
 		i_array_init(&ctx.all_keywords, 32);
 		i_array_init(&ctx.cur_keywords_map, 32);
 		for (i = 0; i < count; i++) {
-			if (c[i] == NULL || c[i]->checkpointing != storage)
+			struct imap_client *client = imap_client(c[i]);
+			if (client == NULL || client->checkpointing != storage)
 				continue;
 
 			check_count++;
-			checkpoint_update(&ctx, c[i]);
+			checkpoint_update(&ctx, client);
 			ctx.first = FALSE;
 		}
 		for (i = 0; i < ctx.count; i++)
@@ -372,15 +377,16 @@ void checkpoint_neg(struct mailbox_storage *storage)
 
 	/* checkpointing is done - continue normal commands */
 	for (i = 0; i < count; i++) {
-		if (c[i] == NULL)
+		struct imap_client *client = imap_client(c[i]);
+		if (client == NULL)
 			continue;
-		if (c[i]->checkpointing == storage)
-			c[i]->checkpointing = NULL;
+		if (client->checkpointing == storage)
+			client->checkpointing = NULL;
 
-		if (array_count(&c[i]->commands) == 0 &&
-		    c[i]->state != STATE_BANNER) {
-			(void)client_send_more_commands(c[i]);
-			i_assert(array_count(&c[i]->commands) > 0);
+		if (array_count(&client->commands) == 0 &&
+		    client->client.state != STATE_BANNER) {
+			(void)client_send_more_commands(&client->client);
+			i_assert(array_count(&client->commands) > 0);
 		}
 	}
 
@@ -402,12 +408,14 @@ void clients_checkpoint(struct mailbox_storage *storage)
 
 	c = array_get(&clients, &count);
 	for (i = 0; i < count; i++) {
-		if (c[i] == NULL || c[i]->login_state != LSTATE_SELECTED)
+		struct imap_client *client = imap_client(c[i]);
+		if (client == NULL ||
+		    client->client.login_state != LSTATE_SELECTED)
 			continue;
 
-		if (c[i]->storage == storage) {
-			c[i]->checkpointing = storage;
-			if (array_count(&c[i]->commands) > 0)
+		if (client->storage == storage) {
+			client->checkpointing = storage;
+			if (array_count(&client->commands) > 0)
 				storage->checkpoint->clients_left++;
 		}
 	}

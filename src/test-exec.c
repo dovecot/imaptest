@@ -9,7 +9,7 @@
 #include "imap-arg.h"
 #include "mailbox.h"
 #include "mailbox-source.h"
-#include "client.h"
+#include "imap-client.h"
 #include "commands.h"
 #include "imapurl.h"
 #include "settings.h"
@@ -51,7 +51,7 @@ struct test_exec_context {
 	/* initial sequence -> current sequence (0=expunged) mapping */
 	ARRAY(uint32_t) cur_seqmap;
 
-	struct client **clients;
+	struct imap_client **clients;
 	struct mailbox_source *source;
 	unsigned int clients_waiting, disconnects_waiting;
 	unsigned int appends_left;
@@ -72,7 +72,7 @@ struct test_exec_context {
 
 static const char *tag_hash_key = "tag";
 
-static void init_callback(struct client *client, struct command *command,
+static void init_callback(struct imap_client *client, struct command *command,
 			  const struct imap_arg *args,
 			  enum command_reply reply);
 
@@ -100,7 +100,7 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 {
 	struct test_command_group *const *groupp;
 	const struct test_command *cmd;
-	struct client *client;
+	struct imap_client *client;
 	string_t *str;
 	va_list args;
 
@@ -123,7 +123,7 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 			    cmd->linenum, t_strdup_vprintf(fmt, args));
 		if (cmd->cur_cmd_tag != 0 && client != NULL) {
 			str_printfa(str, " (tag %u.%u)",
-				    client->global_id, cmd->cur_cmd_tag);
+				    client->client.global_id, cmd->cur_cmd_tag);
 		}
 		str_printfa(str, ": %s", cmd->command);
 		fprintf(stderr, "%s\n\n", str_c(str));
@@ -541,7 +541,7 @@ static void test_handle_expunge(struct test_exec_context *ctx, uint32_t seq)
 }
 
 static void
-test_handle_untagged_match(struct client *client, const struct imap_arg *args)
+test_handle_untagged_match(struct imap_client *client, const struct imap_arg *args)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
 	struct test_command_group *const *groupp;
@@ -574,7 +574,7 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 
 	cmd = array_idx(&(*groupp)->commands, 0);
 	tag = cmd->cur_cmd_tag == 0 ? NULL :
-		t_strdup_printf("%u.%u", client->global_id, cmd->cur_cmd_tag);
+		t_strdup_printf("%u.%u", client->client.global_id, cmd->cur_cmd_tag);
 	array_clear(&ctx->added_variables);
 	found = buffer_get_space_unsafe(ctx->cur_received_untagged, 0, count);
 	(void)array_idx_modifiable(&ctx->cur_maybe_matches, count-1);
@@ -623,12 +623,12 @@ test_handle_untagged_match(struct client *client, const struct imap_arg *args)
 }
 
 static int
-test_handle_untagged(struct client *client, const struct imap_arg *args)
+test_handle_untagged(struct imap_client *client, const struct imap_arg *args)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
 	const char *str, *reply, *mailbox;
 
-	if (client_handle_untagged(client, args) < 0)
+	if (imap_client_handle_untagged(client, args) < 0)
 		return -1;
 
 	if (ctx->startup_state >= TEST_STARTUP_STATE_DELETED)
@@ -719,7 +719,7 @@ static void test_group_finished(struct test_exec_context *ctx,
 	test_send_next_command_group(ctx);
 }
 
-static void test_cmd_callback(struct client *client,
+static void test_cmd_callback(struct imap_client *client,
 			      struct command *command,
 			      const struct imap_arg *args,
 			      enum command_reply reply)
@@ -734,16 +734,16 @@ static void test_cmd_callback(struct client *client,
 
 	if (reply == REPLY_CONT) {
 		i_assert(command->state == STATE_APPEND);
-		if (client_append_continue(client) < 0)
+		if (imap_client_append_continue(client) < 0)
 			test_fail(ctx, "APPEND failed");
 		return;
 	}
-	client_handle_tagged_reply(client, command, args, reply);
+	imap_client_handle_tagged_reply(client, command, args, reply);
 
 	groupp = array_idx(&ctx->test->cmd_groups, ctx->cur_group_idx);
 	test_cmd = test_cmd_find_by_cur_tag(*groupp, command->tag);
 
-	tag = t_strdup_printf("%u.%u", client->global_id, command->tag);
+	tag = t_strdup_printf("%u.%u", client->client.global_id, command->tag);
 	hash_table_insert(ctx->variables, tag_hash_key, tag);
 	match_count = test_imap_match_args(ctx, test_cmd->reply,
 					   args, UINT_MAX, TRUE);
@@ -798,7 +798,7 @@ append_has_body(struct test_exec_context *ctx, const char *str_args,
 }
 
 static void test_send_next_command(struct test_exec_context *ctx,
-				   struct client *client,
+				   struct imap_client *client,
 				   struct test_command *test_cmd)
 {
 	struct command *cmd = NULL;
@@ -809,20 +809,20 @@ static void test_send_next_command(struct test_exec_context *ctx,
 	cmdline_len = test_cmd->command_len;
 	test_expand_all(ctx, &cmdline, &cmdline_len, FALSE);
 	if (strcasecmp(cmdline, "append") == 0) {
-		client->state = STATE_APPEND;
-		(void)client_append_full(client, NULL, NULL, NULL,
-					 test_cmd_callback, &cmd);
+		client->client.state = STATE_APPEND;
+		(void)imap_client_append_full(client, NULL, NULL, NULL,
+					      test_cmd_callback, &cmd);
 	} else if (strncasecmp(cmdline, "append ", 7) == 0 &&
 		   !append_has_body(ctx, cmdline+7, cmdline_len-7)) {
-		client->state = STATE_APPEND;
-		(void)client_append(client, cmdline + 7, FALSE,
-				    test_cmd_callback, &cmd);
+		client->client.state = STATE_APPEND;
+		(void)imap_client_append(client, cmdline + 7, FALSE,
+					 test_cmd_callback, &cmd);
 	} else {
 		if (test_cmd->linenum == 0) {
 			/* sending the logout command */
-			client->state = STATE_LOGOUT;
+			client->client.state = STATE_LOGOUT;
 		} else {
-			client->state = STATE_SELECT;
+			client->client.state = STATE_SELECT;
 		}
 		cmd = command_send_binary(client, cmdline, cmdline_len,
 					  test_cmd_callback);
@@ -837,7 +837,7 @@ static void test_send_next_command_group(struct test_exec_context *ctx)
 {
 	struct test_command_group *const *groupp;
 	struct test_command *cmd;
-	struct client *client;
+	struct imap_client *client;
 	uint32_t seq;
 	unsigned int i;
 
@@ -870,10 +870,10 @@ static void test_send_next_command_group(struct test_exec_context *ctx)
 	   connection where they came from. */
 	for (i = 0; i < ctx->test->connection_count; i++) {
 		if (i == (*groupp)->connection_idx) {
-			if (!ctx->clients[i]->disconnected)
-				client_input_continue(ctx->clients[i]);
+			if (!ctx->clients[i]->client.disconnected)
+				client_input_continue(&ctx->clients[i]->client);
 		} else {
-			client_input_stop(ctx->clients[i]);
+			client_input_stop(&ctx->clients[i]->client);
 		}
 	}
 }
@@ -889,7 +889,8 @@ static void test_send_first_command(struct test_exec_context *ctx)
 
 	/* there will be no automatic command sending */
 	for (i = 0; i < ctx->test->connection_count; i++)
-		ctx->clients[i]->send_more_commands = test_send_no_commands;
+		ctx->clients[i]->client.v.send_more_commands =
+			test_send_no_commands;
 
 	ctx->init_finished = TRUE;
 	test_send_next_command_group(ctx);
@@ -901,9 +902,9 @@ static void wakeup_clients(struct test_exec_context *ctx)
 
 	/* if any other clients were waiting on us, resume them */
 	for (i = 1; i < ctx->test->connection_count; i++) {
-		if (ctx->clients[i]->state == STATE_NOOP) {
-			ctx->clients[i]->state = STATE_SELECT;
-			test_send_lstate_commands(ctx->clients[i]);
+		if (ctx->clients[i]->client.state == STATE_NOOP) {
+			ctx->clients[i]->client.state = STATE_SELECT;
+			test_send_lstate_commands(&ctx->clients[i]->client);
 		}
 	}
 }
@@ -916,7 +917,7 @@ static int rev_strcasecmp(const void *p1, const void *p2)
 }
 
 static unsigned int
-mailbox_foreach(struct client *client,
+mailbox_foreach(struct imap_client *client,
 		ARRAY_TYPE(const_string) *mailboxes, const char *cmd)
 {
 	const char **boxes, *str;
@@ -932,7 +933,7 @@ mailbox_foreach(struct client *client,
 	return count;
 }
 
-static void init_callback(struct client *client, struct command *command,
+static void init_callback(struct imap_client *client, struct command *command,
 			  const struct imap_arg *args,
 			  enum command_reply reply)
 {
@@ -942,18 +943,18 @@ static void init_callback(struct client *client, struct command *command,
 
 	if (reply == REPLY_CONT) {
 		i_assert(command->state == STATE_APPEND);
-		if (client_append_continue(client) < 0)
+		if (imap_client_append_continue(client) < 0)
 			test_fail(ctx, "APPEND failed");
 		return;
 	}
-	client_handle_tagged_reply(client, command, args, reply);
+	imap_client_handle_tagged_reply(client, command, args, reply);
 
 	/* Ignore if DELETE fails. It was probably a \NoSelect mailbox. */
 	if (reply == REPLY_BAD ||
 	    (reply == REPLY_NO &&
-	     !(client->state == STATE_MDELETE && ctx->delete_refcount > 0))) {
+	     !(client->client.state == STATE_MDELETE && ctx->delete_refcount > 0))) {
 		test_fail(ctx, "%s (tag %u.%u) failed: %s", command->cmdline,
-			  client->global_id, command->tag,
+			  client->client.global_id, command->tag,
 			  imap_args_to_str(args));
 		return;
 	}
@@ -974,7 +975,7 @@ static void init_callback(struct client *client, struct command *command,
 			return;
 		}
 		/* nothing to delete/unsubscribe */
-	} else if (client->state == STATE_MDELETE && ctx->delete_refcount > 0) {
+	} else if (client->client.state == STATE_MDELETE && ctx->delete_refcount > 0) {
 		if (--ctx->delete_refcount > 0)
 			return;
 	}
@@ -987,24 +988,24 @@ static void init_callback(struct client *client, struct command *command,
 			test_send_first_command(ctx);
 		} else if (client == ctx->clients[0])
 			wakeup_clients(ctx);
-	} else if (client->state != STATE_APPEND) {
+	} else if (client->client.state != STATE_APPEND) {
 		/* continue to next command */
 		ctx->startup_state++;
 	}
 }
 
 static void
-capability_callback(struct client *client, struct command *command,
+capability_callback(struct imap_client *client, struct command *command,
 		    const struct imap_arg *args, enum command_reply reply)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
 
 	if (reply != REPLY_OK || !client->postlogin_capability)
 		test_fail(ctx, "CAPABILITY failed");
-	client_handle_tagged_reply(client, command, args, reply);
+	imap_client_handle_tagged_reply(client, command, args, reply);
 }
 
-static bool test_have_all_capabilities(struct client *client)
+static bool test_have_all_capabilities(struct imap_client *client)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
 	const char *const *req = ctx->test->required_capabilities;
@@ -1028,8 +1029,9 @@ static bool test_have_all_capabilities(struct client *client)
 	return TRUE;
 }
 
-static int test_send_lstate_commands(struct client *client)
+static int test_send_lstate_commands(struct client *_client)
 {
+	struct imap_client *client = (struct imap_client *)_client;
 	struct test_exec_context *ctx = client->test_exec_ctx;
 	struct command *cmd;
 	const char *str, *mask;
@@ -1039,7 +1041,7 @@ static int test_send_lstate_commands(struct client *client)
 	if (ctx->failed)
 		return -1;
 	if (ctx->startup_state == ctx->test->startup_state &&
-	    (client->login_state != LSTATE_NONAUTH ||
+	    (client->client.login_state != LSTATE_NONAUTH ||
 	     ctx->test->startup_state == TEST_STARTUP_STATE_NONAUTH)) {
 		/* we're in the wanted state. selected state handling is
 		   done in init_callback to make sure that all commands have
@@ -1057,11 +1059,11 @@ static int test_send_lstate_commands(struct client *client)
 		ctx->startup_state = TEST_STARTUP_STATE_AUTH;
 
 	client->plan_size = 0;
-	switch (client->login_state) {
+	switch (client->client.login_state) {
 	case LSTATE_NONAUTH:
 		client->plan[0] = STATE_LOGIN;
 		client->plan_size = 1;
-		if (client_plan_send_next_cmd(client) < 0)
+		if (imap_client_plan_send_next_cmd(client) < 0)
 			return -1;
 		if (client == ctx->clients[0])
 			ctx->startup_state = TEST_STARTUP_STATE_AUTH;
@@ -1071,7 +1073,7 @@ static int test_send_lstate_commands(struct client *client)
 		if (client != ctx->clients[0] &&
 		    ctx->startup_state != TEST_STARTUP_STATE_APPENDED) {
 			/* wait until the mailbox is created */
-			client->state = STATE_NOOP;
+			client->client.state = STATE_NOOP;
 			break;
 		}
 
@@ -1093,14 +1095,14 @@ static int test_send_lstate_commands(struct client *client)
 			mask = t_imap_quote_str(mask);
 
 			ctx->listing = TRUE;
-			client->state = STATE_MDELETE;
+			client->client.state = STATE_MDELETE;
 			str = t_strdup_printf("LIST \"\" %s", mask);
 			command_send(client, str, init_callback);
 			str = t_strdup_printf("LSUB \"\" %s", mask);
 			command_send(client, str, init_callback);
 			break;
 		case TEST_STARTUP_STATE_DELETED:
-			client->state = STATE_MCREATE;
+			client->client.state = STATE_MCREATE;
 			str = t_strdup_printf("CREATE %s",
 				t_imap_quote_str(client->storage->name));
 			command_send(client, str, init_callback);
@@ -1109,20 +1111,20 @@ static int test_send_lstate_commands(struct client *client)
 			if (ctx->appends_left > 0 &&
 			    (!mailbox_source_eof(ctx->source) ||
 			     ctx->test->message_count != UINT_MAX)) {
-				client->state = STATE_APPEND;
+				client->client.state = STATE_APPEND;
 				ctx->appends_left--;
-				if (client_append_full(client, NULL, NULL, NULL,
-						       init_callback, &cmd) < 0)
+				if (imap_client_append_full(client, NULL, NULL, NULL,
+							    init_callback, &cmd) < 0)
 					return -1;
 				break;
 			}
 			/* finished appending */
 			ctx->startup_state++;
-			return test_send_lstate_commands(client);
+			return test_send_lstate_commands(_client);
 		case TEST_STARTUP_STATE_APPENDED:
 			str = t_strdup_printf("SELECT %s",
 				t_imap_quote_str(client->storage->name));
-			client->state = STATE_SELECT;
+			client->client.state = STATE_SELECT;
 			command_send(client, str, init_callback);
 			break;
 		case TEST_STARTUP_STATE_NONAUTH:
@@ -1144,6 +1146,7 @@ static int test_execute(const struct test *test,
 	const struct test_connection *test_conns;
 	unsigned int i, test_conn_count;
 	const char *key, *value, *username;
+	struct client *client;
 	char *url;
 	pool_t pool;
 
@@ -1166,35 +1169,38 @@ static int test_execute(const struct test *test,
 
 	/* create clients for the test */
 	test_conns = array_get(&test->connections, &test_conn_count);
-	ctx->clients = p_new(pool, struct client *, test->connection_count);
+	ctx->clients = p_new(pool, struct imap_client *, test->connection_count);
 	for (i = 0; i < test->connection_count; i++) {
 		username = NULL;
 		if (i < test_conn_count)
 			username = test_conns[i].username;
-		ctx->clients[i] = client_new(array_count(&clients), ctx->source,
-					     username != NULL ?
-					     user_get(username) :
-					     user_get_random());
+		client = client_new(array_count(&clients),
+				    username != NULL ?
+				    user_get(username) :
+				    user_get_random());
+		ctx->clients[i] = imap_client(client);
+		i_assert(ctx->clients[i] != NULL);
 		if (ctx->clients[i] == NULL) {
 			test_execute_free(ctx);
 			return -1;
 		}
 		ctx->clients[i]->handle_untagged = test_handle_untagged;
-		ctx->clients[i]->send_more_commands = test_send_lstate_commands;
+		ctx->clients[i]->client.v.send_more_commands =
+			test_send_lstate_commands;
 		ctx->clients[i]->test_exec_ctx = ctx;
 
 		key = i == 0 ? "user" : p_strdup_printf(pool, "user%u", i+1);
-		value = p_strdup(pool, ctx->clients[i]->user->username);
+		value = p_strdup(pool, ctx->clients[i]->client.user->username);
 		hash_table_insert(ctx->variables, key, value);
 
 		key = i == 0 ? "username" :
 			p_strdup_printf(pool, "username%u", i+1);
-		value = p_strdup(pool, t_strcut(ctx->clients[i]->user->username, '@'));
+		value = p_strdup(pool, t_strcut(ctx->clients[i]->client.user->username, '@'));
 		hash_table_insert(ctx->variables, key, value);
 
 		key = i == 0 ? "domain" :
 			p_strdup_printf(pool, "domain%u", i+1);
-		value = strchr(ctx->clients[i]->user->username, '@');
+		value = strchr(ctx->clients[i]->client.user->username, '@');
 		if (value != NULL)
 			value++;
 		else
@@ -1272,7 +1278,7 @@ static void test_execute_finish(struct test_exec_context *ctx)
 	/* disconnect all clients */
 	for (i = 0; i < ctx->test->connection_count; i++) {
 		if (ctx->clients[i] != NULL)
-			client_disconnect(ctx->clients[i]);
+			client_disconnect(&ctx->clients[i]->client);
 	}
 	ctx->disconnects_waiting = ctx->test->connection_count;
 }
@@ -1287,7 +1293,7 @@ static void test_execute_free(struct test_exec_context *ctx)
 	pool_unref(&ctx->pool);
 }
 
-void test_execute_cancel_by_client(struct client *client)
+void test_execute_cancel_by_client(struct imap_client *client)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
 	struct tests_execute_context *exec_ctx = ctx->exec_ctx;

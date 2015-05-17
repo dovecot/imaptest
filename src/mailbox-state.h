@@ -1,9 +1,9 @@
 #ifndef MAILBOX_STATE_H
 #define MAILBOX_STATE_H
 
-struct client;
+struct imap_client;
 
-void mailbox_state_handle_fetch(struct client *client, unsigned int seq,
+void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 				const struct imap_arg *args);
 
 int mailbox_state_set_flags(struct mailbox_view *view,
