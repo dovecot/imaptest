@@ -903,8 +903,7 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
 			if (array_count(&clients) >= conf.clients_count)
 				break;
 
-			client_new(array_count(&clients),
-				   user_get_random());
+			client_new_random(array_count(&clients));
 		}
 		break;
 	case STATE_LIST:

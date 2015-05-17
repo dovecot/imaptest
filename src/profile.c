@@ -180,6 +180,8 @@ static unsigned int
 user_get_timeout_interval(struct user *user, enum user_timestamp ts)
 {
 	switch (ts) {
+	case USER_TIMESTAMP_LOGIN:
+		return 0;
 	case USER_TIMESTAMP_INBOX_DELIVERY:
 		return user->profile->mail_inbox_delivery_interval;
 	case USER_TIMESTAMP_SPAM_DELIVERY:
@@ -201,7 +203,7 @@ user_get_next_timeout(struct user *user, time_t start_time,
 	unsigned int interval = user_get_timeout_interval(user, ts);
 
 	if (interval == 0)
-		return 2147483647; /* TIME_T_MAX - lets assume this is far enough.. */
+		return (time_t)-1;
 	return start_time + weighted_rand(interval);
 }
 
@@ -373,15 +375,33 @@ static void deliver_new_mail(struct user *user, const char *mailbox)
 			   rcpt_to, mailbox_source);
 }
 
-static bool user_client_is_logging_out(struct user_client *uc)
+static bool user_client_is_connected(struct user_client *uc)
 {
 	struct client *const *clientp;
 
+	if (uc == NULL || array_count(&uc->clients) == 0)
+		return FALSE;
+
 	array_foreach(&uc->clients, clientp) {
 		if ((*clientp)->state == STATE_LOGOUT)
-			return TRUE;
+			return FALSE;
 	}
-	return FALSE;
+	return TRUE;
+}
+
+static void user_set_next_mailbox_action(struct user *user)
+{
+	struct user_mailbox_cache *const *mailboxp;
+
+	array_foreach(&user->active_client->mailboxes, mailboxp) {
+		if ((*mailboxp)->next_action_timestamp <= ioloop_time &&
+		    (*mailboxp)->next_action_timestamp != (time_t)-1) {
+			(*mailboxp)->next_action_timestamp =
+				user_mailbox_action(user, *mailboxp) ?
+				(ioloop_time + weighted_rand(user->profile->mail_action_repeat_delay)) :
+				(time_t)-1;
+		}
+	}
 }
 
 static void user_logout(struct user_client *uc)
@@ -396,103 +416,118 @@ static void user_logout(struct user_client *uc)
 	}
 }
 
+static int user_timestamp_handle(struct user *user, enum user_timestamp ts,
+				 bool user_connected)
+{
+	if (user->timestamps[ts] > ioloop_time)
+		return -1;
+	if (user->timestamps[ts] == (time_t)-1) {
+		if (ts == USER_TIMESTAMP_LOGIN)
+			user->timestamps[ts] = user_get_next_login_time(user);
+		return -1;
+	}
+
+	switch (ts) {
+	case USER_TIMESTAMP_LOGIN:
+		if (user_connected)
+			return 0;
+		client_new_user(user);
+		return -1;
+	case USER_TIMESTAMP_INBOX_DELIVERY:
+		deliver_new_mail(user, "INBOX");
+		return 1;
+	case USER_TIMESTAMP_SPAM_DELIVERY:
+		deliver_new_mail(user, "Spam");
+		return 1;
+	case USER_TIMESTAMP_WRITE_MAIL:
+		if (!user_connected)
+			return 0;
+		if (user_write_mail(user->active_client))
+			return 1;
+		/* continue this operation with its own timeout */
+		return -1;
+	case USER_TIMESTAMP_LOGOUT:
+		if (!user_connected)
+			return 0;
+		user_logout(user->active_client);
+		return 1;
+	case USER_TIMESTAMP_COUNT:
+		break;
+	}
+	i_unreached();
+}
+
 static void user_timeout(struct user *user)
 {
-	struct user_mailbox_cache *const *mailboxp;
 	enum user_timestamp ts;
-
-	if (user_client_is_logging_out(user->active_client))
-		return;
+	bool user_connected = user_client_is_connected(user->active_client);
 
 	if (disconnect_clients) {
-		user_logout(user->active_client);
+		if (user_connected)
+			user_logout(user->active_client);
 		return;
 	}
 
 	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++) {
-		if (user->timestamps[ts] > ioloop_time ||
-		    user->timestamps[ts] == (time_t)-1)
-			continue;
-
-		switch (ts) {
-		case USER_TIMESTAMP_INBOX_DELIVERY:
-			deliver_new_mail(user, "INBOX");
+		switch (user_timestamp_handle(user, ts, user_connected)) {
+		case -1:
 			break;
-		case USER_TIMESTAMP_SPAM_DELIVERY:
-			deliver_new_mail(user, "Spam");
+		case 0:
+			user->timestamps[ts] = (time_t)-1;
 			break;
-		case USER_TIMESTAMP_WRITE_MAIL:
-			if (user_write_mail(user->active_client))
-				break;
-			/* continue this operation with its own timeout */
-			continue;
-		case USER_TIMESTAMP_LOGOUT:
-			user_logout(user->active_client);
+		case 1:
+			user->timestamps[ts] =
+				user_get_next_timeout(user, ioloop_time, ts);
 			break;
-		case USER_TIMESTAMP_COUNT:
-			i_unreached();
-		}
-		user->timestamps[ts] =
-			user_get_next_timeout(user, ioloop_time, ts);
-	}
-	array_foreach(&user->active_client->mailboxes, mailboxp) {
-		if ((*mailboxp)->next_action_timestamp <= ioloop_time &&
-		    (*mailboxp)->next_action_timestamp != (time_t)-1) {
-			(*mailboxp)->next_action_timestamp =
-				user_mailbox_action(user, *mailboxp) ?
-				(ioloop_time + weighted_rand(user->profile->mail_action_repeat_delay)) :
-				(time_t)-1;
 		}
 	}
+	if (user->active_client != NULL && user_connected)
+		user_set_next_mailbox_action(user);
 	user_set_timeout(user);
 }
 
 static void user_fill_timestamps(struct user *user, time_t start_time)
 {
 	enum user_timestamp ts;
+	unsigned int interval;
 
 	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++) {
-		user->timestamps[ts] = start_time +
-			rand() % user_get_timeout_interval(user, ts);
+		interval = user_get_timeout_interval(user, ts);
+		user->timestamps[ts] = interval == 0 ? (time_t)-1 :
+			start_time + rand() % interval;
 	}
 }
 
 static void user_set_timeout(struct user *user)
 {
 	struct user_mailbox_cache *const *mailboxp;
-	time_t lowest_timestamp;
+	time_t lowest_timestamp = INT_MAX;
 	unsigned int i;
 
-	lowest_timestamp = user->timestamps[0];
-	for (i = 1; i < N_ELEMENTS(user->timestamps); i++) {
-		if (lowest_timestamp > user->timestamps[i])
+	for (i = 0; i < N_ELEMENTS(user->timestamps); i++) {
+		if (lowest_timestamp > user->timestamps[i] &&
+		    user->timestamps[i] != (time_t)-1)
 			lowest_timestamp = user->timestamps[i];
 	}
-	array_foreach(&user->active_client->mailboxes, mailboxp) {
-		if ((*mailboxp)->next_action_timestamp != (time_t)-1 &&
-		    lowest_timestamp > (*mailboxp)->next_action_timestamp)
-			lowest_timestamp = (*mailboxp)->next_action_timestamp;
+	if (user->active_client != NULL) {
+		array_foreach(&user->active_client->mailboxes, mailboxp) {
+			if ((*mailboxp)->next_action_timestamp != (time_t)-1 &&
+			    lowest_timestamp > (*mailboxp)->next_action_timestamp)
+				lowest_timestamp = (*mailboxp)->next_action_timestamp;
+		}
 	}
 
 	if (user->to != NULL)
 		timeout_remove(&user->to);
-	if (lowest_timestamp <= ioloop_time)
+	if (lowest_timestamp == (time_t)-1) {
+		/* we don't want to do anything for the user anymore */
+		abort();//FIXME
+	} else if (lowest_timestamp <= ioloop_time)
 		user->to = timeout_add_short(0, user_timeout, user);
 	else {
 		user->to = timeout_add((lowest_timestamp - ioloop_time) * 1000,
 				       user_timeout, user);
 	}
-}
-
-void profile_start_user(struct user *user)
-{
-	user_set_timeout(user);
-}
-
-void profile_stop_user(struct user *user)
-{
-	if (user->to != NULL)
-		timeout_remove(&user->to);
 }
 
 static void
@@ -545,6 +580,7 @@ users_add_from_user_profile(const struct profile_user *user_profile,
 		user->profile = user_profile;
 		user_init_client_profiles(user, profile);
 		user_fill_timestamps(user, start_time);
+		user_set_timeout(user);
 		array_append(users, &user, 1);
 	}
 }

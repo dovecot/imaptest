@@ -33,6 +33,7 @@ ARRAY_TYPE(client) clients;
 ARRAY(unsigned int) stalled_clients;
 bool stalled = FALSE, disconnect_clients = FALSE, no_new_clients = FALSE;
 
+static unsigned int client_min_free_idx = 0;
 static unsigned int global_id_counter = 0;
 static struct ssl_iostream_context *ssl_ctx = NULL;
 
@@ -157,17 +158,48 @@ static void client_wait_connect(struct client *client)
 	client->v.connected(client);
 }
 
-struct client *client_new(unsigned int i, struct user *user)
+static struct client *
+client_new_full(unsigned int i, struct user *user, struct user_client *uc)
 {
-	struct user_client *uc;
+	if (client_min_free_idx == i)
+		client_min_free_idx++;
 
-	uc = user_get_new_client_profile(user);
-	if (uc->profile == NULL || strcmp(uc->profile->protocol, "imap") == 0)
+	if (uc == NULL || uc->profile == NULL ||
+	    strcmp(uc->profile->protocol, "imap") == 0)
 		return &imap_client_new(i, user, uc)->client;
 	else if (strcmp(uc->profile->protocol, "pop3") == 0)
 		return &pop3_client_new(i, user, uc)->client;
 	else
 		i_unreached();
+}
+
+struct client *client_new_user(struct user *user)
+{
+	struct client *const *clientp;
+	struct user_client *uc;
+
+	if (user_get_next_login_time(user) > ioloop_time)
+		return NULL;
+
+	uc = user_get_new_client_profile(user);
+	while (client_min_free_idx < array_count(&clients)) {
+		clientp = array_idx(&clients, client_min_free_idx);
+		if (*clientp == NULL)
+			return client_new_full(client_min_free_idx, user, uc);
+		client_min_free_idx++;
+	}
+	return NULL;
+}
+
+struct client *client_new_random(unsigned int i)
+{
+	struct user *user;
+	struct user_client *uc;
+
+	if (!user_get_random(&user))
+		return NULL;
+	uc = user_get_new_client_profile(user);
+	return client_new_full(i, user, uc);
 }
 
 int client_init(struct client *client, unsigned int idx,
@@ -217,6 +249,9 @@ int client_init(struct client *client, unsigned int idx,
 void client_logout(struct client *client)
 {
 	client->state = STATE_LOGOUT;
+	client->logout_sent = TRUE;
+	if (client->user_client != NULL)
+		client->user_client->last_logout = ioloop_time;
 	client->v.logout(client);
 }
 
@@ -241,7 +276,7 @@ static void clients_unstalled(void)
 
 	indexes = array_get(&stalled_clients, &count);
 	for (i = 0; i < count && i < 3; i++)
-		client_new(indexes[i], user_get_random());
+		client_new_random(indexes[i]);
 }
 
 bool client_unref(struct client *client, bool reconnect)
@@ -257,6 +292,8 @@ bool client_unref(struct client *client, bool reconnect)
 	if (--clients_count == 0)
 		stalled = FALSE;
 	array_idx_clear(&clients, idx);
+	if (client_min_free_idx > idx)
+		client_min_free_idx = idx;
 
 	client->v.free(client);
 
@@ -276,20 +313,17 @@ bool client_unref(struct client *client, bool reconnect)
 		io_loop_stop(current_ioloop);
 	else if (io_loop_is_running(current_ioloop) && !no_new_clients &&
 		 !disconnect_clients && reconnect) {
-		struct user *user;
-
 		if (client->logout_sent) {
 			/* user successfully logged out, get another
 			   random user */
-			user = user_get_random();
+			client_new_random(idx);
 		} else {
 			/* server disconnected user. reconnect back with the
 			   same user. this is especially important when testing
 			   with profiles since real clients reconnect when they
 			   get disconnected (e.g. server crash/restart). */
-			user = client->user;
+			client_new_user(client->user);
 		}
-		client_new(idx, user);
 
 		if (!stalled)
 			clients_unstalled();

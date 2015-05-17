@@ -1174,10 +1174,12 @@ static int test_execute(const struct test *test,
 		username = NULL;
 		if (i < test_conn_count)
 			username = test_conns[i].username;
-		client = client_new(array_count(&clients),
-				    username != NULL ?
-				    user_get(username) :
-				    user_get_random());
+		if (username != NULL) {
+			client = client_new_user(user_get(username));
+		} else {
+			client = client_new_random(array_count(&clients));
+		}
+		i_assert(client != NULL);
 		ctx->clients[i] = imap_client(client);
 		i_assert(ctx->clients[i] != NULL);
 		if (ctx->clients[i] == NULL) {

@@ -134,8 +134,6 @@ command_send_binary(struct imap_client *client, const char *cmdline,
 		client->idle_done_sent = TRUE;
 		o_stream_send_str(client->client.output, "DONE\r\n");
 	}
-	if (client->client.state == STATE_LOGOUT)
-		client->client.logout_sent = TRUE;
 
 	cmd = i_new(struct command, 1);
 	T_BEGIN {

@@ -16,6 +16,7 @@ struct user_mailbox_cache {
 };
 
 enum user_timestamp {
+	USER_TIMESTAMP_LOGIN,
 	USER_TIMESTAMP_INBOX_DELIVERY,
 	USER_TIMESTAMP_SPAM_DELIVERY,
 	USER_TIMESTAMP_WRITE_MAIL,
@@ -27,6 +28,7 @@ enum user_timestamp {
 struct user_client {
 	struct user *user;
 	struct profile_client *profile;
+	time_t last_logout;
 
 	/* connections created by this client */
 	ARRAY(struct client *) clients;
@@ -58,11 +60,12 @@ struct user {
 ARRAY_DEFINE_TYPE(user, struct user *);
 
 struct user *user_get(const char *username);
-struct user *user_get_random(void);
+bool user_get_random(struct user **user_r);
 void user_add_client(struct user *user, struct client *client);
 void user_remove_client(struct user *user, struct client *client);
 
 struct user_client *user_get_new_client_profile(struct user *user);
+time_t user_get_next_login_time(struct user *user);
 const char *user_get_new_mailbox(struct client *client);
 
 struct imap_client *

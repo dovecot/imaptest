@@ -325,7 +325,6 @@ static int pop3_client_send_more_commands(struct client *_client)
 				t_strdup_printf("RETR %u", client->prev_seq+1),
 				retr_callback);
 		} else {
-			counters[STATE_LOGOUT]++;
 			client_logout(_client);
 		}
 		break;
@@ -343,7 +342,7 @@ static void pop3_client_logout(struct client *_client)
 {
 	struct pop3_client *client = (struct pop3_client *)_client;
 
-	client->client.logout_sent = TRUE;
+	counters[STATE_LOGOUT]++;
 	pop3_command_send(client, "QUIT", quit_callback);
 }
 

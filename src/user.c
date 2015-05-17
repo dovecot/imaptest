@@ -3,6 +3,7 @@
 #include "lib.h"
 #include "array.h"
 #include "hash.h"
+#include "ioloop.h"
 #include "str.h"
 #include "settings.h"
 #include "profile.h"
@@ -71,17 +72,42 @@ static struct user *user_get_random_from_conf(void)
 	return user;
 }
 
-struct user *user_get_random(void)
+#define USER_CLIENT_CAN_CONNECT(uc) \
+	(ioloop_time - uc->last_logout >= uc->profile->login_interval)
+
+static bool user_can_connect_clients(struct user *user)
 {
-	struct user *const *userp;
-	unsigned int idx;
+	struct user_client *const *clients;
+	unsigned int i, count;
 
-	if (users_profile == NULL)
-		return user_get_random_from_conf();
+	clients = array_get(&user->clients, &count);
+	for (i = 0; i < count; i++) {
+		if (USER_CLIENT_CAN_CONNECT(clients[i]))
+			return TRUE;
+	}
+	return FALSE;
+}
 
-	idx = rand() % array_count(&users);
-	userp = array_idx(&users, idx);
-	return *userp;
+bool user_get_random(struct user **user_r)
+{
+	struct user *const *u;
+	unsigned int start_idx, i, count;
+
+	if (users_profile == NULL) {
+		*user_r = user_get_random_from_conf();
+		return TRUE;
+	}
+
+	u = array_get(&users, &count);
+	start_idx = rand() % count;
+	for (i = 0; i < count; i++) {
+		unsigned int idx = (i + start_idx) % count;
+		if (user_can_connect_clients(u[idx])) {
+			*user_r = u[idx];
+			return TRUE;
+		}
+	}
+	return FALSE;
 }
 
 void user_add_client(struct user *user, struct client *client)
@@ -90,10 +116,8 @@ void user_add_client(struct user *user, struct client *client)
 		return;
 
 	array_append(&client->user_client->clients, &client, 1);
-	if (user->active_client == NULL) {
+	if (user->active_client == NULL)
 		user->active_client = client->user_client;
-		profile_start_user(user);
-	}
 }
 
 static void user_update_active_client(struct user *user)
@@ -111,7 +135,6 @@ static void user_update_active_client(struct user *user)
 		}
 	}
 	user->active_client = NULL;
-	profile_stop_user(user);
 	return;
 }
 
@@ -143,16 +166,39 @@ struct user_client *user_get_new_client_profile(struct user *user)
 	if (user->profile == NULL)
 		return NULL;
 
-	/* find the user_client with the lowest connection count */
+	/* find the user_client with the lowest connection count.
+	   we also must be able to connect to it. */
 	user_clients = array_get(&user->clients, &uc_count);
 	for (i = 0; i < uc_count; i++) {
-		if (lowest_count > array_count(&user_clients[i]->clients)) {
+		if (USER_CLIENT_CAN_CONNECT(user_clients[i]) &&
+		    lowest_count > array_count(&user_clients[i]->clients)) {
 			lowest_count = array_count(&user_clients[i]->clients);
 			lowest_uc = user_clients[i];
 		}
 	}
 	i_assert(lowest_uc != NULL);
 	return lowest_uc;
+}
+
+time_t user_get_next_login_time(struct user *user)
+{
+	struct user_client *const *user_clients;
+	unsigned int i, uc_count;
+	time_t next_login, lowest_next_login_time = INT_MAX;
+
+	if (user->profile == NULL)
+		return ioloop_time;
+
+	user_clients = array_get(&user->clients, &uc_count);
+	for (i = 0; i < uc_count; i++) {
+		if (user_clients[i]->last_logout <= 0)
+			continue;
+		next_login = user_clients[i]->last_logout +
+			user_clients[i]->profile->login_interval;
+		if (lowest_next_login_time > next_login)
+			lowest_next_login_time = next_login;
+	}
+	return lowest_next_login_time;
 }
 
 struct imap_client *

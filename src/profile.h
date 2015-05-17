@@ -20,6 +20,7 @@ struct profile_client {
 	const char *imap_fetch_immediate;
 	const char *imap_fetch_manual;
 	unsigned int imap_status_interval;
+	unsigned int login_interval;
 };
 ARRAY_DEFINE_TYPE(profile_client, struct profile_client *);
 
@@ -82,8 +83,6 @@ int imap_client_profile_send_more_commands(struct client *client);
 int imap_client_profile_handle_untagged(struct imap_client *client,
 					const struct imap_arg *args);
 
-void profile_start_user(struct user *user);
-void profile_stop_user(struct user *user);
 void profile_add_users(struct profile *profile, ARRAY_TYPE(user) *users);
 
 #endif
