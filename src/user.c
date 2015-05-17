@@ -73,21 +73,24 @@ static struct user *user_get_random_from_conf(void)
 }
 
 #define USER_CLIENT_CAN_CONNECT(uc) \
-	(uc->last_logout <= 0 ? \
+	((uc->last_logout <= 0 ? \
 	 (ioloop_time >= uc->user->timestamps[USER_TIMESTAMP_LOGIN]) : \
-	 (ioloop_time - uc->last_logout >= uc->profile->login_interval))
+	 (ioloop_time - uc->last_logout >= uc->profile->login_interval)) && \
+	array_count(&uc->clients) < uc->profile->connection_max_count)
+
 
 static bool user_can_connect_clients(struct user *user)
 {
 	struct user_client *const *clients;
 	unsigned int i, count;
+	bool ret = FALSE;
 
 	clients = array_get(&user->clients, &count);
 	for (i = 0; i < count; i++) {
 		if (USER_CLIENT_CAN_CONNECT(clients[i]))
-			return TRUE;
+			ret = TRUE;
 	}
-	return FALSE;
+	return ret;
 }
 
 bool user_get_random(struct user **user_r)
