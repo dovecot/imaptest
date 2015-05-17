@@ -48,7 +48,6 @@ struct client {
 	struct imap_parser *parser;
 	struct io *io;
 	struct timeout *to;
-	size_t prev_size;
 
 	enum client_state state;
 	enum login_state login_state;

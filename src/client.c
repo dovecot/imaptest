@@ -599,7 +599,6 @@ static void client_input(struct client *client)
 		return;
 	}
 
-	(void)i_stream_get_data(client->input, &client->prev_size);
 	if (client->input->closed)
 		client_unref(client, TRUE);
 }
