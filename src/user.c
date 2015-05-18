@@ -169,8 +169,9 @@ bool user_get_new_client_profile(struct user *user,
 	struct user_client *const *user_clients, *lowest_uc = NULL;
 	unsigned int i, uc_count, lowest_count = UINT_MAX;
 
+	*user_client_r = NULL;
 	if (user->profile == NULL)
-		return FALSE;
+		return TRUE;
 
 	/* find the user_client with the lowest connection count.
 	   we also must be able to connect to it. */
