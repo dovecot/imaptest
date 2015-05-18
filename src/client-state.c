@@ -1400,7 +1400,7 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		command_send(client, "CHECK", state_callback);
 		break;
 	case STATE_LOGOUT:
-		command_send(client, "LOGOUT", state_callback);
+		client_logout(_client);
 		break;
 
 	case STATE_BANNER:
