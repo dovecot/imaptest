@@ -115,6 +115,13 @@ bool user_get_random(struct user **user_r)
 	return FALSE;
 }
 
+static void user_free(struct user *user)
+{
+	if (user->to != NULL)
+		timeout_remove(&user->to);
+	pool_unref(&user->pool);
+}
+
 void user_add_client(struct user *user, struct client *client)
 {
 	if (client->user_client == NULL)
@@ -279,7 +286,7 @@ void users_deinit(void)
 
 	iter = hash_table_iterate_init(users_hash);
 	while (hash_table_iterate(iter, users_hash, &username, &user))
-		pool_unref(&user->pool);
+		user_free(user);
 	hash_table_iterate_deinit(&iter);
 
 	hash_table_destroy(&users_hash);
