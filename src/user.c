@@ -33,6 +33,7 @@ struct user *user_get(const char *username)
 	user->username = p_strdup(pool, username);
 	user->password = conf.password;
 	user->mailbox_source = users_mailbox_source;
+	user->next_min_timestamp = INT_MAX;
 	p_array_init(&user->clients, user->pool, 2);
 	hash_table_insert(users_hash, user->username, user);
 	return user;
@@ -117,8 +118,6 @@ bool user_get_random(struct user **user_r)
 
 static void user_free(struct user *user)
 {
-	if (user->to != NULL)
-		timeout_remove(&user->to);
 	pool_unref(&user->pool);
 }
 
@@ -266,6 +265,18 @@ user_get_mailbox_cache(struct user_client *uc, const char *name)
 	mailbox->next_action_timestamp = (time_t)-1;
 	array_append(&uc->mailboxes, &mailbox, 1);
 	return mailbox;
+}
+
+static int users_min_timestamp_cmp(struct user *const *u1,
+				   struct user *const *u2)
+{
+	return (*u1)->next_min_timestamp - (*u2)->next_min_timestamp;
+}
+
+const ARRAY_TYPE(user) *users_get_sort_by_min_timestamp(void)
+{
+	array_sort(&users, users_min_timestamp_cmp);
+	return &users;
 }
 
 void users_init(struct profile *profile, struct mailbox_source *source)

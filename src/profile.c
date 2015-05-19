@@ -21,9 +21,12 @@
 #define weighted_rand(n) \
 	(int)RANDN2(n, n/2)
 
+static time_t users_min_timestamp = INT_MAX;
+static struct timeout *to_users;
+
 static void user_mailbox_action_move(struct imap_client *client,
 				     const char *mailbox, uint32_t uid);
-static void user_set_timeout(struct user *user);
+static void user_set_min_timestamp(struct user *user, time_t min_timestamp);
 
 static void client_profile_init_mailbox(struct imap_client *client)
 {
@@ -140,6 +143,7 @@ static void client_profile_handle_fetch(struct imap_client *client,
 			else if (cache->next_action_timestamp == (time_t)-1) {
 				cache->next_action_timestamp = ioloop_time +
 					weighted_rand(client->client.user->profile->mail_action_delay);
+				user_set_min_timestamp(client->client.user, cache->next_action_timestamp);
 			}
 		}
 	}
@@ -241,6 +245,7 @@ static void user_draft_callback(struct imap_client *client, struct command *cmd,
 {
 	const char *uidvalidity, *uidstr;
 	uint32_t uid;
+	time_t ts;
 
 	i_assert(cmd == client->client.user_client->draft_cmd);
 	client->client.user_client->draft_cmd = NULL;
@@ -261,9 +266,9 @@ static void user_draft_callback(struct imap_client *client, struct command *cmd,
 	i_assert(client->client.user_client->draft_uid == 0);
 	client->client.user_client->draft_uid = uid;
 
-	client->client.user->timestamps[USER_TIMESTAMP_WRITE_MAIL] = ioloop_time +
-		weighted_rand(client->client.user->profile->mail_write_duration);
-	user_set_timeout(client->client.user);
+	ts = ioloop_time + weighted_rand(client->client.user->profile->mail_write_duration);
+	client->client.user->timestamps[USER_TIMESTAMP_WRITE_MAIL] = ts;
+	user_set_min_timestamp(client->client.user, ts);
 }
 
 static bool user_write_mail(struct user_client *uc)
@@ -401,6 +406,7 @@ static void user_set_next_mailbox_action(struct user *user)
 				(ioloop_time + weighted_rand(user->profile->mail_action_repeat_delay)) :
 				(time_t)-1;
 		}
+		user_set_min_timestamp(user, (*mailboxp)->next_action_timestamp);
 	}
 }
 
@@ -422,8 +428,10 @@ static int user_timestamp_handle(struct user *user, enum user_timestamp ts,
 	if (user->timestamps[ts] > ioloop_time)
 		return -1;
 	if (user->timestamps[ts] == (time_t)-1) {
-		if (ts == USER_TIMESTAMP_LOGIN)
+		if (ts == USER_TIMESTAMP_LOGIN) {
 			user->timestamps[ts] = user_get_next_login_time(user);
+			user_set_min_timestamp(user, user->timestamps[ts]);
+		}
 		return -1;
 	}
 
@@ -457,7 +465,7 @@ static int user_timestamp_handle(struct user *user, enum user_timestamp ts,
 	i_unreached();
 }
 
-static void user_timeout(struct user *user)
+static void user_run_actions(struct user *user)
 {
 	enum user_timestamp ts;
 	bool user_connected = user_client_is_connected(user->active_client);
@@ -468,6 +476,7 @@ static void user_timeout(struct user *user)
 		return;
 	}
 
+	user->next_min_timestamp = INT_MAX;
 	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++) {
 		switch (user_timestamp_handle(user, ts, user_connected)) {
 		case -1:
@@ -480,10 +489,10 @@ static void user_timeout(struct user *user)
 				user_get_next_timeout(user, ioloop_time, ts);
 			break;
 		}
+		user_set_min_timestamp(user, user->timestamps[ts]);
 	}
 	if (user->active_client != NULL && user_connected)
 		user_set_next_mailbox_action(user);
-	user_set_timeout(user);
 }
 
 static void user_fill_timestamps(struct user *user, time_t start_time)
@@ -495,38 +504,44 @@ static void user_fill_timestamps(struct user *user, time_t start_time)
 		interval = user_get_timeout_interval(user, ts);
 		user->timestamps[ts] = interval == 0 ? (time_t)-1 :
 			start_time + rand() % interval;
+		user_set_min_timestamp(user, user->timestamps[ts]);
 	}
 	user->timestamps[USER_TIMESTAMP_LOGIN] = start_time;
+	user_set_min_timestamp(user, start_time);
 }
 
-static void user_set_timeout(struct user *user)
+static void users_timeout(void *context ATTR_UNUSED)
 {
-	struct user_mailbox_cache *const *mailboxp;
-	time_t lowest_timestamp = INT_MAX;
-	unsigned int i;
+	const ARRAY_TYPE(user) *users = users_get_sort_by_min_timestamp();
+	struct user *const *userp;
 
-	for (i = 0; i < N_ELEMENTS(user->timestamps); i++) {
-		if (lowest_timestamp > user->timestamps[i] &&
-		    user->timestamps[i] != (time_t)-1)
-			lowest_timestamp = user->timestamps[i];
-	}
-	if (user->active_client != NULL) {
-		array_foreach(&user->active_client->mailboxes, mailboxp) {
-			if ((*mailboxp)->next_action_timestamp != (time_t)-1 &&
-			    lowest_timestamp > (*mailboxp)->next_action_timestamp)
-				lowest_timestamp = (*mailboxp)->next_action_timestamp;
+	timeout_remove(&to_users);
+	array_foreach(users, userp) {
+		if (ioloop_time < (*userp)->next_min_timestamp) {
+			to_users = timeout_add(((*userp)->next_min_timestamp - ioloop_time) * 1000,
+					       users_timeout, (void *)NULL);
+			break;
 		}
+		user_run_actions(*userp);
 	}
+}
 
-	if (user->to != NULL)
-		timeout_remove(&user->to);
-	if (lowest_timestamp == (time_t)-1) {
-		/* we don't want to do anything for the user anymore */
-	} else if (lowest_timestamp <= ioloop_time)
-		user->to = timeout_add_short(0, user_timeout, user);
-	else {
-		user->to = timeout_add((lowest_timestamp - ioloop_time) * 1000,
-				       user_timeout, user);
+static void user_set_min_timestamp(struct user *user, time_t min_timestamp)
+{
+	if (min_timestamp <= 0)
+		return;
+	if (user->next_min_timestamp > min_timestamp)
+		user->next_min_timestamp = min_timestamp;
+	if (users_min_timestamp > min_timestamp) {
+		users_min_timestamp = min_timestamp;
+		if (to_users != NULL)
+			timeout_remove(&to_users);
+		if (users_min_timestamp <= ioloop_time)
+			to_users = timeout_add_short(0, users_timeout, (void *)NULL);
+		else {
+			to_users = timeout_add((users_min_timestamp - ioloop_time) * 1000,
+					       users_timeout, (void *)NULL);
+		}
 	}
 }
 
@@ -580,7 +595,6 @@ users_add_from_user_profile(const struct profile_user *user_profile,
 		user->profile = user_profile;
 		user_init_client_profiles(user, profile);
 		user_fill_timestamps(user, start_time);
-		user_set_timeout(user);
 		array_append(users, &user, 1);
 	}
 }
@@ -592,4 +606,10 @@ void profile_add_users(struct profile *profile, ARRAY_TYPE(user) *users)
 	i_array_init(users, 128);
 	array_foreach(&profile->users, userp)
 		users_add_from_user_profile(*userp, profile, users);
+}
+
+void profile_deinit(void)
+{
+	if (to_users != NULL)
+		timeout_remove(&to_users);
 }

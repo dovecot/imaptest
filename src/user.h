@@ -54,8 +54,8 @@ struct user {
 	   connected currently (somewhat randomly switches between clients) */
 	struct user_client *active_client;
 
-	struct timeout *to;
 	time_t timestamps[USER_TIMESTAMP_COUNT];
+	time_t next_min_timestamp;
 };
 ARRAY_DEFINE_TYPE(user, struct user *);
 
@@ -68,6 +68,8 @@ bool user_get_new_client_profile(struct user *user,
 				 struct user_client **user_client_r);
 time_t user_get_next_login_time(struct user *user);
 const char *user_get_new_mailbox(struct client *client);
+
+const ARRAY_TYPE(user) *users_get_sort_by_min_timestamp(void);
 
 struct imap_client *
 user_find_client_by_mailbox(struct user_client *uc, const char *mailbox);

@@ -85,4 +85,6 @@ int imap_client_profile_handle_untagged(struct imap_client *client,
 
 void profile_add_users(struct profile *profile, ARRAY_TYPE(user) *users);
 
+void profile_deinit(void);
+
 #endif
