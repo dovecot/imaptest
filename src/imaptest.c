@@ -600,8 +600,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	clients_deinit();
 	mailboxes_deinit();
 	users_deinit();
-	if (profile != NULL)
+	if (profile != NULL) {
 		pool_unref(&profile->pool);
+		profile_deinit();
+	}
 	mailbox_source_unref(&mailbox_source);
 
 	if (to_stop != NULL)
