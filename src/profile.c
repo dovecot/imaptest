@@ -530,6 +530,12 @@ static void user_set_min_timestamp(struct user *user, time_t min_timestamp)
 {
 	if (min_timestamp <= 0)
 		return;
+	if (min_timestamp <= ioloop_time) {
+		/* always set timestamps to future so we don't run the timeout
+		   multiple times within second (which is bad if users are
+		   sorted multiple times a second) */
+		min_timestamp = ioloop_time;
+	}
 	if (user->next_min_timestamp > min_timestamp)
 		user->next_min_timestamp = min_timestamp;
 	if (users_min_timestamp > min_timestamp) {
