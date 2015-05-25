@@ -253,7 +253,12 @@ static void sig_die(const siginfo_t *si ATTR_UNUSED, void *context ATTR_UNUSED)
 
 static void timeout_stop(void *context ATTR_UNUSED)
 {
-	disconnect_clients = TRUE;
+	if (!disconnect_clients)
+		disconnect_clients = TRUE;
+	else {
+		i_info("Second timeout triggered while trying to stop - stopping immediately");
+		io_loop_stop(ioloop);
+	}
 }
 
 static struct state *state_find(const char *name)
