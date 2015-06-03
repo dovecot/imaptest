@@ -189,12 +189,12 @@ struct client *client_new_user(struct user *user)
 	return NULL;
 }
 
-struct client *client_new_random(unsigned int i)
+struct client *client_new_random(unsigned int i, struct mailbox_source *source)
 {
 	struct user *user;
 	struct user_client *uc;
 
-	if (!user_get_random(&user))
+	if (!user_get_random(source, &user))
 		return NULL;
 	if (!user_get_new_client_profile(user, &uc))
 		return NULL;
@@ -268,18 +268,19 @@ void client_disconnect(struct client *client)
 	client->to = timeout_add(0, client_input, client);
 }
 
-static void clients_unstalled(void)
+static void clients_unstalled(struct mailbox_source *source)
 {
 	const unsigned int *indexes;
 	unsigned int i, count;
 
 	indexes = array_get(&stalled_clients, &count);
 	for (i = 0; i < count && i < 3; i++)
-		client_new_random(indexes[i]);
+		client_new_random(indexes[i], source);
 }
 
 bool client_unref(struct client *client, bool reconnect)
 {
+	struct mailbox_source *source = client->user->mailbox_source;
 	unsigned int idx = client->idx;
 
 	i_assert(client->refcount > 0);
@@ -315,7 +316,7 @@ bool client_unref(struct client *client, bool reconnect)
 		if (client->logout_sent) {
 			/* user successfully logged out, get another
 			   random user */
-			client_new_random(idx);
+			client_new_random(idx, source);
 		} else {
 			/* server disconnected user. reconnect back with the
 			   same user. this is especially important when testing
@@ -325,7 +326,7 @@ bool client_unref(struct client *client, bool reconnect)
 		}
 
 		if (!stalled)
-			clients_unstalled();
+			clients_unstalled(source);
 	}
 	i_free(client);
 	return FALSE;

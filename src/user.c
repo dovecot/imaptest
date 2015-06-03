@@ -16,9 +16,8 @@
 static HASH_TABLE(const char *, struct user *) users_hash;
 static ARRAY_TYPE(user) users = ARRAY_INIT;
 static struct profile *users_profile;
-static struct mailbox_source *users_mailbox_source;
 
-struct user *user_get(const char *username)
+struct user *user_get(const char *username, struct mailbox_source *source)
 {
 	struct user *user;
 	pool_t pool;
@@ -32,14 +31,14 @@ struct user *user_get(const char *username)
 	user->pool = pool;
 	user->username = p_strdup(pool, username);
 	user->password = conf.password;
-	user->mailbox_source = users_mailbox_source;
+	user->mailbox_source = source;
 	user->next_min_timestamp = INT_MAX;
 	p_array_init(&user->clients, user->pool, 2);
 	hash_table_insert(users_hash, user->username, user);
 	return user;
 }
 
-static struct user *user_get_random_from_conf(void)
+static struct user *user_get_random_from_conf(struct mailbox_source *source)
 {
 	static int prev_user = 0, prev_domain = 0;
 	const char *const *userp, *p, *username;
@@ -51,9 +50,9 @@ static struct user *user_get_random_from_conf(void)
 		userp = array_idx(&conf.usernames, i);
 		p = strchr(*userp, ':');
 		if (p == NULL) {
-			user = user_get(*userp);
+			user = user_get(*userp, source);
 		} else {
-			user = user_get(t_strdup_until(*userp, p));
+			user = user_get(t_strdup_until(*userp, p), source);
 			if (strncmp(p + 1, "{PLAIN}", 7) == 0)
 				p += 7;
 			user->password = p_strdup(user->pool, p+1);
@@ -67,7 +66,7 @@ static struct user *user_get_random_from_conf(void)
 		}
 		username = t_strdup_printf(conf.username_template,
 					   prev_user, prev_domain);
-		user = user_get(username);
+		user = user_get(username, source);
 	}
 	i_assert(*user->username != '\0');
 	return user;
@@ -94,13 +93,13 @@ static bool user_can_connect_clients(struct user *user)
 	return ret;
 }
 
-bool user_get_random(struct user **user_r)
+bool user_get_random(struct mailbox_source *source, struct user **user_r)
 {
 	struct user *const *u;
 	unsigned int start_idx, i, count;
 
 	if (users_profile == NULL) {
-		*user_r = user_get_random_from_conf();
+		*user_r = user_get_random_from_conf(source);
 		return TRUE;
 	}
 
@@ -283,10 +282,9 @@ void users_init(struct profile *profile, struct mailbox_source *source)
 {
 	hash_table_create(&users_hash, default_pool, 0, str_hash, strcmp);
 	users_profile = profile;
-	users_mailbox_source = source;
 
 	if (profile != NULL)
-		profile_add_users(profile, &users);
+		profile_add_users(profile, &users, source);
 }
 
 void users_deinit(void)

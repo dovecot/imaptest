@@ -59,8 +59,8 @@ struct user {
 };
 ARRAY_DEFINE_TYPE(user, struct user *);
 
-struct user *user_get(const char *username);
-bool user_get_random(struct user **user_r);
+struct user *user_get(const char *username, struct mailbox_source *source);
+bool user_get_random(struct mailbox_source *source, struct user **user_r);
 void user_add_client(struct user *user, struct client *client);
 void user_remove_client(struct user *user, struct client *client);
 

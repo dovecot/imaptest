@@ -581,7 +581,8 @@ user_init_client_profiles(struct user *user, struct profile *profile)
 
 static void
 users_add_from_user_profile(const struct profile_user *user_profile,
-			    struct profile *profile, ARRAY_TYPE(user) *users)
+			    struct profile *profile, ARRAY_TYPE(user) *users,
+			    struct mailbox_source *source)
 {
 	struct user *user;
 	string_t *str = t_str_new(64);
@@ -597,7 +598,7 @@ users_add_from_user_profile(const struct profile_user *user_profile,
 
 		str_truncate(str, prefix_len);
 		str_printfa(str, "%u", i);
-		user = user_get(str_c(str));
+		user = user_get(str_c(str), source);
 		user->profile = user_profile;
 		user_init_client_profiles(user, profile);
 		user_fill_timestamps(user, start_time);
@@ -605,13 +606,14 @@ users_add_from_user_profile(const struct profile_user *user_profile,
 	}
 }
 
-void profile_add_users(struct profile *profile, ARRAY_TYPE(user) *users)
+void profile_add_users(struct profile *profile, ARRAY_TYPE(user) *users,
+		       struct mailbox_source *source)
 {
 	struct profile_user *const *userp;
 
 	i_array_init(users, 128);
 	array_foreach(&profile->users, userp)
-		users_add_from_user_profile(*userp, profile, users);
+		users_add_from_user_profile(*userp, profile, users, source);
 }
 
 void profile_deinit(void)

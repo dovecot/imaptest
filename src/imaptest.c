@@ -308,7 +308,7 @@ static void imaptest_run(void)
 	to = timeout_add(1000, print_timeout, NULL);
 	if (!profile_running) {
 		for (i = 0; i < INIT_CLIENT_COUNT && i < conf.clients_count; i++)
-			client_new_random(i);
+			client_new_random(i, mailbox_source);
 	}
 
         io_loop_run(ioloop);
