@@ -821,6 +821,7 @@ static void test_send_next_command(struct test_exec_context *ctx,
 		if (test_cmd->linenum == 0) {
 			/* sending the logout command */
 			client->client.state = STATE_LOGOUT;
+			client->client.logout_sent = TRUE;
 		} else {
 			client->client.state = STATE_SELECT;
 		}
