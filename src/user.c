@@ -281,6 +281,22 @@ const ARRAY_TYPE(user) *users_get_sort_by_min_timestamp(void)
 	return &users;
 }
 
+void users_free_all(void)
+{
+	const char *username;
+	struct user *user;
+	struct hash_iterate_context *iter;
+
+	iter = hash_table_iterate_init(users_hash);
+	while (hash_table_iterate(iter, users_hash, &username, &user))
+		user_free(user);
+	hash_table_iterate_deinit(&iter);
+
+	hash_table_clear(users_hash, FALSE);
+	if (array_is_created(&users))
+		array_clear(&users);
+}
+
 void users_init(struct profile *profile, struct mailbox_source *source)
 {
 	hash_table_create(&users_hash, default_pool, 0, str_hash, strcmp);
@@ -292,14 +308,7 @@ void users_init(struct profile *profile, struct mailbox_source *source)
 
 void users_deinit(void)
 {
-	const char *username;
-	struct user *user;
-	struct hash_iterate_context *iter;
-
-	iter = hash_table_iterate_init(users_hash);
-	while (hash_table_iterate(iter, users_hash, &username, &user))
-		user_free(user);
-	hash_table_iterate_deinit(&iter);
+	users_free_all();
 
 	hash_table_destroy(&users_hash);
 	if (array_is_created(&users))

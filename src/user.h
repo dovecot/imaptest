@@ -76,6 +76,8 @@ user_find_client_by_mailbox(struct user_client *uc, const char *mailbox);
 struct user_mailbox_cache *
 user_get_mailbox_cache(struct user_client *uc, const char *name);
 
+void users_free_all(void);
+
 void users_init(struct profile *profile, struct mailbox_source *source);
 void users_deinit(void);
 
