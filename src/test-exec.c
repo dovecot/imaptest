@@ -1151,6 +1151,8 @@ static int test_execute(const struct test *test,
 	char *url;
 	pool_t pool;
 
+	users_free_all();
+
 	pool = pool_alloconly_create("test exec context", 2048);
 	ctx = p_new(pool, struct test_exec_context, 1);
 	ctx->pool = pool;
