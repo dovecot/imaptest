@@ -58,9 +58,7 @@ static void mailbox_source_open(struct mailbox_source *source)
 bool mailbox_source_eof(struct mailbox_source *source)
 {
 	mailbox_source_open(source);
-	if (!source->input->eof)
-		(void)i_stream_read(source->input);
-	return i_stream_have_bytes_left(source->input) == 0;
+	return i_stream_is_eof(source->input);
 }
 
 void mailbox_source_get_next_size(struct mailbox_source *source,
