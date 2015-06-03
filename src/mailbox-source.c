@@ -25,6 +25,13 @@ struct mailbox_source *mailbox_source_new(const char *path)
 	return source;
 }
 
+void mailbox_source_ref(struct mailbox_source *source)
+{
+	i_assert(source->refcount > 0);
+
+	source->refcount++;
+}
+
 void mailbox_source_unref(struct mailbox_source **_source)
 {
 	struct mailbox_source *source = *_source;

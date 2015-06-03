@@ -9,6 +9,7 @@
 #include "profile.h"
 #include "imap-client.h"
 #include "mailbox.h"
+#include "mailbox-source.h"
 #include "user.h"
 
 #include <stdlib.h>
@@ -32,6 +33,7 @@ struct user *user_get(const char *username, struct mailbox_source *source)
 	user->username = p_strdup(pool, username);
 	user->password = conf.password;
 	user->mailbox_source = source;
+	mailbox_source_ref(user->mailbox_source);
 	user->next_min_timestamp = INT_MAX;
 	p_array_init(&user->clients, user->pool, 2);
 	hash_table_insert(users_hash, user->username, user);
@@ -117,6 +119,7 @@ bool user_get_random(struct mailbox_source *source, struct user **user_r)
 
 static void user_free(struct user *user)
 {
+	mailbox_source_unref(&user->mailbox_source);
 	pool_unref(&user->pool);
 }
 

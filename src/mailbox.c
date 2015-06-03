@@ -546,7 +546,7 @@ mailbox_storage_get(struct mailbox_source *source, const char *username,
 		i_array_init(&storage->static_metadata, 128);
 		i_array_init(&storage->keyword_names, 64);
 		hash_table_insert(storages, storage->guid, storage);
-		source->refcount++;
+		mailbox_source_ref(storage->source);
 	} else {
 		i_assert(storage->source == source);
 		storage->refcount++;
