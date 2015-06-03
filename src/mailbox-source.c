@@ -52,6 +52,7 @@ static void mailbox_source_open(struct mailbox_source *source)
 	if (source->fd == -1)
 		i_fatal("open(%s) failed: %m", source->path);
 	source->input = i_stream_create_fd(source->fd, (size_t)-1, FALSE);
+	i_stream_set_name(source->input, source->path);
 }
 
 bool mailbox_source_eof(struct mailbox_source *source)
