@@ -110,6 +110,9 @@ static void print_stalled_imap_client(string_t *str, struct imap_client *client)
 
 static void print_timeout(void *context ATTR_UNUSED)
 {
+#define CLIENT_IS_STALLED(c, secs) \
+	((c) != NULL && (c)->to == NULL && !(c)->idling && \
+	 (c)->last_io < ioloop_time - (secs))
 	struct client *const *c;
 	string_t *str;
         static int rowcount = 0;
@@ -132,34 +135,33 @@ static void print_timeout(void *context ATTR_UNUSED)
 	banner_waits = 0;
 	stall_count = 0;
 
+#define SHORT_STALL_PRINT_SECS 3
 	c = array_get(&clients, &count);
 	for (i = 0; i < count; i++) {
-		if (c[i] != NULL && c[i]->state == STATE_BANNER) {
+		if (c[i] == NULL)
+			continue;
+		if (c[i]->state == STATE_BANNER)
 			banner_waits++;
 
-			if (c[i]->last_io < ioloop_time - 15) {
-				stall_count++;
-				stalled = TRUE;
-			}
-                }
+		if (CLIENT_IS_STALLED(c[i], SHORT_STALL_PRINT_SECS))
+			stall_count++;
         }
 
 	printf("%3d/%3d", (clients_count - banner_waits), clients_count);
 	if (stall_count > 0)
-		printf(" (%u stalled)", stall_count);
+		printf(" (%u stalled >%us)", stall_count, SHORT_STALL_PRINT_SECS);
 
 	if (array_count(&clients) < conf.clients_count) {
 		printf(" [%d%%]", array_count(&clients) * 100 /
 		       conf.clients_count);
 	}
 
-#define STALL_PRINT_SECS 15
+#define LONG_STALL_PRINT_SECS 15
 	printf("\n");
 	str = t_str_new(256);
 	for (i = 0; i < count; i++) {
-		if (c[i] != NULL && c[i]->state != STATE_BANNER &&
-		    c[i]->to == NULL && !c[i]->idling &&
-		    c[i]->last_io < ioloop_time - STALL_PRINT_SECS) {
+		if (CLIENT_IS_STALLED(c[i], LONG_STALL_PRINT_SECS) &&
+		    c[i]->state != STATE_BANNER) {
 			struct imap_client *client = imap_client(c[i]);
 
 			str_truncate(str, 0);
