@@ -238,12 +238,22 @@ static void fix_probabilities(void)
 		i_fatal("Invalid probabilities");
 }
 
+bool imaptest_has_clients(void)
+{
+	return clients_count > 0 || imaptest_lmtp_have_deliveries();
+}
+
 static void sig_die(const siginfo_t *si ATTR_UNUSED, void *context ATTR_UNUSED)
 {
 	if (!disconnect_clients) {
 		/* try a nice way first by letting the clients
 		   disconnect themselves */
-		i_info("Received SIGINT - waiting for existing clients to finish");
+		if (imaptest_has_clients())
+			i_info("Received SIGINT - waiting for existing clients to finish");
+		else {
+			i_info("Received SIGINT - no running clients so stopping immediately");
+			io_loop_stop(ioloop);
+		}
 		disconnect_clients = TRUE;
 	} else {
 		/* second time, die now */

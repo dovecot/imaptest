@@ -311,7 +311,7 @@ bool client_unref(struct client *client, bool reconnect)
 		i_error("close(client) failed: %m");
 	user_remove_client(client->user, client);
 
-	if (clients_count == 0 && disconnect_clients)
+	if (disconnect_clients && !imaptest_has_clients())
 		io_loop_stop(current_ioloop);
 	else if (io_loop_is_running(current_ioloop) && !no_new_clients &&
 		 !disconnect_clients && reconnect) {

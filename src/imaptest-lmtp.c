@@ -7,6 +7,7 @@
 #include "lmtp-client.h"
 #include "settings.h"
 #include "mailbox-source.h"
+#include "client.h"
 #include "client-state.h"
 #include "imaptest-lmtp.h"
 
@@ -28,6 +29,11 @@ static struct imaptest_lmtp_delivery *lmtp_deliveries = NULL;
 static unsigned int lmtp_count = 0;
 static time_t lmtp_last_warn;
 
+bool imaptest_lmtp_have_deliveries(void)
+{
+	return lmtp_deliveries != NULL;
+}
+
 static void imaptest_lmtp_free(struct imaptest_lmtp_delivery *d)
 {
 	DLLIST_REMOVE(&lmtp_deliveries, d);
@@ -38,6 +44,9 @@ static void imaptest_lmtp_free(struct imaptest_lmtp_delivery *d)
 	timeout_remove(&d->to);
 	i_free(d->rcpt_to);
 	i_free(d);
+
+	if (disconnect_clients && !imaptest_has_clients())
+		io_loop_stop(current_ioloop);
 }
 
 static void imaptest_lmtp_finish(void *context)

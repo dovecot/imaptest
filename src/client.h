@@ -69,6 +69,8 @@ int client_send_more_commands(struct client *client);
 
 unsigned int clients_get_random_idx(void);
 
+bool imaptest_has_clients(void);
+
 void clients_init(void);
 void clients_deinit(void);
 
