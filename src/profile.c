@@ -27,6 +27,7 @@ static struct timeout *to_users;
 static void user_mailbox_action_move(struct imap_client *client,
 				     const char *mailbox, uint32_t uid);
 static void user_set_min_timestamp(struct user *user, time_t min_timestamp);
+static void users_timeout_update(void);
 
 static void client_profile_init_mailbox(struct imap_client *client)
 {
@@ -518,11 +519,25 @@ static void users_timeout(void *context ATTR_UNUSED)
 	timeout_remove(&to_users);
 	array_foreach(users, userp) {
 		if (ioloop_time < (*userp)->next_min_timestamp) {
-			to_users = timeout_add(((*userp)->next_min_timestamp - ioloop_time) * 1000,
-					       users_timeout, (void *)NULL);
+			/* wait for the next user's event */
 			break;
 		}
 		user_run_actions(*userp);
+	}
+	/* make sure a timeout is always set */
+	if (to_users == NULL)
+		users_timeout_update();
+}
+
+static void users_timeout_update(void)
+{
+	if (to_users != NULL)
+		timeout_remove(&to_users);
+	if (users_min_timestamp <= ioloop_time)
+		to_users = timeout_add_short(0, users_timeout, (void *)NULL);
+	else {
+		to_users = timeout_add((users_min_timestamp - ioloop_time) * 1000,
+				       users_timeout, (void *)NULL);
 	}
 }
 
@@ -540,14 +555,7 @@ static void user_set_min_timestamp(struct user *user, time_t min_timestamp)
 		user->next_min_timestamp = min_timestamp;
 	if (users_min_timestamp > min_timestamp) {
 		users_min_timestamp = min_timestamp;
-		if (to_users != NULL)
-			timeout_remove(&to_users);
-		if (users_min_timestamp <= ioloop_time)
-			to_users = timeout_add_short(0, users_timeout, (void *)NULL);
-		else {
-			to_users = timeout_add((users_min_timestamp - ioloop_time) * 1000,
-					       users_timeout, (void *)NULL);
-		}
+		users_timeout_update();
 	}
 }
 
