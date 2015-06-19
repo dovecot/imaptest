@@ -853,7 +853,8 @@ struct test_parser *test_parser_init(const char *path)
 		if (test_parser_scan_dir(parser, path) < 0)
 			i_fatal("Failed to read tests");
 	} else {
-		dir = t_strcut(path, '/');
+		const char *p = strrchr(path, '/');
+		dir = p == NULL ? path : t_strdup_until(path, p);
 		if (*dir == '\0')
 			parser->default_mbox_path = DEFAULT_MBOX_FNAME;
 		else {
