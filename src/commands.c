@@ -94,7 +94,7 @@ command_get_cmdline(struct imap_client *client, const char **_cmdline,
 			} else if (p[-2] != '+') {
 				i_fatal("FIXME: Add support for sync literals");
 			}
-			str_append_c(str, '\n');
+			str_append(str, "\r\n");
 			cmdline += len;
 			cmdline_len -= len;
 
