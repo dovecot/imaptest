@@ -59,7 +59,7 @@ fghijkl
 
 }}})
 
-ok fetch 1 (binary.peek[5]<15>)
+ok fetch 1 (binary.peek[5]<15.100>)
 * 1 fetch (binary[5]<15> ~{{{
 mno
 pqrstuvqxyz
