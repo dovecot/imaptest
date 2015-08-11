@@ -3,6 +3,7 @@
 #include "lib.h"
 #include "ioloop.h"
 #include "str.h"
+#include "var-expand.h"
 #include "imap-arg.h"
 #include "imap-quote.h"
 #include "imap-client.h"
@@ -592,20 +593,26 @@ users_add_from_user_profile(const struct profile_user *user_profile,
 			    struct profile *profile, ARRAY_TYPE(user) *users,
 			    struct mailbox_source *source)
 {
+	static struct var_expand_table tab[] = {
+		{ 'n', NULL, NULL },
+		{ '\0', NULL, NULL }
+	};
 	struct user *user;
 	string_t *str = t_str_new(64);
-	unsigned int i, prefix_len;
+	unsigned int i;
 	time_t start_time;
+	char num[10];
 
-	str_append(str, user_profile->username_prefix);
-	prefix_len = str_len(str);
+	tab[0].value = num;
 
 	for (i = 1; i <= user_profile->user_count; i++) {
 		start_time = ioloop_time + profile->rampup_time *
 			i / user_profile->user_count;
 
-		str_truncate(str, prefix_len);
-		str_printfa(str, "%u", i);
+		str_truncate(str, 0);
+		i_snprintf(num, sizeof(num), "%u", i);
+		var_expand(str, user_profile->username_format, tab);
+
 		user = user_get(str_c(str), source);
 		user->profile = user_profile;
 		user_init_client_profiles(user, profile);

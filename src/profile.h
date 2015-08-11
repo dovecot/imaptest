@@ -27,7 +27,7 @@ ARRAY_DEFINE_TYPE(profile_client, struct profile_client *);
 struct profile_user {
 	struct profile *profile;
 	const char *name;
-	const char *username_prefix;
+	const char *username_format;
 	unsigned int percentage, user_count;
 
 	/* This is kind of tricky. we have connections for: a) desktop clients
