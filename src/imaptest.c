@@ -418,6 +418,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	conf.mbox_path = home_expand(MBOX_PATH);
 	conf.clients_count = CLIENTS_COUNT;
 	conf.message_count_threshold = MESSAGE_COUNT_THRESHOLD;
+	conf.users_rand_count = USER_RAND;
+	conf.domains_rand_count = DOMAIN_RAND;
 	to_stop = NULL;
 
 	for (argv++; *argv != NULL; argv++) {
@@ -520,6 +522,17 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		/* clients=# */
 		if (strcmp(key, "clients") == 0) {
 			conf.clients_count = atoi(value);
+			continue;
+		}
+
+		/* users=# */
+		if (strcmp(key, "users") == 0) {
+			conf.users_rand_count = atoi(value);
+			continue;
+		}
+		/* domains=# */
+		if (strcmp(key, "domains") == 0) {
+			conf.domains_rand_count = atoi(value);
 			continue;
 		}
 
