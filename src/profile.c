@@ -535,7 +535,7 @@ static void users_timeout_update(void)
 	if (to_users != NULL)
 		timeout_remove(&to_users);
 	if (users_min_timestamp <= ioloop_time)
-		to_users = timeout_add_short(0, users_timeout, (void *)NULL);
+		to_users = timeout_add_short(500, users_timeout, (void *)NULL);
 	else {
 		to_users = timeout_add((users_min_timestamp - ioloop_time) * 1000,
 				       users_timeout, (void *)NULL);
