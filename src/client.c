@@ -318,7 +318,9 @@ bool client_unref(struct client *client, bool reconnect)
 		if (client->logout_sent) {
 			/* user successfully logged out, get another
 			   random user */
-			client_new_random(idx, source);
+			if (client->user_client == NULL ||
+			    client->user_client->profile == NULL)
+				client_new_random(idx, source);
 		} else {
 			/* server disconnected user. reconnect back with the
 			   same user. this is especially important when testing
@@ -327,7 +329,8 @@ bool client_unref(struct client *client, bool reconnect)
 			client_new_user(client->user);
 		}
 
-		if (!stalled)
+		if (!stalled && (client->user_client == NULL ||
+				 client->user_client->profile == NULL))
 			clients_unstalled(source);
 	}
 	i_free(client);
