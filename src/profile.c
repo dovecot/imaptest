@@ -519,7 +519,8 @@ static void users_timeout(void *context ATTR_UNUSED)
 
 	timeout_remove(&to_users);
 	array_foreach(users, userp) {
-		if (ioloop_time < (*userp)->next_min_timestamp) {
+		if (ioloop_time < (*userp)->next_min_timestamp &&
+		    !disconnect_clients) {
 			/* wait for the next user's event */
 			break;
 		}
