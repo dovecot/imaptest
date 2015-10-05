@@ -399,6 +399,24 @@ static void print_help(void)
 	USER_RAND, DOMAIN_RAND,
 	CLIENTS_COUNT, MESSAGE_COUNT_THRESHOLD);
 }
+static void
+parse_possible_range(const char *value, unsigned int *start_r, unsigned int *count_r)
+{
+	const char *endp;
+	unsigned int num;
+
+	if (str_parse_uint(value, &num, &endp) < 0 ||
+	    (*endp != '\0' && *endp != '-'))
+		i_fatal("Illegal number or range: %.80s", value);
+
+	*start_r = 1;
+	if (*endp == '-') {
+		*start_r = num;
+		if (str_to_uint(endp + 1, &num) < 0)
+			i_fatal("Illegal range: %.80s", value);
+	}
+	*count_r = num + 1 - *start_r;
+}
 
 int main(int argc ATTR_UNUSED, char *argv[])
 {
@@ -422,7 +440,9 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	conf.mbox_path = home_expand(MBOX_PATH);
 	conf.clients_count = CLIENTS_COUNT;
 	conf.message_count_threshold = MESSAGE_COUNT_THRESHOLD;
+	conf.users_rand_start = 1;
 	conf.users_rand_count = USER_RAND;
+	conf.domains_rand_start = 1;
 	conf.domains_rand_count = DOMAIN_RAND;
 	to_stop = NULL;
 
@@ -531,12 +551,16 @@ int main(int argc ATTR_UNUSED, char *argv[])
 
 		/* users=# */
 		if (strcmp(key, "users") == 0) {
-			conf.users_rand_count = atoi(value);
+			parse_possible_range(value,
+					     &conf.users_rand_start,
+					     &conf.users_rand_count);
 			continue;
 		}
 		/* domains=# */
 		if (strcmp(key, "domains") == 0) {
-			conf.domains_rand_count = atoi(value);
+			parse_possible_range(value,
+					     &conf.domains_rand_start,
+					     &conf.domains_rand_count);
 			continue;
 		}
 
