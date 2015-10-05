@@ -611,7 +611,8 @@ users_add_from_user_profile(const struct profile_user *user_profile,
 			i / user_profile->user_count;
 
 		str_truncate(str, 0);
-		i_snprintf(num, sizeof(num), "%u", i);
+		i_snprintf(num, sizeof(num), "%u",
+			   user_profile->username_start_index + i-1);
 		var_expand(str, user_profile->username_format, tab);
 
 		user = user_get(str_c(str), source);

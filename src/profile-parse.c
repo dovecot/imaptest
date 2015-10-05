@@ -66,6 +66,7 @@ static const struct setting_define profile_user_setting_defines[] = {
 	DEF(SET_STR, name),
 	DEF(SET_STR, username_format),
 	DEF(SET_UINT, user_count),
+	DEF(SET_UINT, username_start_index),
 
 	DEF(SET_TIME, mail_session_length),
 	DEF(SET_TIME, mail_inbox_delivery_interval),
@@ -185,9 +186,15 @@ static void parser_add_client(struct profile_parser *parser)
 
 static void parser_add_user(struct profile_parser *parser)
 {
+	struct profile_user *user;
+
 	parser->state = STATE_USER;
 	parser->cur_parser = settings_parser_init(parser->profile->pool,
 		&profile_user_setting_parser_info, 0);
+
+	/* set default */
+	user = settings_parser_get(parser->cur_parser);
+	user->username_start_index = 1;
 }
 
 static void profile_parse_line_root(struct profile_parser *parser, char *line)
