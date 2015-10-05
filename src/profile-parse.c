@@ -312,6 +312,8 @@ static void profile_finish(struct profile_parser *parser)
 
 	percentage_count = 0;
 	array_foreach(&parser->users, userp) {
+		if ((*userp)->username_format == NULL)
+			i_fatal("username_format not set");
 		(*userp)->user_count = parser->profile->total_user_count *
 			(*userp)->percentage / 100;
 		percentage_count += (*userp)->percentage;
