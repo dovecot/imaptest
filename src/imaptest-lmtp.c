@@ -92,6 +92,7 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 	struct lmtp_client_settings lmtp_set;
 	struct imaptest_lmtp_delivery *d;
 	uoff_t mail_size, vsize;
+	const struct ip_addr *ip;
 	time_t t;
 	int tz;
 
@@ -117,8 +118,13 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 	d->rcpt_to = i_strdup(rcpt_to);
 	gettimeofday(&d->tv_start, NULL);
 	d->client = lmtp_client_init(&lmtp_set, imaptest_lmtp_finish, d);
+
+	ip = &conf.ips[conf.ip_idx];
+	if (++conf.ip_idx == conf.ips_count)
+		conf.ip_idx = 0;
+
 	if (lmtp_client_connect_tcp(d->client, LMTP_CLIENT_PROTOCOL_LMTP,
-				    net_ip2addr(&conf.ips[0]), port) < 0) {
+				    net_ip2addr(ip), port) < 0) {
 		lmtp_client_close(d->client);
 		return;
 	}
