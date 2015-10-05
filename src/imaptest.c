@@ -456,6 +456,38 @@ parse_possible_range(const char *value, unsigned int *start_r, unsigned int *cou
 	*count_r = num + 1 - *start_r;
 }
 
+static
+int count_printf_ints(const char *s)
+{
+	int ints = 0;
+	const char *perc = s;
+	while((perc = strchr(perc, '%')) != NULL) {
+		char c;
+		if(perc[1] == '%') {
+			perc += 2;
+			continue;
+		}
+		while((c = *++perc), (c >= '0' && c <= '9'))
+			;
+		if(c != 'd' && c != 'i')
+			return -1;
+		ints++;
+		perc++;
+	}
+	return ints;
+}
+
+static inline
+int username_format_is_valid(const char *s)
+{
+	/* All this does is ensure that there are at most 2, and only,
+	 * "%d"s or "%i"s in the format string. If you mess up the '@',
+	 * that's your problem. i.e. it makes our printf safe.
+	 */
+	int ints=count_printf_ints(s);
+	return ints>=0 && ints<=2;
+}
+
 int main(int argc ATTR_UNUSED, char *argv[])
 {
 	struct timeout *to_stop;
@@ -641,6 +673,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			continue;
 		}
 		if (strcmp(key, "user") == 0) {
+			i_assert(username_format_is_valid(value));
 			conf.username_template = value;
 			continue;
 		}
