@@ -378,21 +378,25 @@ static void conf_read_usernames(const char *path)
 static void print_help(void)
 {
 	printf(
-"imaptest [user=USER] [userfile=FILE] [master=USER] [pass=PASSWORD]\n"
+"imaptest [user=USER] [users=RANGE] [domains=RANGE] [userfile=FILE]\n"
+"         [master=USER] [pass=PASSWORD] [seed=SEED]\n"
 "         [host=HOST] [port=PORT] [mbox=MBOX] [clients=CC] [msgs=NMSG]\n"
 "         [box=MAILBOX] [copybox=DESTBOX] [-] [<state>[=<n%%>[,<m%%>]]]\n"
 "         [random] [no_pipelining] [no_tracking] [checkpoint=<secs>]\n"
 "\n"
-" USER = template for username. \"u%%04d\" will generate users \"u0001\" to\n"
-"        \"u0099\". \"u%%04d@d%%04d\" will generate also \"d0001\" to \"d0099\".\n"
+" USER = username (and domain) template, e.g. \"u%%04d\" or \"u%%04d@d%%04d\"\n"
+" RANGE = range for templated usernames [1-%u] or domain names [1-%u]\n"
+" FILE = file of username:passwd pairs (instead of user/users/domains)\n"
 " MBOX = path to mbox from which we read mails to append.\n"
 " MAILBOX = Mailbox name where to do all the work (default = INBOX).\n"
 " DESTBOX = Mailbox name where to copy messages.\n"
 " CC   = number of concurrent clients. [%u]\n"
 " NMSG = target number of messages in the mailbox. [%u]\n"
+" SEED = seed for PRNG to make test repeatable.\n"
 "\n"
 " -    = Sets all probabilities to 0%% except for LOGIN, LOGOUT and SELECT\n"
 " <state> = Sets state's probability to n%% and repeated probability to m%%\n",
+	USER_RAND, DOMAIN_RAND,
 	CLIENTS_COUNT, MESSAGE_COUNT_THRESHOLD);
 }
 
