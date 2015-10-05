@@ -19,6 +19,20 @@ static HASH_TABLE(const char *, struct user *) users_hash;
 static ARRAY_TYPE(user) users = ARRAY_INIT;
 static struct profile *users_profile;
 
+static inline const char *
+t_nagfree_strdup_printf(char const* format, ...)
+{
+	/* @UNSAFE: format string from tainted source. Shuts up -Werror=format-nonliteral */
+	va_list args;
+	const char *ret;
+
+	va_start(args, format);
+	ret = t_strdup_vprintf(format, args);
+	va_end(args);
+
+	return ret;
+}
+
 struct user *user_get(const char *username, struct mailbox_source *source)
 {
 	struct user *user;
@@ -63,8 +77,9 @@ static struct user *user_get_random_from_conf(struct mailbox_source *source)
 	} else {
 		prev_user = random() % conf.users_rand_count + conf.users_rand_start;
 		prev_domain = random() % conf.domains_rand_count + conf.domains_rand_start;
-		username = t_strdup_printf(conf.username_template,
-					   prev_user, prev_domain);
+		/* @UNSAFE: format string from tainted source. Shuts up -Werror=format-nonliteral */
+		username = t_nagfree_strdup_printf(conf.username_template,
+						   prev_user, prev_domain);
 		user = user_get(username, source);
 	}
 	i_assert(*user->username != '\0');
