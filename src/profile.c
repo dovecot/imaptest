@@ -374,8 +374,16 @@ user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
 
 static void deliver_new_mail(struct user *user, const char *mailbox)
 {
-	const char *rcpt_to = strcmp(mailbox, "INBOX") == 0 ? user->username :
-		t_strdup_printf("%s+%s", user->username, mailbox);
+	const char *rcpt_to, *domain;
+
+	if (strcmp(mailbox, "INBOX") == 0)
+		rcpt_to = user->username;
+	else if ((domain = strchr(user->username, '@')) == NULL)
+		rcpt_to = t_strdup_printf("%s+%s", user->username, mailbox);
+	else {
+		rcpt_to = t_strdup_printf("%s+%s%s",
+			t_strcut(user->username, '@'), mailbox, domain);
+	}
 
 	imaptest_lmtp_send(user->profile->profile->lmtp_port,
 			   user->profile->profile->lmtp_max_parallel_count,
