@@ -7,6 +7,7 @@
 #include "str.h"
 #include "hash.h"
 #include "istream.h"
+#include "ostream.h"
 #include "home-expand.h"
 
 #include "settings.h"
@@ -31,9 +32,43 @@ static struct ioloop *ioloop;
 static int return_value = 0;
 static time_t next_checkpoint_time;
 static bool profile_running = FALSE;
+static struct ostream *results_output = NULL;
 
 #define STATE_IS_VISIBLE(state) \
 	(states[i].probability != 0)
+
+static void print_results_header(void)
+{
+	string_t *str = t_str_new(128);
+	unsigned int i;
+
+	for (i = 1; i < STATE_COUNT; i++) {
+		if (!STATE_IS_VISIBLE(i))
+			continue;
+		str_printfa(str, "\t%s count\t%s msecs",
+			    states[i].name, states[i].name);
+	}
+	str_append_c(str, '\n');
+	o_stream_send(results_output, str_data(str)+1, str_len(str)-1);
+}
+
+static void print_results(void)
+{
+	string_t *str = t_str_new(128);
+	unsigned int i;
+
+	for (i = 1; i < STATE_COUNT; i++) {
+		if (!STATE_IS_VISIBLE(i))
+			continue;
+
+		i_assert(timer_counts[i] == counters[i]);
+		str_printfa(str, "\t%d\t%d", counters[i], timers[i]);
+		timers[i] = 0;
+		timer_counts[i] = 0;
+	}
+	str_append_c(str, '\n');
+	o_stream_send(results_output, str_data(str)+1, str_len(str)-1);
+}
 
 static void print_timers(void)
 {
@@ -118,8 +153,10 @@ static void print_timeout(void *context ATTR_UNUSED)
         static int rowcount = 0;
 	unsigned int i, count, banner_waits, stall_count;
 
+	if (results_output != NULL)
+		print_results();
 	if ((rowcount++ % 10) == 0) {
-		if (rowcount > 1) print_timers();
+		if (rowcount > 1 && results_output == NULL) print_timers();
 		print_header();
 	}
 
@@ -192,7 +229,7 @@ static void print_timeout(void *context ATTR_UNUSED)
 
 static void print_total(void)
 {
-        unsigned int i;
+	unsigned int i;
 
 	print_timers();
 	printf("\nTotals:\n");
@@ -425,7 +462,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	struct profile *profile = NULL;
 	const char *key, *value, *testpath = NULL;
 	unsigned int i;
-	int ret;
+	int ret, fd;
 
 	lib_init();
 	ioloop = io_loop_create();
@@ -621,6 +658,13 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			conf.port = atoi(value);
 			continue;
 		}
+		if (strcmp(key, "output") == 0) {
+			fd = creat(value, 0600);
+			if (fd == -1)
+				i_fatal("creat(%s) failed: %m", value);
+			results_output = o_stream_create_fd_file_autoclose(&fd, 0);
+			continue;
+		}
 
 		printf("Unknown arg: %s\n", *argv);
 		return 1;
@@ -642,6 +686,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		return 1;
 	}
 
+	if (results_output != NULL)
+		print_results_header();
 	fix_probabilities();
 	mailbox_source = imaptest_mailbox_source();
 	users_init(profile, mailbox_source);
@@ -666,6 +712,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 
 	if (to_stop != NULL)
 		timeout_remove(&to_stop);
+	if (results_output != NULL)
+		o_stream_destroy(&results_output);
 
 	lib_signals_deinit();
 	io_loop_destroy(&ioloop);
