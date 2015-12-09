@@ -56,5 +56,6 @@ struct settings {
 };
 
 extern struct settings conf;
+extern bool profile_running;
 
 #endif
