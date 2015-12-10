@@ -27,11 +27,11 @@
 #include <unistd.h>
 
 struct settings conf;
+bool profile_running = FALSE;
 
 static struct ioloop *ioloop;
 static int return_value = 0;
 static time_t next_checkpoint_time;
-static bool profile_running = FALSE;
 static struct ostream *results_output = NULL;
 
 #define STATE_IS_VISIBLE(state) \
