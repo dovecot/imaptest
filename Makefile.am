@@ -9,6 +9,6 @@ EXTRA_DIST = \
 	profile.conf
 
 if MAINTAINER_MODE
-ChangeLog: .hg/dirstate
-	hg log --style=changelog > ChangeLog
+ChangeLog: .git/index
+	git log > ChangeLog
 endif
