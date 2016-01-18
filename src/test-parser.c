@@ -154,6 +154,7 @@ test_parse_imap_args(pool_t pool, const char *line, unsigned int linelen,
 	input = i_stream_create_from_data(line, linelen);
 	imap_parser = imap_parser_create(input, NULL, (size_t)-1);
 	ret = imap_parser_finish_line(imap_parser, 0,
+				      IMAP_PARSE_FLAG_LITERAL8 |
 				      IMAP_PARSE_FLAG_LITERAL_TYPE |
 				      IMAP_PARSE_FLAG_ATOM_ALLCHARS |
 				      IMAP_PARSE_FLAG_MULTILINE_STR, &args);
@@ -608,7 +609,8 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 			str_truncate(multiline, last_line_end);
 			str_delete(line, 0, 3);
 			str_insert(multiline, start_pos, t_strdup_printf(
-				"{%"PRIuSIZE_T"}\r\n", str_len(multiline)-start_pos));
+				"%s{%"PRIuSIZE_T"}\r\n", binary ? "~" : "",
+				str_len(multiline)-start_pos));
 
 			len = str_len(line);
 			if (len >= 3 && strcmp(str_c(line) + len-3, "{{{") == 0) {
