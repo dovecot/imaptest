@@ -51,7 +51,7 @@ ends_with_literal(const unsigned char *line, const unsigned char *p,
 	}
 	if (&p[-2] == line || p[-2] != '{')
 		return FALSE;
-	if (&p[-3] == line || p[-3] != ' ')
+	if (p[-3] != ' ')
 		return FALSE;
 	*num_r = num;
 	return TRUE;
