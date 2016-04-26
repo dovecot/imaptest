@@ -44,3 +44,52 @@ ok search old
 
 ok search recent
 * search 1 2 3 4 5
+
+ok store 1:* flags (\seen)
+ok store 2 +flags (\flagged)
+ok search seen flagged
+* search 2
+ok search seen not flagged
+* search 1 3 4 5
+ok search not seen flagged
+* search
+ok search not seen not flagged
+* search
+
+ok store 1:* flags (\deleted)
+ok store 2 +flags (\flagged)
+ok search deleted flagged
+* search 2
+ok search deleted not flagged
+* search 1 3 4 5
+ok search not deleted flagged
+* search
+ok search not deleted not flagged
+* search
+
+ok store 1:* flags (\seen \deleted)
+ok store 2 +flags (\flagged)
+ok search seen flagged
+* search 2
+ok search seen not flagged
+* search 1 3 4 5
+ok search not seen flagged
+* search
+ok search not seen not flagged
+* search
+ok search seen deleted flagged
+* search 2
+ok search seen deleted not flagged
+* search 1 3 4 5
+ok search not seen deleted flagged
+* search
+ok search not seen deleted not flagged
+* search
+ok search seen not deleted flagged
+* search
+ok search seen not deleted not flagged
+* search
+ok search not seen not deleted flagged
+* search
+ok search not seen not deleted not flagged
+* search
