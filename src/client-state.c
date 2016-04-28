@@ -31,6 +31,7 @@ struct state states[STATE_COUNT] = {
 	{ "LIST",	  "List", LSTATE_AUTH,     50,  0,  FLAG_EXPUNGES },
 	{ "MCREATE",	  "MCre", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "MDELETE",	  "MDel", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
+	{ "MSUBS",	  "MSub", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "STATUS",	  "Stat", LSTATE_AUTH,     50,  0,  FLAG_EXPUNGES },
 	{ "SELECT",	  "Sele", LSTATE_AUTH,     100, 0,  FLAG_STATECHANGE | FLAG_STATECHANGE_SELECTED },
 	{ "FETCH",	  "Fetc", LSTATE_SELECTED, 100, 0,  FLAG_MSGSET },
@@ -820,6 +821,7 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
 		case STATE_COPY:
 		case STATE_MCREATE:
 		case STATE_MDELETE:
+		case STATE_MSUBS:
 			break;
 		case STATE_FETCH:
 		case STATE_FETCH2:
@@ -1156,6 +1158,18 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 					      IMAP_HIERARCHY_SEP, rand() % 20);
 		command_send(client, str, state_callback);
 		break;
+	case STATE_MSUBS: {
+		const char *cmd = rand() % 2 ? "SUBSCRIBE" : "UNSUBSCRIBE";
+		if (rand() % 2)
+			str = t_strdup_printf("%s \"test%c%d\"", cmd,
+					      IMAP_HIERARCHY_SEP, rand() % 20);
+		else
+			str = t_strdup_printf("%s \"test%c%d%c%d\"", cmd,
+					      IMAP_HIERARCHY_SEP, rand() % 20,
+					      IMAP_HIERARCHY_SEP, rand() % 20);
+		command_send(client, str, state_callback);
+		break;
+	}
 	case STATE_MDELETE:
 		if (rand() % 2)
 			str = t_strdup_printf("DELETE \"test%c%d\"", 
