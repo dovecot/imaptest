@@ -61,7 +61,7 @@ static void print_results(void)
 		if (!STATE_IS_VISIBLE(i))
 			continue;
 
-		str_printfa(str, "\t%d\t%d\t%d", counters[i], timer_counts[i], timers[i]);
+		str_printfa(str, "\t%d\t%d\t%lld", counters[i], timer_counts[i], timers[i]);
 		timers[i] = 0;
 		timer_counts[i] = 0;
 	}
@@ -81,7 +81,7 @@ static void print_timers(void)
 			continue;
 
 		printf("%4d ", timer_counts[i] == 0 ? 0 :
-		       timers[i] / timer_counts[i]);
+		       (unsigned int)(timers[i] / timer_counts[i]));
 		timers[i] = 0;
 		timer_counts[i] = 0;
 	}

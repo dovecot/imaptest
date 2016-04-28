@@ -78,7 +78,8 @@ typedef void command_callback_t(struct imap_client *client, struct command *cmd,
 
 extern struct state states[STATE_COUNT];
 extern unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
-extern unsigned int timers[STATE_COUNT], timer_counts[STATE_COUNT];
+extern unsigned int timer_counts[STATE_COUNT];
+extern unsigned long long timers[STATE_COUNT];
 
 bool do_rand(enum client_state state);
 bool do_rand_again(enum client_state state);

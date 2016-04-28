@@ -54,7 +54,8 @@ struct state states[STATE_COUNT] = {
 };
 
 unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
-unsigned int timers[STATE_COUNT], timer_counts[STATE_COUNT];
+unsigned int timer_counts[STATE_COUNT];
+unsigned long long timers[STATE_COUNT];
 
 bool do_rand(enum client_state state)
 {
@@ -76,7 +77,7 @@ void client_state_add_to_timer(enum client_state state,
 	diff = timeval_diff_msecs(&tv_end, tv_start);
 	if (diff < 0)
 		diff = 0;
-	i_assert((unsigned int)diff < UINT_MAX - timers[state]);
+	i_assert((unsigned int)diff < ULLONG_MAX - timers[state]);
 	timers[state] += diff;
 	timer_counts[state]++;
 }
