@@ -763,7 +763,7 @@ test_parser_read_test(struct test_parser *parser, const char *path)
 		return -1;
 	}
 
-	input = i_stream_create_fd(fd, (size_t)-1, FALSE);
+	input = i_stream_create_fd(fd, (size_t)-1);
 	if (!test_parse_file(parser, test, input))
 		ret = -1;
 	i_stream_unref(&input);

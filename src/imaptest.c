@@ -397,7 +397,7 @@ static void conf_read_usernames(const char *path)
 	fd = open(path, O_RDONLY);
 	if (fd == -1)
 		i_fatal("open(%s) failed: %m", path);
-	input = i_stream_create_fd(fd, (size_t)-1, TRUE);
+	input = i_stream_create_fd_autoclose(&fd, (size_t)-1);
 	i_stream_set_return_partial_line(input, TRUE);
 	while ((line = i_stream_read_next_line(input)) != NULL) {
 		if (*line != '\0' && *line != ':') {
