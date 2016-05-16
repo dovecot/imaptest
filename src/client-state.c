@@ -332,6 +332,7 @@ static int client_append_more(struct imap_client *client)
 {
 	struct mailbox_source *source = client->storage->source;
 	struct istream *input, *input2;
+	uoff_t sent_bytes;
 	off_t ret;
 
 	i_assert(client->append_vsize_left > 0);
@@ -340,6 +341,7 @@ static int client_append_more(struct imap_client *client)
 	input2 = i_stream_create_crlf(input);
 	i_stream_skip(input2, client->append_skip);
 	ret = o_stream_send_istream(client->client.output, input2);
+	sent_bytes = input2->v_offset;
 	errno = input->stream_errno;
 	i_stream_unref(&input2);
 	i_stream_unref(&input);
@@ -349,9 +351,9 @@ static int client_append_more(struct imap_client *client)
 			i_error("APPEND failed: %m");
 		return -1;
 	}
-	i_assert((uoff_t)ret <= client->append_vsize_left);
-	client->append_vsize_left -= ret;
-	client->append_skip += ret;
+	i_assert(sent_bytes <= client->append_vsize_left);
+	client->append_vsize_left -= sent_bytes;
+	client->append_skip += sent_bytes;
 
 	if (client->append_vsize_left > 0) {
 		/* unfinished */
