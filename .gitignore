@@ -41,6 +41,11 @@ Makefile.in
 *.la
 *.lai
 *.so
+*.orig
+*.rej
+.deps
+.libs
+*~
 **/Makefile
 **/Makefile.in
 
