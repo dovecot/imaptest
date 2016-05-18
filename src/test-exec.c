@@ -853,7 +853,7 @@ static void test_send_next_command_group(struct test_exec_context *ctx)
 	client = ctx->clients[(*groupp)->connection_idx];
 
 	ctx->cur_untagged_mismatch_count = 0;
-	buffer_reset(ctx->cur_received_untagged);
+	buffer_set_used_size(ctx->cur_received_untagged, 0);
 	array_clear(&ctx->cur_maybe_matches);
 
 	/* create initial sequence map */
