@@ -310,14 +310,14 @@ headers_parse(struct imap_client *client, struct istream *input,
 		} else if (headers[i].value_len == 0) {
 			/* first header */
 			new_value = hdr->full_value_len == 0 ? NULL :
-				t_malloc(hdr->full_value_len);
+				t_malloc_no0(hdr->full_value_len);
 			memcpy(new_value, hdr->full_value, hdr->full_value_len);
 			headers[i].value = new_value;
 			headers[i].value_len = hdr->full_value_len;
 			headers[i].missing = FALSE;
 		} else {
 			/* @UNSAFE: second header. append after first. */
-			new_value = t_malloc(headers[i].value_len + 1 +
+			new_value = t_malloc_no0(headers[i].value_len + 1 +
 					     hdr->full_value_len);
 			memcpy(new_value, headers[i].value,
 			       headers[i].value_len);
