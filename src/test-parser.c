@@ -148,7 +148,7 @@ test_parse_imap_args(pool_t pool, const char *line, unsigned int linelen,
 	struct istream *input;
 	const struct imap_arg *args;
 	ARRAY_TYPE(imap_arg_list) *dup_args;
-	bool fatal;
+	enum imap_parser_error fatal;
 	int ret;
 
 	input = i_stream_create_from_data(line, linelen);

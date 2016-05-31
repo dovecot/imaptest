@@ -529,7 +529,7 @@ static void imap_client_input(struct client *_client)
 	uoff_t literal_size;
 	const unsigned char *data;
 	size_t size;
-	bool fatal;
+	enum imap_parser_error fatal;
 	int ret;
 
 	if (!client->seen_banner) {
