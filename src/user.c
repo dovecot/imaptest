@@ -60,12 +60,8 @@ static struct user *user_get_random_from_conf(struct mailbox_source *source)
 			user->password = p_strdup(user->pool, p+1);
 		}
 	} else {
-		if (rand() % 10 == 0 && prev_user != 0) {
-			/* continue with same user */
-		} else {
-			prev_user = random() % conf.users_rand_count + conf.users_rand_start;
-			prev_domain = random() % conf.domains_rand_count + conf.domains_rand_start;
-		}
+		prev_user = random() % conf.users_rand_count + conf.users_rand_start;
+		prev_domain = random() % conf.domains_rand_count + conf.domains_rand_start;
 		username = t_strdup_printf(conf.username_template,
 					   prev_user, prev_domain);
 		user = user_get(username, source);
