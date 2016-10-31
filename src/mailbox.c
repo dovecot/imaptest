@@ -828,7 +828,7 @@ bool mailbox_global_get_subject_utf8(struct mailbox_source *source,
 		subject = str_c(tmp);
 	}
 	*subject_r = msg->subject_utf8_tcase =
-		p_strdup(source->messages_pool, subject);
+		p_strdup(mailbox_source_get_messages_pool(source), subject);
 	return TRUE;
 }
 
