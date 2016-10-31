@@ -1158,7 +1158,7 @@ static int test_execute(const struct test *test,
 	ctx->pool = pool;
 	ctx->test = test;
 	ctx->exec_ctx = exec_ctx;
-	ctx->source = mailbox_source_new(test->mbox_source_path);
+	ctx->source = mailbox_source_new_mbox(test->mbox_source_path);
 	ctx->cur_received_untagged =
 		buffer_create_dynamic(default_pool, 128);
 	p_array_init(&ctx->cur_commands, pool, 16);

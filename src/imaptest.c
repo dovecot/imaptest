@@ -344,7 +344,7 @@ static struct mailbox_source *imaptest_mailbox_source(void)
 		   if mbox_path doesn't exist. */
 		mbox_path = "/dev/null";
 	}
-	return mailbox_source_new(mbox_path);
+	return mailbox_source_new_mbox(mbox_path);
 }
 
 static void imaptest_run(void)
