@@ -3,6 +3,7 @@
 #include "lib.h"
 #include "hash.h"
 #include "istream.h"
+#include "istream-crlf.h"
 #include "mbox-from.h"
 #include "mailbox-source.h"
 
@@ -68,9 +69,9 @@ bool mailbox_source_eof(struct mailbox_source *source)
 	return i_stream_is_eof(source->input);
 }
 
-void mailbox_source_get_next_size(struct mailbox_source *source,
-				  uoff_t *psize_r, uoff_t *vsize_r,
-				  time_t *time_r, int *tz_offset_r)
+struct istream *
+mailbox_source_get_next(struct mailbox_source *source,
+			uoff_t *vsize_r, time_t *time_r, int *tz_offset_r)
 {
 	const char *line;
 	char *sender;
@@ -88,9 +89,8 @@ void mailbox_source_get_next_size(struct mailbox_source *source,
 			i_fatal("Empty mbox file: %s", source->path);
 
 		source->next_offset = 0;
-		mailbox_source_get_next_size(source, psize_r, vsize_r,
-					     time_r, tz_offset_r);
-		return;
+		return mailbox_source_get_next(source, vsize_r,
+					       time_r, tz_offset_r);
 	}
 
 	/* should be From-line */
@@ -128,6 +128,11 @@ void mailbox_source_get_next_size(struct mailbox_source *source,
 	i_stream_seek(source->input, offset);
 
 	source->next_offset = last_offset;
-	*psize_r = last_offset - offset;
 	*vsize_r = vsize;
+
+	struct istream *input =
+		i_stream_create_limit(source->input, last_offset - offset);
+	struct istream *input2 = i_stream_create_crlf(input);
+	i_stream_unref(&input);
+	return input2;
 }

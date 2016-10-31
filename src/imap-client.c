@@ -620,7 +620,7 @@ static int imap_client_output(struct client *_client)
 {
 	struct imap_client *client = (struct imap_client *)_client;
 
-	if (client->append_vsize_left > 0 && client->append_can_send) {
+	if (client->append_stream != NULL && client->append_can_send) {
 		if (imap_client_append_continue(client) < 0)
 			return -1;
 	}
@@ -672,6 +672,8 @@ static void imap_client_free(struct client *_client)
 	}
 	if (client->parser != NULL)
 		imap_parser_unref(&client->parser);
+	if (client->append_stream != NULL)
+		i_stream_unref(&client->append_stream);
 
 	if (client->capabilities_list != NULL)
 		p_strsplit_free(default_pool, client->capabilities_list);

@@ -91,7 +91,7 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 {
 	struct lmtp_client_settings lmtp_set;
 	struct imaptest_lmtp_delivery *d;
-	uoff_t mail_size, vsize;
+	uoff_t vsize;
 	const struct ip_addr *ip;
 	time_t t;
 	int tz;
@@ -131,8 +131,7 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 	lmtp_client_add_rcpt(d->client, rcpt_to, imaptest_lmtp_rcpt_to_callback,
 			     imaptest_lmtp_data_callback, d);
 
-	mailbox_source_get_next_size(source, &mail_size, &vsize, &t, &tz);
-	d->data_input = i_stream_create_limit(source->input, mail_size);
+	d->data_input = mailbox_source_get_next(source, &vsize, &t, &tz);
 	lmtp_client_send(d->client, d->data_input);
 }
 
