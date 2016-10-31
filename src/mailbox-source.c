@@ -5,10 +5,23 @@
 #include "istream.h"
 #include "istream-crlf.h"
 #include "mbox-from.h"
+#include "mailbox.h"
 #include "mailbox-source.h"
 
 #include <fcntl.h>
 #include <unistd.h>
+
+struct mailbox_source {
+	int refcount;
+
+	int fd;
+	char *path;
+	struct istream *input;
+	uoff_t next_offset;
+
+	pool_t messages_pool;
+	HASH_TABLE(char *, struct message_global *) messages;
+};
 
 struct mailbox_source *mailbox_source;
 
@@ -135,4 +148,25 @@ mailbox_source_get_next(struct mailbox_source *source,
 	struct istream *input2 = i_stream_create_crlf(input);
 	i_stream_unref(&input);
 	return input2;
+}
+
+pool_t mailbox_source_get_messages_pool(struct mailbox_source *source)
+{
+	return source->messages_pool;
+}
+
+struct message_global *
+mailbox_source_get_msg(struct mailbox_source *source, const char *message_id)
+{
+	struct message_global *msg;
+
+	msg = hash_table_lookup(source->messages, message_id);
+	if (msg != NULL)
+		return msg;
+
+	/* new message */
+	msg = p_new(source->messages_pool, struct message_global, 1);
+	msg->message_id = p_strdup(source->messages_pool, message_id);
+	hash_table_insert(source->messages, msg->message_id, msg);
+	return msg;
 }

@@ -32,8 +32,6 @@ static void client_fetch_envelope(struct imap_client *client,
 				  unsigned int list_count, uint32_t uid)
 {
 	const char *str, *message_id, *orig_str;
-	struct message_global *msg;
-	pool_t pool = client->storage->source->messages_pool;
 
 	if (list_count < 9 || !imap_arg_get_nstring(&args[9], &str) ||
 	    str == NULL)
@@ -56,18 +54,8 @@ static void client_fetch_envelope(struct imap_client *client,
 			uid, metadata->ms->msg->message_id, message_id);
 		return;
 	}
-
-	msg = hash_table_lookup(client->storage->source->messages, message_id);
-	if (msg != NULL) {
-		metadata->ms->msg = msg;
-		return;
-	}
-
-	/* new message */
-	metadata->ms->msg = msg = p_new(pool, struct message_global, 1);
-	msg->message_id = p_strdup(pool, message_id);
-	hash_table_insert(client->storage->source->messages,
-			  msg->message_id, msg);
+	metadata->ms->msg =
+		mailbox_source_get_msg(client->storage->source, message_id);
 }
 
 static const struct imap_arg *
@@ -338,7 +326,7 @@ static void
 headers_match(struct imap_client *client, ARRAY_TYPE(message_header) *headers_arr,
 	      struct message_global *msg)
 {
-	pool_t pool = client->storage->source->messages_pool;
+	pool_t pool = mailbox_source_get_messages_pool(client->storage->source);
 	const struct message_header *fetch_headers, *orig_headers;
 	struct message_header msg_header;
 	unsigned char *value;
@@ -453,7 +441,7 @@ fetch_parse_header_fields(struct imap_client *client, const struct imap_arg *arg
 static void fetch_parse_body1(struct imap_client *client, const struct imap_arg *arg,
 			      struct message_metadata_static *ms)
 {
-	pool_t pool = client->storage->source->messages_pool;
+	pool_t pool = mailbox_source_get_messages_pool(client->storage->source);
 	const char *body;
 	unsigned int i, start, len;
 
@@ -680,7 +668,7 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 					metadata->ms->msg->message_id, name,
 					*p, value);
 			}
-			*p = p_strdup(view->storage->source->messages_pool,
+			*p = p_strdup(mailbox_source_get_messages_pool(view->storage->source),
 				      value);
 		} else if (sizep != NULL) {
 			if (value_size == (uoff_t)-1) {
