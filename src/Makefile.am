@@ -14,6 +14,7 @@ imaptest_SOURCES = \
 	mailbox.c \
 	mailbox-source.c \
 	mailbox-source-mbox.c \
+	mailbox-source-random.c \
 	mailbox-state.c \
 	pop3-client.c \
 	profile.c \

@@ -335,16 +335,18 @@ static void clients_unref(void)
 
 static struct mailbox_source *imaptest_mailbox_source(void)
 {
-	const char *mbox_path = conf.mbox_path;
 	struct state *state;
 
 	state = state_find("APPEND");
 	if (state->probability == 0) {
 		/* we're not going to append anything, don't give an error
 		   if mbox_path doesn't exist. */
-		mbox_path = "/dev/null";
+		return mailbox_source_new_random(0);
 	}
-	return mailbox_source_new_mbox(mbox_path);
+	if (conf.random_msg_size > 0)
+		return mailbox_source_new_random(conf.random_msg_size);
+	else
+		return mailbox_source_new_mbox(conf.mbox_path);
 }
 
 static void imaptest_run(void)
@@ -576,6 +578,11 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		/* mbox=path */
 		if (strcmp(key, "mbox") == 0) {
 			conf.mbox_path = home_expand(value);
+			continue;
+		}
+		if (strcmp(key, "random_msg_size") == 0) {
+			if (str_to_uint(value, &conf.random_msg_size) < 0)
+				i_fatal("Invalid random_msg_size: %s", value);
 			continue;
 		}
 

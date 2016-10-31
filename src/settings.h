@@ -44,6 +44,7 @@ struct settings {
 	unsigned int clients_count;
 	unsigned int message_count_threshold;
 	unsigned int checkpoint_interval;
+	unsigned int random_msg_size;
 
 	unsigned int users_rand_start, users_rand_count;
 	unsigned int domains_rand_start, domains_rand_count;
