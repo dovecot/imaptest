@@ -251,7 +251,7 @@ test_expand_all(struct test_exec_context *ctx, const char **_line,
 			line = p;
 		}
 	}
-	i_assert(*line == '\0');
+	i_assert(*line == '\0' || ctx->failed);
 	*_line = str_c(value);
 	*_line_len = str_len(value);
 }
