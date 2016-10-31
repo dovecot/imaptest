@@ -3,6 +3,7 @@
 #include "lib.h"
 #include "array.h"
 #include "str.h"
+#include "write-full.h"
 #include "istream.h"
 #include "ostream.h"
 #include "imap-seqset.h"
@@ -293,7 +294,7 @@ void imap_client_log_mailbox_view(struct imap_client *client)
 	str = t_str_new(256);
 	str_printfa(str, "** view: highest_modseq=%llu\r\n",
 		    (unsigned long long)client->view->highest_modseq);
-	write(client->client.rawlog_fd, str_data(str), str_len(str));
+	write_full(client->client.rawlog_fd, str_data(str), str_len(str));
 
 	uidmap = array_get(&client->view->uidmap, &count);
 	metadata = array_get(&client->view->messages, &metadata_count);
@@ -309,9 +310,9 @@ void imap_client_log_mailbox_view(struct imap_client *client)
 		mailbox_view_keywords_write(client->view,
 					    metadata[i].keyword_bitmask, str);
 		str_append(str, ")\r\n");
-		write(client->client.rawlog_fd, str_data(str), str_len(str));
+		write_full(client->client.rawlog_fd, str_data(str), str_len(str));
 	}
-	write(client->client.rawlog_fd, "**\r\n", 4);
+	write_full(client->client.rawlog_fd, "**\r\n", 4);
 }
 
 void imap_client_mailbox_close(struct imap_client *client)
