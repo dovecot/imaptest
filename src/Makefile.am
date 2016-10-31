@@ -13,6 +13,7 @@ imaptest_SOURCES = \
 	imaptest-lmtp.c \
 	mailbox.c \
 	mailbox-source.c \
+	mailbox-source-mbox.c \
 	mailbox-state.c \
 	pop3-client.c \
 	profile.c \
@@ -32,6 +33,7 @@ noinst_HEADERS = \
 	imaptest-lmtp.h \
 	mailbox.h \
 	mailbox-source.h \
+	mailbox-source-private.h \
 	mailbox-state.h \
 	pop3-client.h \
 	profile.h \

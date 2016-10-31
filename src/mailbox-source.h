@@ -3,7 +3,7 @@
 
 extern struct mailbox_source *mailbox_source;
 
-struct mailbox_source *mailbox_source_new(const char *path);
+struct mailbox_source *mailbox_source_new_mbox(const char *path);
 void mailbox_source_ref(struct mailbox_source *source);
 void mailbox_source_unref(struct mailbox_source **source);
 
