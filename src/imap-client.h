@@ -46,7 +46,7 @@ struct imap_client {
 	ARRAY(struct mailbox_list_entry) mailboxes_list;
 
 	const struct imap_arg *cur_args;
-	uoff_t append_offset, append_psize, append_vsize_left, append_skip;
+	struct istream *append_stream;
 	uoff_t literal_left;
 
 	struct search_context *search_ctx;
@@ -71,7 +71,6 @@ struct imap_client {
 
 	unsigned int seen_banner:1;
 	unsigned int append_unfinished:1;
-	unsigned int append_started:1;
 	unsigned int try_create_mailbox:1;
 	unsigned int postlogin_capability:1;
 	unsigned int qresync_enabled:1;

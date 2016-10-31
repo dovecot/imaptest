@@ -6,7 +6,6 @@
 #include "strescape.h"
 #include "time-util.h"
 #include "istream.h"
-#include "istream-crlf.h"
 #include "ostream.h"
 #include "imap-date.h"
 #include "imap-util.h"
@@ -328,41 +327,27 @@ int imap_client_plan_send_more_commands(struct client *_client)
 	return 0;
 }
 
-static int client_append_more(struct imap_client *client)
+int imap_client_append_continue(struct imap_client *client)
 {
-	struct mailbox_source *source = client->storage->source;
-	struct istream *input, *input2;
-	uoff_t sent_bytes;
-	off_t ret;
+	i_assert(client->append_stream != NULL);
 
-	i_assert(client->append_vsize_left > 0);
-
-	input = i_stream_create_limit(source->input, client->append_psize);
-	input2 = i_stream_create_crlf(input);
-	i_stream_skip(input2, client->append_skip);
-	ret = o_stream_send_istream(client->client.output, input2);
-	sent_bytes = input2->v_offset;
-	errno = input->stream_errno;
-	i_stream_unref(&input2);
-	i_stream_unref(&input);
-
-	if (ret < 0) {
-		if (errno != 0)
-			i_error("APPEND failed: %m");
+	(void)o_stream_send_istream(client->client.output, client->append_stream);
+	if (client->append_stream->stream_errno != 0) {
+		i_error("APPEND failed: %s", i_stream_get_error(client->append_stream));
 		return -1;
 	}
-	i_assert(sent_bytes <= client->append_vsize_left);
-	client->append_vsize_left -= sent_bytes;
-	client->append_skip += sent_bytes;
+	if (client->client.output->stream_errno != 0) {
+		i_error("APPEND failed: %s", o_stream_get_error(client->client.output));
+		return -1;
+	}
 
-	if (client->append_vsize_left > 0) {
-		/* unfinished */
+	if (!client->append_stream->eof) {
 		o_stream_set_flush_pending(client->client.output, TRUE);
 		return 0;
 	}
 
 	/* finished this mail */
-	client->append_started = FALSE;
+	i_stream_unref(&client->append_stream);
 	if ((client->capabilities & CAP_MULTIAPPEND) != 0 &&
 	    states[STATE_APPEND].probability_again != 0 &&
 	    client->plan_size > 0 && client->plan[0] == STATE_APPEND) {
@@ -370,7 +355,7 @@ static int client_append_more(struct imap_client *client)
 		   do it in the same transaction. */
 		if (imap_client_plan_send_next_cmd(client) < 0)
 			return -1;
-		if (client->append_started || !client->append_unfinished) {
+		if (client->append_stream != NULL || !client->append_unfinished) {
 			/* multiappend started / finished */
 			return 0;
 		}
@@ -386,19 +371,17 @@ static int client_append_more(struct imap_client *client)
 int imap_client_append(struct imap_client *client, const char *args, bool add_datetime,
 		       command_callback_t *callback, struct command **cmd_r)
 {
-	struct mailbox_source *source = client->storage->source;
 	string_t *cmd;
 	time_t t;
+	uoff_t vsize;
 	int tz;
 
 	*cmd_r = NULL;
 
-	i_assert(client->append_vsize_left == 0);
-	mailbox_source_get_next_size(source, &client->append_psize,
-				     &client->append_vsize_left, &t, &tz);
-	client->append_offset = source->input->v_offset;
-	client->append_skip = 0;
-	client->append_started = TRUE;
+	i_assert(client->append_stream == NULL);
+	client->append_stream =
+		mailbox_source_get_next(client->storage->source,
+					&vsize, &t, &tz);
 
 	cmd = t_str_new(128);
 	if (client->append_unfinished) {
@@ -410,7 +393,7 @@ int imap_client_append(struct imap_client *client, const char *args, bool add_da
 	if (add_datetime)
 		str_printfa(cmd, " \"%s\"", imap_to_datetime_tz(t, tz));
 
-	str_printfa(cmd, " {%"PRIuUOFF_T, client->append_vsize_left);
+	str_printfa(cmd, " {%"PRIuUOFF_T, vsize);
 	if ((client->capabilities & CAP_LITERALPLUS) != 0)
 		str_append_c(cmd, '+');
 	str_append_c(cmd, '}');
@@ -427,12 +410,11 @@ int imap_client_append(struct imap_client *client, const char *args, bool add_da
 
 	if ((client->capabilities & CAP_LITERALPLUS) == 0) {
 		/* we'll have to wait for "+" */
-		i_stream_skip(source->input, client->append_psize);
 		return 0;
 	}
 
 	client->append_can_send = TRUE;
-	return client_append_more(client);
+	return imap_client_append_continue(client);
 }
 
 int imap_client_append_full(struct imap_client *client, const char *mailbox,
@@ -471,13 +453,6 @@ int imap_client_append_random(struct imap_client *client)
 		datetime = "";
 	return imap_client_append_full(client, NULL, flags, datetime,
 				       state_callback, &cmd);
-}
-
-int imap_client_append_continue(struct imap_client *client)
-{
-	i_stream_seek(client->storage->source->input,
-		      client->append_offset);
-	return client_append_more(client);
 }
 
 static void

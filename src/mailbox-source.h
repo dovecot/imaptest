@@ -20,8 +20,8 @@ void mailbox_source_ref(struct mailbox_source *source);
 void mailbox_source_unref(struct mailbox_source **source);
 
 bool mailbox_source_eof(struct mailbox_source *source);
-void mailbox_source_get_next_size(struct mailbox_source *source,
-				  uoff_t *psize_r, uoff_t *vsize_r,
-				  time_t *time_r, int *tz_offset_r);
+struct istream *
+mailbox_source_get_next(struct mailbox_source *source,
+			uoff_t *vsize_r, time_t *time_r, int *tz_offset_r);
 
 #endif
