@@ -10,6 +10,7 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <time.h>
 
 struct random_mailbox_source {
 	struct mailbox_source source;
