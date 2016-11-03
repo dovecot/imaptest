@@ -606,6 +606,7 @@ users_add_from_user_profile(const struct profile_user *user_profile,
 		{ 'n', NULL, NULL },
 		{ '\0', NULL, NULL }
 	};
+	const char *error;
 	struct user *user;
 	string_t *str = t_str_new(64);
 	unsigned int i;
@@ -621,8 +622,11 @@ users_add_from_user_profile(const struct profile_user *user_profile,
 		str_truncate(str, 0);
 		i_snprintf(num, sizeof(num), "%u",
 			   user_profile->username_start_index + i-1);
-		var_expand(str, user_profile->username_format, tab);
-
+		if (var_expand(str, user_profile->username_format, tab,
+			       &error) < 0)
+			i_error("var_expand(%s) failed: %s",
+				user_profile->username_format,
+				error);
 		user = user_get(str_c(str), source);
 		user->profile = user_profile;
 		user_init_client_profiles(user, profile);
