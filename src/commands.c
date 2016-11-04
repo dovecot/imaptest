@@ -83,6 +83,10 @@ command_get_cmdline(struct imap_client *client, const char **_cmdline,
 			cmdline_len -= len;
 		} else {
 			/* using a literal */
+			if (p[-1] == '\r') {
+				p--;
+			}
+			i_assert(p[-1] == '}');
 			if ((client->capabilities & CAP_LITERALPLUS) == 0 &&
 			    p[-2] == '+') {
 				/* using literal+ without server support,
@@ -91,10 +95,12 @@ command_get_cmdline(struct imap_client *client, const char **_cmdline,
 			} else if ((client->capabilities & CAP_LITERALPLUS) != 0 &&
 				   p[-2] != '+') {
 				/* for now we always convert to literal+ */
-				buffer_append(str, cmdline, p-cmdline-2);
+				buffer_append(str, cmdline, p-cmdline-1);
 				str_append(str, "+}");
 			} else if (p[-2] != '+') {
 				i_fatal("FIXME: Add support for sync literals");
+			} else {
+				buffer_append(str, cmdline, p-cmdline);
 			}
 			str_append(str, "\r\n");
 			cmdline += len;
