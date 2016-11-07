@@ -40,6 +40,16 @@ Content-Transfer-Encoding: x-unprintable
 
 nothing to see here
 
+--sub1
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: quoted-printable
+
+definitely nothing to see here
+
+--=
+sub=
+=31--
+
 --sub1--
 Sub MIME epilogue
 
