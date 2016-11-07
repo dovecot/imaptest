@@ -18,6 +18,8 @@ ok GENURLAUTH "imap://$username@$domain/$mailbox_url/;uid=$uid2/;section=1;urlau
 * GENURLAUTH $mail_url2
 ok GENURLAUTH "imap://$username@$domain/$mailbox_url/;uid=$uid2/;section=1.1;urlauth=user+$user" INTERNAL
 * GENURLAUTH $mail_url2sub
+ok GENURLAUTH "imap://$username@$domain/$mailbox_url/;uid=$uid2/;section=1.2;urlauth=user+$user" INTERNAL
+* GENURLAUTH $mail_url2sub2
 
 ok URLFETCH ($mail_url1 binary)
 * URLFETCH $mail_url1 (binary {{{
@@ -100,5 +102,10 @@ hello world
 
 ok URLFETCH ($mail_url2sub binary bodypartstructure)
 * URLFETCH $mail_url2sub (BODYPARTSTRUCTURE ("text" "x-myown" ("charset" "us-ascii") NIL NIL "7bit" 11 0 NIL NIL NIL NIL)) (BINARY {{{
+hello world
+}}})
+
+ok URLFETCH ($mail_url2sub2 binary bodypartstructure)
+* URLFETCH $mail_url2sub2 (BODYPARTSTRUCTURE ("text" "x-myown" ("charset" "us-ascii") NIL NIL "7bit" 11 0 NIL NIL NIL NIL)) (BINARY {{{
 hello world
 }}})
