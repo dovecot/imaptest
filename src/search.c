@@ -218,12 +218,14 @@ static void search_verify_result(struct imap_client *client)
 	uint32_t seq, msgs;
 	int ret;
 	bool found;
+	bool expunged =
+		imap_arg_atom_equals(client->cur_args+2, "[EXPUNGEISSUED]");
 
 	uids = array_get(&client->view->uidmap, &msgs);
 	for (seq = 1; seq <= msgs; seq++) {
 		ret = search_node_verify(client, &ctx->root, seq, FALSE);
 		found = seq_range_exists(&ctx->result, seq);
-		if (ret > 0 && !found) {
+		if (ret > 0 && !found && !expunged) {
 			imap_client_input_warn(client,
 				"SEARCH result missing seq %u (uid %u)",
 				seq, uids[seq-1]);
