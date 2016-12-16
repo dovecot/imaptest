@@ -17,6 +17,7 @@ libtool
 libtool-shared
 ltconfig
 ltmain.sh
+run-test.sh
 stamp-h*
 stamp.h
 version.h
