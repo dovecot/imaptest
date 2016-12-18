@@ -457,7 +457,7 @@ parse_possible_range(const char *value, unsigned int *start_r, unsigned int *cou
 }
 
 static
-int count_printf_ints(const char *s)
+int count_printf_ints(const char *s, const char **error_r)
 {
 	int ints = 0;
 	const char *perc = s;
@@ -469,8 +469,11 @@ int count_printf_ints(const char *s)
 		}
 		while((c = *++perc), (c >= '0' && c <= '9'))
 			;
-		if(c != 'd' && c != 'i')
+		if(c != 'd' && c != 'i') {
+			*error_r = "username format can only have %i or %d "
+				   "format specifiers";
 			return -1;
+		}
 		ints++;
 		perc++;
 	}
@@ -478,14 +481,23 @@ int count_printf_ints(const char *s)
 }
 
 static inline
-int username_format_is_valid(const char *s)
+bool username_format_is_valid(const char *s, const char **error_r)
 {
 	/* All this does is ensure that there are at most 2, and only,
 	 * "%d"s or "%i"s in the format string. If you mess up the '@',
 	 * that's your problem. i.e. it makes our printf safe.
 	 */
-	int ints=count_printf_ints(s);
-	return ints>=0 && ints<=2;
+	int ints=count_printf_ints(s, error_r);
+	if (ints < 0) {
+		/* count_printf_ints sets error_r in this case. */
+		return FALSE;
+	} else if (ints > 2) {
+		*error_r = "username format can have at most two "
+			   "integer parameters";
+	} else {
+		return TRUE;
+	}
+	return FALSE;
 }
 
 int main(int argc ATTR_UNUSED, char *argv[])
@@ -493,7 +505,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	struct timeout *to_stop;
 	struct state *state;
 	struct profile *profile = NULL;
-	const char *key, *value, *testpath = NULL;
+	const char *error, *key, *value, *testpath = NULL;
 	unsigned int i;
 	int ret, fd;
 
@@ -673,7 +685,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			continue;
 		}
 		if (strcmp(key, "user") == 0) {
-			i_assert(username_format_is_valid(value));
+			if (!username_format_is_valid(value, &error))
+				i_fatal("invalid user format: %s", error);
 			conf.username_template = value;
 			continue;
 		}
