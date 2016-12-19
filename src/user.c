@@ -11,6 +11,7 @@
 #include "mailbox.h"
 #include "mailbox-source.h"
 #include "user.h"
+#include "var-expand.h"
 
 #include <stdlib.h>
 
@@ -237,8 +238,16 @@ const char *user_get_new_mailbox(struct client *client)
 {
 	struct user_client *uc = client->user_client;
 
-	if (uc == NULL)
-		return t_strdup_printf(conf.mailbox, client->idx);
+	if (uc == NULL) {
+		struct var_expand_table exp_table[] = {
+			{ 'i', dec2str(client->idx), NULL },
+			{ '\0', NULL, NULL }
+		};
+		const char *error;
+		string_t *str = t_str_new(32);
+		var_expand(str, conf.mailbox, exp_table);
+		return str_c(str);
+	}
 
 	if (user_find_client_by_mailbox(uc, "INBOX") == NULL)
 		return "INBOX";
