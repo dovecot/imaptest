@@ -233,7 +233,8 @@ void message_metadata_static_unref(struct mailbox_storage *storage,
 				   struct message_metadata_static **ms);
 void mailbox_view_expunge(struct mailbox_view *view, unsigned int seq);
 
-bool mailbox_global_get_sent_date(struct message_global *msg,
+bool mailbox_global_get_sent_date(struct mailbox_source *source,
+				  struct message_global *msg,
 				  time_t *date_r, int *tz_r);
 bool mailbox_global_get_subject_utf8(struct mailbox_source *source,
 				     struct message_global *msg,

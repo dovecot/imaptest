@@ -770,53 +770,21 @@ void mailbox_view_free(struct mailbox_view **_mailbox)
 	i_free(view);
 }
 
-bool mailbox_global_get_sent_date(struct message_global *msg,
-				  time_t *date_r, int *tz_r)
+static bool
+mailbox_global_parse_envelope(struct mailbox_source *source,
+				     struct message_global *msg)
 {
-	const char *data;
-
-	if (msg->sent_date != 0) {
-		*date_r = msg->sent_date;
-		*tz_r = msg->sent_date_tz;
-		return TRUE;
-	}
-
-	/* parse the sent date from envelope */
-	if (msg->envelope == NULL)
-		return FALSE;
-
-	if (!imap_envelope_parse(msg->envelope, IMAP_ENVELOPE_DATE,
-				 IMAP_ENVELOPE_RESULT_TYPE_STRING, &data))
-		msg->sent_date = (time_t)-1;
-	else if (data == NULL)
-		msg->sent_date = (time_t)-1;
-	else if (!message_date_parse((const unsigned char *)data, strlen(data),
-				     &msg->sent_date, &msg->sent_date_tz))
-		msg->sent_date = (time_t)-1;
-
-	*date_r = msg->sent_date;
-	*tz_r = msg->sent_date_tz;
-	return TRUE;
-}
-
-bool mailbox_global_get_subject_utf8(struct mailbox_source *source,
-				     struct message_global *msg,
-				     const char **subject_r)
-{
-	const char *subject;
+	const char *subject, *data;
 	string_t *tmp;
 
-	if (msg->subject_utf8_tcase != NULL) {
-		*subject_r = msg->subject_utf8_tcase;
-		return TRUE;
-	}
-
-	/* get the subject from envelope */
 	if (msg->envelope == NULL)
 		return FALSE;
 
 	if (!imap_envelope_parse(msg->envelope, IMAP_ENVELOPE_SUBJECT,
-				 IMAP_ENVELOPE_RESULT_TYPE_STRING, &subject))
+		IMAP_ENVELOPE_RESULT_TYPE_STRING, &subject))
+		return FALSE;
+	if (!imap_envelope_parse(msg->envelope, IMAP_ENVELOPE_DATE,
+		IMAP_ENVELOPE_RESULT_TYPE_STRING, &data))
 		return FALSE;
 
 	/* convert to UTF-8 */
@@ -827,8 +795,40 @@ bool mailbox_global_get_subject_utf8(struct mailbox_source *source,
 					   uni_utf8_to_decomposed_titlecase);
 		subject = str_c(tmp);
 	}
-	*subject_r = msg->subject_utf8_tcase =
+	msg->subject_utf8_tcase =
 		p_strdup(mailbox_source_get_messages_pool(source), subject);
+
+	if (data == NULL)
+		msg->sent_date = (time_t)-1;
+	else if (!message_date_parse((const unsigned char *)data, strlen(data),
+				     &msg->sent_date, &msg->sent_date_tz))
+		msg->sent_date = (time_t)-1;
+
+	return TRUE;
+}
+
+bool mailbox_global_get_sent_date(struct mailbox_source *source,
+				  struct message_global *msg,
+				  time_t *date_r, int *tz_r)
+{
+	if (msg->sent_date == 0 &&
+		!mailbox_global_parse_envelope(source, msg))
+		return FALSE;
+
+	*date_r = msg->sent_date;
+	*tz_r = msg->sent_date_tz;
+	return TRUE;
+}
+
+bool mailbox_global_get_subject_utf8(struct mailbox_source *source,
+				     struct message_global *msg,
+				     const char **subject_r)
+{
+	if (msg->subject_utf8_tcase == NULL &&
+		!mailbox_global_parse_envelope(source, msg))
+		return FALSE;
+
+	*subject_r = msg->subject_utf8_tcase;
 	return TRUE;
 }
 
