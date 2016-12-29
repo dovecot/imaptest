@@ -119,7 +119,8 @@ search_node_verify_msg(struct imap_client *client, struct search_node *node,
 		if (ms->msg == NULL)
 			break;
 
-		if (!mailbox_global_get_sent_date(ms->msg, &t, &tz))
+		if (!mailbox_global_get_sent_date(client->storage->source,
+						  ms->msg, &t, &tz))
 			break;
 		if (t == (time_t)-1)
 			break;
@@ -414,7 +415,8 @@ again:
 		for (n = 0; n < ms_count; n++) {
 			i = (randstart + n) % ms_count;
 			if (ms[i]->msg != NULL &&
-			    mailbox_global_get_sent_date(ms[i]->msg, &t, &tz) &&
+			    mailbox_global_get_sent_date(client->storage->source,
+						ms[i]->msg, &t, &tz) &&
 			    t != 0 && t != (time_t)-1) {
 				t += tz * 60;
 				if (t1 == 0)
