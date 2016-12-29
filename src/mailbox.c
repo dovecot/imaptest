@@ -9,6 +9,7 @@
 #include "istream.h"
 #include "message-date.h"
 #include "message-header-decode.h"
+#include "message-part-data.h"
 #include "imap-envelope.h"
 #include "imap-util.h"
 
@@ -774,35 +775,41 @@ static bool
 mailbox_global_parse_envelope(struct mailbox_source *source,
 				     struct message_global *msg)
 {
-	const char *subject, *data;
+	struct message_part_envelope *env;
+	const char *subject, *error;
 	string_t *tmp;
 
 	if (msg->envelope == NULL)
 		return FALSE;
 
-	if (!imap_envelope_parse(msg->envelope, IMAP_ENVELOPE_SUBJECT,
-		IMAP_ENVELOPE_RESULT_TYPE_STRING, &subject))
+	msg->sent_date = (time_t)-1;
+	msg->subject_utf8_tcase = NULL;
+	if (!imap_envelope_parse(msg->envelope,
+		pool_datastack_create(), &env, &error)) {
+		i_error("Error parsing IMAP envelope: %s", error);
 		return FALSE;
-	if (!imap_envelope_parse(msg->envelope, IMAP_ENVELOPE_DATE,
-		IMAP_ENVELOPE_RESULT_TYPE_STRING, &data))
-		return FALSE;
+	}
+	subject = env->subject;
 
 	/* convert to UTF-8 */
 	if (subject != NULL) {
 		tmp = t_str_new(128);
-		message_header_decode_utf8((const unsigned char *)subject,
-					   strlen(subject), tmp,
-					   uni_utf8_to_decomposed_titlecase);
+		message_header_decode_utf8(
+			(const unsigned char *)subject,
+			strlen(subject), tmp,
+			uni_utf8_to_decomposed_titlecase);
 		subject = str_c(tmp);
 	}
-	msg->subject_utf8_tcase =
-		p_strdup(mailbox_source_get_messages_pool(source), subject);
+	msg->subject_utf8_tcase = p_strdup
+		(mailbox_source_get_messages_pool(source), subject);
 
-	if (data == NULL)
+	if (env->date == NULL) {
 		msg->sent_date = (time_t)-1;
-	else if (!message_date_parse((const unsigned char *)data, strlen(data),
-				     &msg->sent_date, &msg->sent_date_tz))
+	} else if (!message_date_parse
+		((const unsigned char *)env->date, strlen(env->date),
+			&msg->sent_date, &msg->sent_date_tz)) {
 		msg->sent_date = (time_t)-1;
+	}
 
 	return TRUE;
 }
