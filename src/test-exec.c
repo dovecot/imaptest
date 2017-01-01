@@ -4,14 +4,15 @@
 #include "ioloop.h"
 #include "hash.h"
 #include "str.h"
+#include "uri-util.h"
 #include "imap-quote.h"
 #include "imap-util.h"
 #include "imap-arg.h"
+#include "imap-utf7.h"
 #include "mailbox.h"
 #include "mailbox-source.h"
 #include "imap-client.h"
 #include "commands.h"
-#include "imapurl.h"
 #include "settings.h"
 #include "test-parser.h"
 #include "test-exec.h"
@@ -1140,6 +1141,19 @@ static int test_send_lstate_commands(struct client *_client)
 	return 0;
 }
 
+static const char *mailbox_mutf7_to_url(const char *mailbox)
+{
+	string_t *utf8val, *urlval;
+
+	utf8val = t_str_new(256);
+	if (imap_utf7_to_utf8(mailbox, utf8val) < 0)
+		i_panic("Invalid mUTF-7 encoding for mailbox: %s", mailbox);
+
+	urlval = t_str_new(256);
+	uri_append_path_data(urlval, ";", str_c(utf8val));
+	return str_c(urlval);
+}
+
 static int test_execute(const struct test *test,
 			struct tests_execute_context *exec_ctx)
 {
@@ -1148,7 +1162,6 @@ static int test_execute(const struct test *test,
 	unsigned int i, test_conn_count;
 	const char *key, *value, *username;
 	struct client *client;
-	char *url;
 	pool_t pool;
 
 	users_free_all();
@@ -1220,11 +1233,9 @@ static int test_execute(const struct test *test,
 	hash_table_insert(ctx->variables, key, value);
 
 	key = "mailbox_url";
-	url = p_malloc(pool, strlen(value)*4+1);
-	imap_mailbox_to_url(url, value);
-	value = url;
-
+	value = p_strdup(pool, mailbox_mutf7_to_url(value));
 	hash_table_insert(ctx->variables, key, value);
+
 	return 0;
 }
 
