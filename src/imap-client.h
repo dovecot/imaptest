@@ -69,16 +69,16 @@ struct imap_client {
 
 	int (*handle_untagged)(struct imap_client *, const struct imap_arg *);
 
-	unsigned int seen_banner:1;
-	unsigned int append_unfinished:1;
-	unsigned int try_create_mailbox:1;
-	unsigned int postlogin_capability:1;
-	unsigned int qresync_enabled:1;
-	unsigned int append_can_send:1;
-	unsigned int seen_bye:1;
-	unsigned int idle_wait_cont:1;
-	unsigned int idle_done_sent:1;
-	unsigned int preauth:1;
+	bool seen_banner:1;
+	bool append_unfinished:1;
+	bool try_create_mailbox:1;
+	bool postlogin_capability:1;
+	bool qresync_enabled:1;
+	bool append_can_send:1;
+	bool seen_bye:1;
+	bool idle_wait_cont:1;
+	bool idle_done_sent:1;
+	bool preauth:1;
 };
 
 static inline struct imap_client *imap_client(struct client *client)

@@ -17,7 +17,7 @@ enum test_startup_state {
 struct test_untagged {
 	const struct imap_arg *args;
 
-	unsigned int not_found:1;
+	bool not_found:1;
 };
 
 struct test_command {
@@ -73,7 +73,7 @@ struct test {
 	/* List of commands to run for this test */
 	ARRAY(struct test_command_group *) cmd_groups;
 
-	unsigned int require_user2:1;
+	bool require_user2:1;
 };
 ARRAY_DEFINE_TYPE(test, struct test *);
 

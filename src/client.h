@@ -42,10 +42,10 @@ struct client {
 	enum client_state state;
         time_t last_io;
 
-	unsigned int delayed:1;
-	unsigned int disconnected:1;
-	unsigned int logout_sent:1;
-	unsigned int idling:1;
+	bool delayed:1;
+	bool disconnected:1;
+	bool logout_sent:1;
+	bool idling:1;
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
 

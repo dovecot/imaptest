@@ -28,11 +28,11 @@ struct pop3_client {
 	ARRAY_TYPE(const_string) uidls;
 	unsigned int prev_seq;
 
-	unsigned int seen_banner:1;
-	unsigned int auth_reply_sent:1;
-	unsigned int retr_reading:1;
-	unsigned int uidls_matched:1;
-	unsigned int pop3_keep_mails:1;
+	bool seen_banner:1;
+	bool auth_reply_sent:1;
+	bool retr_reading:1;
+	bool uidls_matched:1;
+	bool pop3_keep_mails:1;
 };
 
 static inline struct pop3_client *pop3_client(struct client *client)
