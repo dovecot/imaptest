@@ -1,4 +1,4 @@
-/* Copyright (c) 2007-2008 Timo Sirainen */
+/* Copyright (c) 2007-2017 ImapTest authors, see the included COPYING file */
 
 #include "lib.h"
 #include "base64.h"
