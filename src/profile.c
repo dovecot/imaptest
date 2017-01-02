@@ -18,7 +18,7 @@
 
 #define RANDU (rand() / (double)RAND_MAX)
 #define RANDN2(mu, sigma) \
-	(mu + (rand()%2 ? -1.0 : 1.0) * sigma * pow(-log(0.99999*RANDU), 0.5))
+	(mu + (rand()%2 != 0 ? -1.0 : 1.0) * sigma * pow(-log(0.99999*RANDU), 0.5))
 #define weighted_rand(n) \
 	(int)RANDN2(n, n/2)
 

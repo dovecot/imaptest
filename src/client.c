@@ -149,7 +149,7 @@ static void client_wait_connect(struct client *client)
 	if (conf.rawlog) {
 		if (iostream_rawlog_create_path(
 				t_strdup_printf("rawlog.%u", client->global_id),
-				&client->input, &client->output))
+				&client->input, &client->output) != 0)
 			client->rawlog_fd = o_stream_get_fd(client->output);
 	}
 

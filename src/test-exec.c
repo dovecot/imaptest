@@ -409,7 +409,7 @@ test_imap_match_list(struct test_exec_context *ctx,
 			return ret;
 		}
 	}
-	if (noextra) {
+	if (noextra > 0) {
 		/* make sure everything got matched */
 		const char *const *s;
 		unsigned int i, count;
