@@ -470,7 +470,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 
 	lib_signals_init();
 	lib_signals_ignore(SIGPIPE, TRUE);
-        lib_signals_set_handler(SIGINT, TRUE, sig_die, NULL);
+	lib_signals_set_handler(SIGINT, LIBSIG_FLAG_DELAYED, sig_die, NULL);
 
 	conf.password = PASSWORD;
 	conf.username_template = USERNAME_TEMPLATE;
