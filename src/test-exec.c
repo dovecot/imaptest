@@ -64,11 +64,11 @@ struct test_exec_context {
 	ARRAY(const char *) added_variables;
 
 	enum test_startup_state startup_state;
-	unsigned int failed:1;
-	unsigned int skipped:1;
-	unsigned int finished:1;
-	unsigned int init_finished:1;
-	unsigned int listing:1;
+	bool failed:1;
+	bool skipped:1;
+	bool finished:1;
+	bool init_finished:1;
+	bool listing:1;
 };
 
 static const char *tag_hash_key = "tag";

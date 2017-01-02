@@ -8,7 +8,7 @@ struct message_header {
 	const char *name;
 	const unsigned char *value;
 	unsigned int value_len;
-	unsigned int missing:1;
+	bool missing:1;
 };
 ARRAY_DEFINE_TYPE(message_header, struct message_header);
 
@@ -45,7 +45,7 @@ struct message_metadata_static {
 
 	struct message_global *msg;
 
-	unsigned int expunged:1;
+	bool expunged:1;
 };
 
 enum flagchange_dirty_type {
@@ -85,7 +85,7 @@ struct mailbox_keyword_name {
 	char *name;
 	unsigned int owner_client_idx1;
 
-	unsigned int seen_nonpermanent:1;
+	bool seen_nonpermanent:1;
 };
 
 struct mailbox_keyword {
@@ -95,7 +95,7 @@ struct mailbox_keyword {
 	unsigned int msg_refcount;
 	unsigned int flags_counter; /* should match view->flags_counter */
 
-	unsigned int permanent:1;
+	bool permanent:1;
 };
 ARRAY_DEFINE_TYPE(mailbox_keyword, struct mailbox_keyword);
 
@@ -148,11 +148,11 @@ struct mailbox_storage {
 #define MAIL_FLAG_DELETED_IDX 2
 	unsigned int flags_owner_client_idx1[MAIL_FLAGS_OWN_COUNT];
 
-	unsigned int assign_msg_owners:1;
-	unsigned int assign_flag_owners:1;
-	unsigned int flag_owner_clients_assigned:1;
-	unsigned int seen_all_recent:1;
-	unsigned int dont_track_recent:1;
+	bool assign_msg_owners:1;
+	bool assign_flag_owners:1;
+	bool flag_owner_clients_assigned:1;
+	bool seen_all_recent:1;
+	bool dont_track_recent:1;
 };
 
 struct mailbox_view {
@@ -175,8 +175,8 @@ struct mailbox_view {
 	/* number of non-zero UIDs in uidmap. */
 	unsigned int known_uid_count;
 
-	unsigned int readwrite:1;
-	unsigned int keywords_can_create_more:1;
+	bool readwrite:1;
+	bool keywords_can_create_more:1;
 };
 
 HASH_TABLE_DEFINE_TYPE(mailbox_storage, char *, struct mailbox_storage *);

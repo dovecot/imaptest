@@ -13,8 +13,8 @@
 
 struct mailbox_checkpoint_context {
 	unsigned int clients_left;
-	unsigned int check_sent:1;
-	unsigned int thread_sent:1;
+	bool check_sent:1;
+	bool thread_sent:1;
 };
 
 struct checkpoint_context {
@@ -27,8 +27,8 @@ struct checkpoint_context {
 
 	const char *thread_reply;
 
-	unsigned int first:1;
-	unsigned int errors:1;
+	bool first:1;
+	bool errors:1;
 };
 
 static void

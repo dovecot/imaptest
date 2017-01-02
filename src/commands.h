@@ -27,7 +27,7 @@ struct command {
 	command_callback_t *callback;
 	struct timeval tv_start;
 
-	unsigned int expect_bad:1;
+	bool expect_bad:1;
 };
 
 struct command *command_send(struct imap_client *client, const char *cmdline,
