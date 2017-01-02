@@ -1127,7 +1127,7 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		command_send(client, str, state_callback);
 		break;
 	case STATE_MCREATE:
-		if (rand() % 2)
+		if (rand() % 2 != 0)
 			str = t_strdup_printf("CREATE \"test%c%d\"", 
 					      IMAP_HIERARCHY_SEP, rand() % 20);
 		else
@@ -1137,8 +1137,8 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		command_send(client, str, state_callback);
 		break;
 	case STATE_MSUBS: {
-		const char *cmd = rand() % 2 ? "SUBSCRIBE" : "UNSUBSCRIBE";
-		if (rand() % 2)
+		const char *cmd = (rand() % 2 != 0 ? "SUBSCRIBE" : "UNSUBSCRIBE");
+		if (rand() % 2 != 0)
 			str = t_strdup_printf("%s \"test%c%d\"", cmd,
 					      IMAP_HIERARCHY_SEP, rand() % 20);
 		else
@@ -1149,7 +1149,7 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		break;
 	}
 	case STATE_MDELETE:
-		if (rand() % 2)
+		if (rand() % 2 != 0)
 			str = t_strdup_printf("DELETE \"test%c%d\"", 
 					      IMAP_HIERARCHY_SEP, rand() % 20);
 		else

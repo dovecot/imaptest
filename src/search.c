@@ -93,9 +93,9 @@ search_node_verify_msg(struct imap_client *client, struct search_node *node,
 		if (ms->msg == NULL || ms->msg->full_size == 0)
 			break;
 		if (node->type == SEARCH_SMALLER)
-			return ms->msg->full_size < node->size;
+			return (ms->msg->full_size < node->size ? 1 : 0);
 		else
-			return ms->msg->full_size > node->size;
+			return (ms->msg->full_size > node->size ? 1 : 0);
 		break;
 	case SEARCH_BEFORE:
 	case SEARCH_ON:
@@ -105,11 +105,11 @@ search_node_verify_msg(struct imap_client *client, struct search_node *node,
 		t = ms->internaldate + ms->internaldate_tz*60;
 		switch (node->type) {
 		case SEARCH_BEFORE:
-			return t < node->date;
+			return (t < node->date ? 1 : 0);
 		case SEARCH_ON:
-			return t >= node->date && t < node->date + 3600*24;
+			return (t >= node->date && t < node->date + 3600*24 ? 1 : 0);
 		case SEARCH_SINCE:
-			return t >= node->date;
+			return (t >= node->date ? 1 : 0);
 		default:
 			i_unreached();
 		}
@@ -127,11 +127,11 @@ search_node_verify_msg(struct imap_client *client, struct search_node *node,
 		t += tz * 60;
 		switch (node->type) {
 		case SEARCH_SENTBEFORE:
-			return t < node->date;
+			return (t < node->date ? 1 : 0);
 		case SEARCH_SENTON:
-			return t >= node->date && t < node->date + 3600*24;
+			return (t >= node->date && t < node->date + 3600*24 ? 1 : 0);
 		case SEARCH_SENTSINCE:
-			return t >= node->date;
+			return (t >= node->date ? 1 : 0);
 		default:
 			i_unreached();
 		}
@@ -146,7 +146,7 @@ search_node_verify_msg(struct imap_client *client, struct search_node *node,
 			/* Subject: header doesn't exist */
 			return 0;
 		}
-		return strstr(str, node->str) != NULL;
+		return (strstr(str, node->str) != NULL ? 1 : 0);
 
 	case SEARCH_BODY:
 	case SEARCH_TEXT:
@@ -184,7 +184,7 @@ search_node_verify(struct imap_client *client, struct search_node *node,
 					 node->type == SEARCH_OR);
 		break;
 	case SEARCH_SEQSET:
-		ret = seq_range_exists(&node->seqset, seq);
+		ret = (seq_range_exists(&node->seqset, seq) ? 1 : 0);
 		break;
 	default:
 		ms = message_metadata_static_lookup_seq(client->view, seq);
