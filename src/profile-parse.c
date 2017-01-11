@@ -344,7 +344,7 @@ struct profile *profile_parse(const char *path)
 	profile->pool = pool;
 	profile->path = p_strdup(pool, path);
 
-	memset(&parser, 0, sizeof(parser));
+	i_zero(&parser);
 	parser.profile = profile;
 	p_array_init(&parser.clients, pool, 4);
 	p_array_init(&parser.users, pool, 4);

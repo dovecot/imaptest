@@ -106,7 +106,7 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 		return;
 	}
 
-	memset(&lmtp_set, 0, sizeof(lmtp_set));
+	i_zero(&lmtp_set);
 	lmtp_set.my_hostname = "localhost";
 	lmtp_set.mail_from = "<>";
 
