@@ -4,6 +4,7 @@
 #include "ioloop.h"
 #include "str.h"
 #include "var-expand.h"
+#include "smtp-address.h"
 #include "imap-arg.h"
 #include "imap-quote.h"
 #include "imap-client.h"
@@ -383,15 +384,17 @@ user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
 
 static void deliver_new_mail(struct user *user, const char *mailbox)
 {
-	const char *rcpt_to, *domain;
+	struct smtp_address *rcpt_to;
+	const char *error;
 
-	if (strcmp(mailbox, "INBOX") == 0)
-		rcpt_to = user->username;
-	else if ((domain = strchr(user->username, '@')) == NULL)
-		rcpt_to = t_strdup_printf("%s+%s", user->username, mailbox);
-	else {
-		rcpt_to = t_strdup_printf("%s+%s%s",
-			t_strcut(user->username, '@'), mailbox, domain);
+	if (smtp_address_parse_username(pool_datastack_create(), user->username,
+		&rcpt_to, &error) < 0) {
+		i_fatal("Username is not a valid e-mail address: %s", error);
+	}
+
+	if (strcmp(mailbox, "INBOX") != 0) {
+		rcpt_to->localpart =
+			t_strdup_printf("%s+%s", rcpt_to->localpart, mailbox);
 	}
 
 	imaptest_lmtp_send(user->profile->profile->lmtp_port,

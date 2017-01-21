@@ -9,6 +9,7 @@
 #include "istream.h"
 #include "ostream.h"
 #include "home-expand.h"
+#include "smtp-address.h"
 
 #include "settings.h"
 #include "mailbox.h"
