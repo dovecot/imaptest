@@ -243,7 +243,6 @@ const char *user_get_new_mailbox(struct client *client)
 			{ 'i', dec2str(client->idx), NULL },
 			{ '\0', NULL, NULL }
 		};
-		const char *error;
 		string_t *str = t_str_new(32);
 		var_expand(str, conf.mailbox, exp_table);
 		return str_c(str);
