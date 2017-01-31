@@ -279,7 +279,7 @@ void mailbox_view_keyword_add(struct mailbox_view *view, const char *name)
 	struct mailbox_keyword keyword;
 	unsigned int count;
 
-	memset(&keyword, 0, sizeof(keyword));
+	i_zero(&keyword);
 	keyword.name = mailbox_keyword_name_get(view->storage, name);
 	keyword.flags_counter = view->flags_counter;
 	array_append(&view->keywords, &keyword, 1);

@@ -325,7 +325,7 @@ test_parse_untagged_handle_directives(struct list_directives_context *ctx,
 		if (args->type != IMAP_ARG_LIST)
 			continue;
 
-		memset(&subctx, 0, sizeof(subctx));
+		i_zero(&subctx);
 		subctx.parser = ctx->parser;
 		subctx.parent = ctx;
 		subctx.reply_name = t_str_lcase(ctx->reply_name);
@@ -362,7 +362,7 @@ test_parse_command_untagged(struct test_parser *parser,
 		return FALSE;
 
 	args = array_idx(args_arr, 0);
-	memset(&directives_ctx, 0, sizeof(directives_ctx));
+	i_zero(&directives_ctx);
 	directives_ctx.parser = parser;
 	directives_ctx.chain_count = 1;
 	if (imap_arg_get_atom(args, &str)) {
@@ -377,7 +377,7 @@ test_parse_command_untagged(struct test_parser *parser,
 						   error_r))
 		return FALSE;
 
-	memset(&ut, 0, sizeof(ut));
+	i_zero(&ut);
 	ut.args = array_idx(args_arr, 0);
 	ut.not_found = not_found;
 	array_append(&group->untagged, &ut, 1);
@@ -509,7 +509,7 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 	}
 
 	cmd = &newcmd;
-	memset(&newcmd, 0, sizeof(newcmd));
+	i_zero(&newcmd);
 	cmd->linenum = linenum;
 	if (test->connection_count > 1) {
 		/* begins with connection index */

@@ -323,7 +323,7 @@ void checkpoint_neg(struct mailbox_storage *storage)
 
 	/* make sure everyone has the same idea of what the mailbox
 	   looks like */
-	memset(&ctx, 0, sizeof(ctx));
+	i_zero(&ctx);
 	if (max_msgs_count > 0) {
 		ctx.count = max_msgs_count;
 		ctx.messages = i_new(struct message_metadata_dynamic,

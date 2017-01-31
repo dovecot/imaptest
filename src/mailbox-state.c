@@ -345,7 +345,7 @@ headers_match(struct imap_client *client, ARRAY_TYPE(message_header) *headers_ar
 		}
 		if (j == orig_count) {
 			/* first time we've seen this, add it */
-			memset(&msg_header, 0, sizeof(msg_header));
+			i_zero(&msg_header);
 			msg_header.name = p_strdup(pool, fetch_headers[i].name);
 			msg_header.value_len = fetch_headers[i].value_len;
 			msg_header.missing = fetch_headers[i].missing;
@@ -390,7 +390,7 @@ fetch_parse_header_fields(struct imap_client *client, const struct imap_arg *arg
 
 	t_array_init(&headers, 8);
 	for (arg = header_args; !IMAP_ARG_IS_EOL(arg); arg++) {
-		memset(&msg_header, 0, sizeof(msg_header));
+		i_zero(&msg_header);
 		msg_header.missing = TRUE;
 		if (!imap_arg_get_astring(arg, &msg_header.name))
 			return -1;
@@ -408,7 +408,7 @@ fetch_parse_header_fields(struct imap_client *client, const struct imap_arg *arg
 		}
 	}
 	/* track also the end of headers empty line */
-	memset(&msg_header, 0, sizeof(msg_header));
+	i_zero(&msg_header);
 	msg_header.name = "";
 	msg_header.missing = TRUE;
 	array_append(&headers, &msg_header, 1);

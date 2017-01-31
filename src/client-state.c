@@ -515,7 +515,7 @@ store_verify_parse(struct store_verify_context *ctx, struct imap_client *client,
 	const char *const *tmp;
 	unsigned int max_size, idx;
 
-	memset(ctx, 0, sizeof(*ctx));
+	i_zero(ctx);
 	ctx->client = client;
 	ctx->type = type;
 
