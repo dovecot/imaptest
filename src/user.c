@@ -89,7 +89,7 @@ static struct user *user_get_random_from_conf(struct mailbox_source *source)
 #define USER_CLIENT_CAN_CONNECT(uc) \
 	((uc->last_logout <= 0 ? \
 	 (ioloop_time >= uc->user->timestamps[USER_TIMESTAMP_LOGIN]) : \
-	 (ioloop_time - uc->last_logout >= uc->profile->login_interval)) && \
+	 (ioloop_time - uc->last_logout >= (time_t)uc->profile->login_interval)) && \
 	array_count(&uc->clients) < uc->profile->connection_max_count)
 
 
