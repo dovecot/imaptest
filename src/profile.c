@@ -513,7 +513,7 @@ static void user_fill_timestamps(struct user *user, time_t start_time)
 	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++) {
 		interval = user_get_timeout_interval(user, ts);
 		user->timestamps[ts] = interval == 0 ? (time_t)-1 :
-			start_time + rand() % interval;
+			(time_t)(start_time + rand() % interval);
 		user_set_min_timestamp(user, user->timestamps[ts]);
 	}
 	user->timestamps[USER_TIMESTAMP_LOGIN] = start_time;
