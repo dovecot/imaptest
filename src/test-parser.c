@@ -699,11 +699,28 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 	return TRUE;
 }
 
+static bool parser_has_logout(struct test *test)
+{
+	struct test_command_group *const *groupp;
+	const struct test_command *cmd;
+
+	array_foreach(&test->cmd_groups, groupp) {
+		array_foreach(&(*groupp)->commands, cmd) {
+			if (strcasecmp(cmd->command, "logout") == 0)
+				return TRUE;
+		}
+	}
+	return FALSE;
+}
+
 static void test_add_logout(struct test_parser *parser, struct test *test,
 			    unsigned int connection_idx)
 {
 	struct test_command *cmd;
 	struct test_command_group *group;
+
+	if (parser_has_logout(test))
+		return;
 
 	group = p_new(parser->pool, struct test_command_group, 1);
 	group->connection_idx = connection_idx;

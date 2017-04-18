@@ -819,7 +819,8 @@ static void test_send_next_command(struct test_exec_context *ctx,
 		(void)imap_client_append(client, cmdline + 7, FALSE,
 					 test_cmd_callback, &cmd);
 	} else {
-		if (test_cmd->linenum == 0) {
+		if (test_cmd->linenum == 0 ||
+		    strcasecmp(cmdline, "logout") == 0) {
 			/* sending the logout command */
 			client->client.state = STATE_LOGOUT;
 			client->client.logout_sent = TRUE;
