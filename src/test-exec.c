@@ -632,7 +632,7 @@ test_handle_untagged(struct imap_client *client, const struct imap_arg *args)
 	if (imap_client_handle_untagged(client, args) < 0)
 		return -1;
 
-	if (ctx->startup_state >= TEST_STARTUP_STATE_DELETED)
+	if (ctx->init_finished)
 		test_handle_untagged_match(client, args);
 
 	if (imap_arg_get_atom(&args[0], &str) &&
