@@ -297,8 +297,8 @@ test_parse_untagged_handle_directives(struct list_directives_context *ctx,
 {
 	struct imap_arg *args;
 	struct list_directives_context subctx;
-	const char *prev_atom = NULL;
-	unsigned int i;
+	const char *atom, *prev_atom = NULL;
+	unsigned int i, directive_count;
 
 	args = array_idx_modifiable(args_arr, 0);
 
@@ -312,8 +312,14 @@ test_parse_untagged_handle_directives(struct list_directives_context *ctx,
 		args = array_idx_modifiable(args_arr, 0);
 	}
 
-	for (i = 0; args[i].type != IMAP_ARG_EOL; i++) ;
-	if (i % ctx->chain_count != 0) {
+	for (i = directive_count = 0; args[i].type != IMAP_ARG_EOL; i++) {
+		if (!imap_arg_get_atom(args, &atom) ||
+		    strncmp(atom, "$!", 2) != 0)
+			break;
+		directive_count++;
+	}
+	for (; args[i].type != IMAP_ARG_EOL; i++) ;
+	if ((i-directive_count) % ctx->chain_count != 0) {
 		*error_r = t_strdup_printf("Invalid list argument count, "
 					   "chain size=%u", ctx->chain_count);
 		return FALSE;
