@@ -52,6 +52,10 @@ test_parse_header_line(struct test_parser *parser, struct test *test,
 			strtoul(value, NULL, 10);
 		return TRUE;
 	}
+	if (strcmp(key, "ignore_extra_untagged") == 0) {
+		test->ignore_extra_untagged = value[0] == 'y';
+		return TRUE;
+	}
 	if (strncmp(key, "user ", 5) == 0 &&
 	    str_to_uint(key+5, &idx) == 0 && idx != 0) {
 		/* FIXME: kludgy kludgy */
@@ -752,6 +756,7 @@ test_parser_read_test(struct test_parser *parser, const char *path)
 	test->startup_state = TEST_STARTUP_STATE_SELECTED;
 	test->connection_count = 1;
 	test->message_count = UINT_MAX;
+	test->ignore_extra_untagged = TRUE;
 	p_array_init(&test->cmd_groups, parser->pool, 32);
 	p_array_init(&test->connections, parser->pool, 4);
 
