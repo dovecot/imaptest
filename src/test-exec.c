@@ -46,6 +46,7 @@ struct test_exec_context {
 	/* current command group index */
 	unsigned int cur_group_idx;
 	unsigned int cur_untagged_mismatch_count;
+	const char *first_extra_reply;
 	ARRAY(struct command *) cur_commands;
 	buffer_t *cur_received_untagged;
 	ARRAY(struct test_maybe_match) cur_maybe_matches;
@@ -569,12 +570,19 @@ test_handle_untagged_match(struct imap_client *client, const struct imap_arg *ar
 
 	groupp = array_idx(&ctx->test->cmd_groups, ctx->cur_group_idx);
 	if (!array_is_created(&(*groupp)->untagged)) {
-		/* no untagged replies defined for the command.
-		   don't bother checking further */
-		return;
+		if (ctx->test->ignore_extra_untagged ||
+		    client->client.state == STATE_LOGOUT) {
+			/* no untagged replies defined for the command and
+			   we don't mind extra untagged replies.
+			   don't bother checking further */
+			return;
+		}
+		untagged = NULL;
+		count = 0;
+	} else {
+		untagged = array_get(&(*groupp)->untagged, &count);
+		i_assert(count > 0);
 	}
-	untagged = array_get(&(*groupp)->untagged, &count);
-	i_assert(count > 0);
 
 	if (imap_arg_get_atom(args, &str)) {
 		if (strcasecmp(str, "ok") == 0 ||
@@ -591,7 +599,8 @@ test_handle_untagged_match(struct imap_client *client, const struct imap_arg *ar
 		t_strdup_printf("%u.%u", client->client.global_id, cmd->cur_cmd_tag);
 	array_clear(&ctx->added_variables);
 	found = buffer_get_space_unsafe(ctx->cur_received_untagged, 0, count);
-	(void)array_idx_modifiable(&ctx->cur_maybe_matches, count-1);
+	if (count > 0)
+		(void)array_idx_modifiable(&ctx->cur_maybe_matches, count-1);
 	maybes = array_idx_modifiable(&ctx->cur_maybe_matches, 0);
 	found_some = FALSE;
 	for (i = 0; i < count; i++) {
@@ -632,8 +641,12 @@ test_handle_untagged_match(struct imap_client *client, const struct imap_arg *ar
 			hash_table_remove(ctx->variables, vars[j]);
 		array_clear(&ctx->added_variables);
 	}
-	if (!found_some)
+	if (!found_some) {
 		ctx->cur_untagged_mismatch_count++;
+		if (!ctx->test->ignore_extra_untagged &&
+		    ctx->first_extra_reply == NULL)
+			ctx->first_extra_reply = p_strdup(ctx->pool, imap_args_to_str(args));
+	}
 }
 
 static int
@@ -723,6 +736,12 @@ static void test_group_finished(struct test_exec_context *ctx,
 {
 	if (array_is_created(&group->untagged))
 		test_group_check_missing_untagged(ctx, group);
+
+	if (ctx->first_extra_reply != NULL) {
+		test_fail(ctx, "%u unexpected untagged replies received, first: %s",
+			  ctx->cur_untagged_mismatch_count,
+			  ctx->first_extra_reply);
+	}
 
 	array_clear(&ctx->cur_commands);
 	ctx->cur_group_idx++;
