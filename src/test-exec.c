@@ -268,7 +268,8 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 
 	output = t_str_new(128);
 	for (; *str != '\0'; ) {
-		if (*str != '$' || str[1] == '\0' || *++str == '$') {
+		if (*str != '$' || str[1] == '$') {
+			if (str[0] == '$') str++;
 			if (i_toupper(*str) != i_toupper(*input)) {
 				/* mismatch already */
 				return NULL;
@@ -277,6 +278,7 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 			str_append_c(output, *str++);
 			continue;
 		}
+		str++;
 
 		if (*str == '{') {
 			p = strchr(str + 1, '}');
@@ -294,7 +296,8 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 			/* relative sequence */
 			value = test_expand_relative_seq(ctx, seq);
 		} else {
-			value = hash_table_lookup(ctx->variables, var_name);
+			value = var_name[0] == '\0' ? NULL :
+				hash_table_lookup(ctx->variables, var_name);
 			if (value == NULL) {
 				/* find how far we want to expand.
 				   FIXME: for now we just check the first
@@ -306,13 +309,18 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 				       *p != '\0')
 					p++;
 
-				key = p_strdup(ctx->pool, var_name);
-				value2 = p_strdup_until(ctx->pool, input, p);
-				hash_table_insert(ctx->variables, key, value2);
+				if (var_name[0] == '\0') {
+					/* "$" just ignores the value */
+					value = t_strdup_until(input, p);
+				} else {
+					key = p_strdup(ctx->pool, var_name);
+					value2 = p_strdup_until(ctx->pool, input, p);
+					hash_table_insert(ctx->variables, key, value2);
 
-				ckey = key;
-				value = value2;
-				array_append(&ctx->added_variables, &ckey, 1);
+					ckey = key;
+					value = value2;
+					array_append(&ctx->added_variables, &ckey, 1);
+				}
 			}
 		}
 		str_append(output, value);
@@ -479,6 +487,11 @@ test_imap_match_args(struct test_exec_context *ctx,
 					"contain literal size");
 			}
 
+			if (strcmp(imap_arg_as_astring(match), "$") == 0 &&
+			    imap_arg_get_list(args, &listargs)) {
+				/* "$" skips over a list */
+				break;
+			}
 			if (!imap_arg_get_astring(args, &astr))
 				return ret;
 			mstr = test_expand_input(ctx, imap_arg_as_astring(match),
