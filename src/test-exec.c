@@ -886,6 +886,7 @@ static void test_send_next_command_group(struct test_exec_context *ctx)
 	groupp = array_idx(&ctx->test->cmd_groups, ctx->cur_group_idx);
 	client = ctx->clients[(*groupp)->connection_idx];
 
+	ctx->first_extra_reply = NULL;
 	ctx->cur_untagged_mismatch_count = 0;
 	buffer_set_used_size(ctx->cur_received_untagged, 0);
 	array_clear(&ctx->cur_maybe_matches);
