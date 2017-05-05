@@ -615,7 +615,7 @@ test_handle_untagged_match(struct imap_client *client, const struct imap_arg *ar
 			hash_table_remove(ctx->variables, tag_hash_key);
 
 		if (match_count == UINT_MAX) {
-			if (untagged[i].not_found) {
+			if (untagged[i].existence == TEST_EXISTENCE_MUST_NOT_EXIST) {
 				test_fail(ctx, "Unexpected untagged match:\n"
 					  "Match: %s\n"
 					  "Reply: %s",
@@ -697,7 +697,7 @@ test_group_check_missing_untagged(struct test_exec_context *ctx,
 	missing_count = 0;
 	found = ctx->cur_received_untagged->data;
 	for (i = 0; i < ut_count; i++) {
-		if (!ut[i].not_found &&
+		if (ut[i].existence == TEST_EXISTENCE_MUST_EXIST &&
 		    (i >= ctx->cur_received_untagged->used ||
 		     found[i] == 0)) {
 			if (i < first_missing_idx)

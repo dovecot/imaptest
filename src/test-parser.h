@@ -14,10 +14,16 @@ enum test_startup_state {
 	TEST_STARTUP_STATE_SELECTED
 };
 
+enum test_existence {
+	TEST_EXISTENCE_MUST_EXIST,
+	TEST_EXISTENCE_MUST_NOT_EXIST,
+	TEST_EXISTENCE_MAY_EXIST,
+};
+
 struct test_untagged {
 	const struct imap_arg *args;
 
-	bool not_found:1;
+	enum test_existence existence;
 };
 
 struct test_command {

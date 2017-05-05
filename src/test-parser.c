@@ -355,7 +355,7 @@ test_parse_untagged_handle_directives(struct list_directives_context *ctx,
 static bool
 test_parse_command_untagged(struct test_parser *parser,
 			    const char *line, unsigned int linelen,
-			    bool not_found, const char **error_r)
+			    enum test_existence existence, const char **error_r)
 {
 	struct test_command_group *group = parser->cur_cmd_group;
 	struct list_directives_context directives_ctx;
@@ -389,7 +389,7 @@ test_parse_command_untagged(struct test_parser *parser,
 
 	i_zero(&ut);
 	ut.args = array_idx(args_arr, 0);
-	ut.not_found = not_found;
+	ut.existence = existence;
 	array_append(&group->untagged, &ut, 1);
 	return TRUE;
 }
@@ -482,6 +482,19 @@ test_parse_command_finish(struct test_parser *parser, unsigned int tag,
 	return TRUE;
 }
 
+static bool test_is_untagged(const char *line, enum test_existence *existence_r)
+{
+	if (strncmp(line, "* ", 2) == 0)
+		*existence_r = TEST_EXISTENCE_MUST_EXIST;
+	else if (strncmp(line, "! ", 2) == 0)
+		*existence_r = TEST_EXISTENCE_MUST_NOT_EXIST;
+	else if (strncmp(line, "? ", 2) == 0)
+		*existence_r = TEST_EXISTENCE_MAY_EXIST;
+	else
+		return FALSE;
+	return TRUE;
+}
+
 static bool
 test_parse_command_line(struct test_parser *parser, struct test *test,
 			unsigned int linenum, const char *line,
@@ -492,14 +505,13 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 	const char *line2, *p;
 	unsigned int tag, connection_idx;
 	void *cmdmem;
+	enum test_existence existence;
 
 	if (group != NULL) {
 		/* continuing the command */
-		if (strncmp(line, "* ", 2) == 0 ||
-		    strncmp(line, "! ", 2) == 0) {
-			bool not_found = line[0] == '!';
+		if (test_is_untagged(line, &existence)) {
 			return test_parse_command_untagged(parser, line + 2,
-							   linelen-2, not_found,
+							   linelen-2, existence,
 							   error_r);
 		}
 		line2 = line;
