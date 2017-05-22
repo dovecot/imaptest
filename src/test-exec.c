@@ -1258,6 +1258,10 @@ static int test_execute(const struct test *test,
 		else
 			value = p_strdup(pool, conf.host);
 		hash_table_insert(ctx->variables, key, value);
+
+		key = i == 0 ? "password" : p_strdup_printf(pool, "password%u", i+1);
+		value = p_strdup(pool, ctx->clients[i]->client.user->password);
+		hash_table_insert(ctx->variables, key, value);
 	}
 	ctx->startup_state = TEST_STARTUP_STATE_NONAUTH;
 	ctx->clients_waiting = test->connection_count;
