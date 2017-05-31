@@ -53,6 +53,9 @@ struct test_command_group {
 
 	/* Number of commands still missing a reply (0 once finished parsing) */
 	unsigned int replies_pending;
+
+	/* How many milliseconds to sleep after sending the commands */
+	unsigned int sleep_msecs;
 };
 
 struct test_connection {

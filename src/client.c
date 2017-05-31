@@ -37,7 +37,9 @@ static unsigned int client_min_free_idx = 0;
 static unsigned int global_id_counter = 0;
 static struct ssl_iostream_context *ssl_ctx = NULL;
 
-static const struct ssl_iostream_settings ssl_set;
+static const struct ssl_iostream_settings ssl_set = {
+	.ca_dir = "ssl_client_ca_dir"
+};
 
 static void client_input(struct client *client)
 {
