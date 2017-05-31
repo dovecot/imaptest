@@ -731,6 +731,20 @@ test_group_check_missing_untagged(struct test_exec_context *ctx,
 	}
 }
 
+static void test_group_output(struct test_exec_context *ctx,
+			      struct test_command_group *group)
+{
+	const char *const *strp;
+
+	array_foreach(&group->output, strp) T_BEGIN {
+		const char *str = *strp;
+		unsigned int str_len = strlen(str);
+
+		test_expand_all(ctx, &str, &str_len, FALSE);
+		printf("%s\n", str);
+	} T_END;
+}
+
 static void test_group_finished(struct test_exec_context *ctx,
 				struct test_command_group *group)
 {
@@ -742,6 +756,8 @@ static void test_group_finished(struct test_exec_context *ctx,
 			  ctx->cur_untagged_mismatch_count,
 			  ctx->first_extra_reply);
 	}
+	if (array_is_created(&group->output))
+		test_group_output(ctx, group);
 
 	array_clear(&ctx->cur_commands);
 	ctx->cur_group_idx++;
