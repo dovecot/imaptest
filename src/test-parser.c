@@ -5,6 +5,7 @@
 #include "istream.h"
 #include "imap-parser.h"
 #include "settings.h"
+#include "settings-parser.h"
 #include "test-parser.h"
 
 #include <stdlib.h>
@@ -502,13 +503,21 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 {
 	struct test_command_group *group = parser->cur_cmd_group;
 	struct test_command *cmd, newcmd;
-	const char *line2, *p;
+	const char *line2, *p, *error;
 	unsigned int tag, connection_idx;
 	void *cmdmem;
 	enum test_existence existence;
 
 	if (group != NULL) {
 		/* continuing the command */
+		if (strncmp(line, "!sleep ", 7) == 0) {
+			if (settings_get_time_msecs(line+7, &group->sleep_msecs, &error) < 0) {
+				*error_r = t_strdup_printf("Invalid !sleep value %s: %s", line+7, error);
+				return FALSE;
+			}
+			return TRUE;
+		}
+
 		if (test_is_untagged(line, &existence)) {
 			return test_parse_command_untagged(parser, line + 2,
 							   linelen-2, existence,
