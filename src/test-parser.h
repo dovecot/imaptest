@@ -50,6 +50,9 @@ struct test_command_group {
 	ARRAY(struct test_command) commands;
 	/* Expected untagged replies */
 	ARRAY(struct test_untagged) untagged;
+	/* output strings that should be printed to stdout after the
+	   command group is finished. $variables are expanded. */
+	ARRAY_TYPE(const_string) output;
 
 	/* Number of commands still missing a reply (0 once finished parsing) */
 	unsigned int replies_pending;

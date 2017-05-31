@@ -517,6 +517,13 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 			}
 			return TRUE;
 		}
+		if (strncmp(line, "!output ", 8) == 0) {
+			const char *output = p_strdup(parser->pool, line + 8);
+			if (!array_is_created(&group->output))
+				p_array_init(&group->output, parser->pool, 2);
+			array_append(&group->output, &output, 1);
+			return TRUE;
+		}
 
 		if (test_is_untagged(line, &existence)) {
 			return test_parse_command_untagged(parser, line + 2,
