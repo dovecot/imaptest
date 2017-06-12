@@ -388,6 +388,9 @@ test_parse_command_untagged(struct test_parser *parser,
 						   error_r))
 		return FALSE;
 
+	if (strncasecmp(str, "BYE", 3) == 0)
+		group->have_untagged_bye = TRUE;
+
 	i_zero(&ut);
 	ut.args = array_idx(args_arr, 0);
 	ut.existence = existence;

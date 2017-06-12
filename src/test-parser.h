@@ -59,6 +59,8 @@ struct test_command_group {
 
 	/* How many milliseconds to sleep after sending the commands */
 	unsigned int sleep_msecs;
+	/* TRUE if one of the untagged replies is a BYE */
+	bool have_untagged_bye;
 };
 
 struct test_connection {

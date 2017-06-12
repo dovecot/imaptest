@@ -851,6 +851,7 @@ append_has_body(struct test_exec_context *ctx, const char *str_args,
 
 static void test_send_next_command(struct test_exec_context *ctx,
 				   struct imap_client *client,
+				   struct test_command_group *group,
 				   struct test_command *test_cmd)
 {
 	struct command *cmd = NULL;
@@ -871,7 +872,8 @@ static void test_send_next_command(struct test_exec_context *ctx,
 					 test_cmd_callback, &cmd);
 	} else {
 		if (test_cmd->linenum == 0 ||
-		    strcasecmp(cmdline, "logout") == 0) {
+		    strcasecmp(cmdline, "logout") == 0 ||
+		    group->have_untagged_bye) {
 			/* sending the logout command */
 			client->client.state = STATE_LOGOUT;
 			client->client.logout_sent = TRUE;
@@ -916,7 +918,7 @@ static void test_send_next_command_group(struct test_exec_context *ctx)
 		array_append(&ctx->cur_seqmap, &seq, 1);
 
 	array_foreach_modifiable(&(*groupp)->commands, cmd)
-		test_send_next_command(ctx, client, cmd);
+		test_send_next_command(ctx, client, *groupp, cmd);
 
 	/* if we're using multiple connections, stop reading input from the
 	   other ones. otherwise if the server sends untagged events
@@ -1366,6 +1368,14 @@ static void test_execute_free(struct test_exec_context *ctx)
 	pool_unref(&ctx->pool);
 }
 
+static bool test_execute_is_cur_group_with_bye(struct test_exec_context *ctx)
+{
+	struct test_command_group *const *groupp;
+
+	groupp = array_idx(&ctx->test->cmd_groups, ctx->cur_group_idx);
+	return (*groupp)->have_untagged_bye;
+}
+
 void test_execute_cancel_by_client(struct imap_client *client)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
@@ -1378,7 +1388,9 @@ void test_execute_cancel_by_client(struct imap_client *client)
 	}
 
 	if (ctx->disconnects_waiting == 0) {
-		test_fail(ctx, "Unexpected disconnection");
+		if (!client->seen_bye ||
+		    !test_execute_is_cur_group_with_bye(ctx))
+			test_fail(ctx, "Unexpected disconnection");
 		test_execute_finish(ctx);
 		i_assert(ctx->disconnects_waiting > 0);
 	}
