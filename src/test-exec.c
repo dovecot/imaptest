@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <ctype.h>
 
 #define IS_VAR_CHAR(c) (i_isalnum(c) || (c) == '_')
@@ -758,6 +759,8 @@ static void test_group_finished(struct test_exec_context *ctx,
 	}
 	if (array_is_created(&group->output))
 		test_group_output(ctx, group);
+	if (group->sleep_msecs > 0)
+		usleep(group->sleep_msecs*1000);
 
 	array_clear(&ctx->cur_commands);
 	ctx->cur_group_idx++;
