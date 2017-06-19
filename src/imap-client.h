@@ -9,7 +9,8 @@ enum imap_capability {
 	CAP_LITERALPLUS		= 0x01,
 	CAP_MULTIAPPEND		= 0x02,
 	CAP_CONDSTORE		= 0x04,
-	CAP_QRESYNC		= 0x08
+	CAP_QRESYNC		= 0x08,
+	CAP_UIDPLUS		= 0x10,
 };
 
 struct imap_capability_name {
@@ -22,6 +23,7 @@ static const struct imap_capability_name cap_names[] = {
 	{ "MULTIAPPEND", CAP_MULTIAPPEND },
 	{ "CONDSTORE", CAP_CONDSTORE },
 	{ "QRESYNC", CAP_QRESYNC },
+	{ "UIDPLUS", CAP_UIDPLUS },
 
 	{ NULL, 0 }
 };

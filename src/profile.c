@@ -228,7 +228,10 @@ static void user_mailbox_action_delete(struct imap_client *client, uint32_t uid)
 	client->client.state = STATE_STORE_DEL;
 	command_send(client, cmd, state_callback);
 
-	cmd = t_strdup_printf("UID EXPUNGE %u", uid);
+	if ((client->capabilities & CAP_UIDPLUS) != 0)
+		cmd = t_strdup_printf("UID EXPUNGE %u", uid);
+	else
+		cmd = "EXPUNGE";
 	client->client.state = STATE_EXPUNGE;
 	command_send(client, cmd, state_callback);
 }
