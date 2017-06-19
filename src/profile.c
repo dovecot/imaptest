@@ -49,12 +49,18 @@ static void client_profile_init_mailbox(struct imap_client *client)
 static void
 client_profile_send_missing_creates(struct imap_client *client)
 {
-	if (imap_client_mailboxes_list_find(client, PROFILE_MAILBOX_SPAM) == NULL)
+	if ((client->client.user->profile->mail_inbox_move_filter_percentage > 0 ||
+	     client->client.user->profile->mail_spam_delivery_interval > 0) &&
+	    imap_client_mailboxes_list_find(client, PROFILE_MAILBOX_SPAM) == NULL)
 		command_send(client, "CREATE \""PROFILE_MAILBOX_SPAM"\"", state_callback);
-	if (imap_client_mailboxes_list_find(client, PROFILE_MAILBOX_DRAFTS) == NULL)
-		command_send(client, "CREATE \""PROFILE_MAILBOX_DRAFTS"\"", state_callback);
-	if (imap_client_mailboxes_list_find(client, PROFILE_MAILBOX_SENT) == NULL)
-		command_send(client, "CREATE \""PROFILE_MAILBOX_SENT"\"", state_callback);
+
+	if (client->client.user->profile->mail_inbox_reply_percentage > 0 ||
+	    client->client.user->profile->mail_send_interval > 0) {
+		if (imap_client_mailboxes_list_find(client, PROFILE_MAILBOX_DRAFTS) == NULL)
+			command_send(client, "CREATE \""PROFILE_MAILBOX_DRAFTS"\"", state_callback);
+		if (imap_client_mailboxes_list_find(client, PROFILE_MAILBOX_SENT) == NULL)
+			command_send(client, "CREATE \""PROFILE_MAILBOX_SENT"\"", state_callback);
+	}
 }
 
 int imap_client_profile_send_more_commands(struct client *_client)
