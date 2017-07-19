@@ -81,6 +81,7 @@ struct imap_client {
 	bool idle_wait_cont:1;
 	bool idle_done_sent:1;
 	bool preauth:1;
+	bool uid_fetch_performed:1;
 };
 
 static inline struct imap_client *imap_client(struct client *client)
