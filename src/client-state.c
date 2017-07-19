@@ -33,6 +33,7 @@ struct state states[STATE_COUNT] = {
 	{ "MSUBS",	  "MSub", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "STATUS",	  "Stat", LSTATE_AUTH,     50,  0,  FLAG_EXPUNGES },
 	{ "SELECT",	  "Sele", LSTATE_AUTH,     100, 0,  FLAG_STATECHANGE | FLAG_STATECHANGE_SELECTED },
+	{ "UIDFETCH",	  "UIDF", LSTATE_SELECTED, 0,   0,  FLAG_MSGSET | FLAG_EXPUNGES },
 	{ "FETCH",	  "Fetc", LSTATE_SELECTED, 100, 0,  FLAG_MSGSET },
 	{ "FETCH2",	  "Fet2", LSTATE_SELECTED, 100, 30, FLAG_MSGSET },
 	{ "SEARCH",	  "Sear", LSTATE_SELECTED, 0,   0,  FLAG_MSGSET },
@@ -224,8 +225,12 @@ static enum client_state client_update_plan(struct imap_client *client)
 			break;
 		case LSTATE_AUTH:
 		case LSTATE_SELECTED:
-			if (!do_rand_again(state))
-				state = client_get_next_state(state);
+			if (!do_rand_again(state)) {
+				do {
+					state = client_get_next_state(state);
+				} while (state == STATE_UIDFETCH &&
+					 client->uid_fetch_performed);
+			}
 			break;
 		}
 		i_assert(state <= STATE_LOGOUT);
@@ -1171,6 +1176,10 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		if ((client->capabilities & CAP_CONDSTORE) != 0)
 			str = t_strconcat(str, " (CONDSTORE)", NULL);
 		command_send(client, str, state_callback);
+		break;
+	case STATE_UIDFETCH:
+		icmd = command_send(client, "UID FETCH 1:* FLAGS", state_callback);
+		client->uid_fetch_performed = TRUE;
 		break;
 	case STATE_FETCH: {
 		static const char *fields[] = {
