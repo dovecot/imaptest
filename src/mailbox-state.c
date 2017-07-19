@@ -213,7 +213,8 @@ message_metadata_set_flags(struct imap_client *client, const struct imap_arg *ar
 			}
 		} else if (metadata->ms->recent_client_global_id !=
 			   client->client.global_id) {
-			i_error("Message UID=%u has \\Recent flag in "
+			imap_client_state_error(client,
+				"Message UID=%u has \\Recent flag in "
 				"multiple sessions: %u and %u",
 				metadata->ms->uid,
 				client->client.global_id,
