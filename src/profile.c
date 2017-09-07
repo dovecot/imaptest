@@ -16,9 +16,9 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define RANDU (rand() / (double)RAND_MAX)
+#define RANDU (i_rand() / (double)RAND_MAX)
 #define RANDN2(mu, sigma) \
-	(mu + (rand()%2 != 0 ? -1.0 : 1.0) * sigma * pow(-log(0.99999*RANDU), 0.5))
+	(mu + (i_rand()%2 != 0 ? -1.0 : 1.0) * sigma * pow(-log(0.99999*RANDU), 0.5))
 #define weighted_rand(n) \
 	(int)RANDN2(n, n/2)
 
@@ -146,7 +146,7 @@ static void client_profile_handle_fetch(struct imap_client *client,
 			if (cache->uidnext <= uid && cache->uidvalidity != 0)
 				cache->uidnext = uid+1;
 
-			if ((unsigned)rand() % 100 < client->client.user->profile->mail_inbox_move_filter_percentage)
+			if ((unsigned)i_rand() % 100 < client->client.user->profile->mail_inbox_move_filter_percentage)
 				user_mailbox_action_move(client, PROFILE_MAILBOX_SPAM, uid);
 			else if (cache->next_action_timestamp == (time_t)-1) {
 				cache->next_action_timestamp = ioloop_time +
@@ -372,11 +372,11 @@ user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
 	if (strcasecmp(cache->mailbox_name, "INBOX") != 0)
 		return TRUE;
 
-	if ((unsigned)rand() % 100 < user->profile->mail_inbox_delete_percentage)
+	if ((unsigned)i_rand() % 100 < user->profile->mail_inbox_delete_percentage)
 		user_mailbox_action_delete(client, uid);
-	else if ((unsigned)rand() % 100 < user->profile->mail_inbox_move_percentage)
+	else if ((unsigned)i_rand() % 100 < user->profile->mail_inbox_move_percentage)
 		user_mailbox_action_move(client, PROFILE_MAILBOX_SPAM, uid);
-	else if ((unsigned)rand() % 100 < user->profile->mail_inbox_reply_percentage)
+	else if ((unsigned)i_rand() % 100 < user->profile->mail_inbox_reply_percentage)
 		user_mailbox_action_reply(client, uid);
 	return TRUE;
 }
@@ -522,7 +522,7 @@ static void user_fill_timestamps(struct user *user, time_t start_time)
 	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++) {
 		interval = user_get_timeout_interval(user, ts);
 		user->timestamps[ts] = interval == 0 ? (time_t)-1 :
-			(time_t)(start_time + rand() % interval);
+			(time_t)(start_time + i_rand() % interval);
 		user_set_min_timestamp(user, user->timestamps[ts]);
 	}
 	user->timestamps[USER_TIMESTAMP_LOGIN] = start_time;
@@ -600,7 +600,7 @@ user_init_client_profiles(struct user *user, struct profile *profile)
 		     array_count(&profile->clients));
 	while (array_count(&user->clients) == 0) {
 		array_foreach(&profile->clients, clientp) {
-			if ((unsigned int)rand() % 100 < (*clientp)->percentage)
+			if ((unsigned int)i_rand() % 100 < (*clientp)->percentage)
 				user_add_client_profile(user, *clientp);
 		}
 	}

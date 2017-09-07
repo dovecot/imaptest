@@ -545,7 +545,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			continue;
 		}
 		if (strcmp(key, "seed") == 0) {
-			srand(atoi(value));
+			si_rand(atoi(value));
 			continue;
 		}
 

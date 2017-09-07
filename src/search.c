@@ -322,15 +322,15 @@ search_command_build(struct search_context *ctx, struct search_node *parent,
 	struct search_node *node;
 	unsigned int i, n, randstart, msgs, ms_count;
 
-	if ((rand() % 100) >= probability)
+	if ((i_rand() % 100) >= probability)
 		return FALSE;
 
 	ms = array_get(&client->storage->static_metadata, &ms_count);
-	randstart = ms_count == 0 ? 0 : rand() % ms_count;
+	randstart = ms_count == 0 ? 0 : i_rand() % ms_count;
 
 	node = p_new(pool, struct search_node, 1);
 again:
-	node->type = rand() % SEARCH_TYPE_COUNT;
+	node->type = i_rand() % SEARCH_TYPE_COUNT;
 	if (node_children_has_conflict(parent, node->type)) {
 		/* can't add this type, try again */
 		goto again;
@@ -380,7 +380,7 @@ again:
 				      m2->msg->full_size) / 2;
 		}
 		if (node->size == 0)
-			node->size = 2048 + (rand() % 2048);
+			node->size = 2048 + (i_rand() % 2048);
 		break;
 	case SEARCH_BEFORE:
 	case SEARCH_ON:
@@ -402,7 +402,7 @@ again:
 			node->date = ((long long)m1->internaldate +
 				      (long long)m2->internaldate) / 2;
 		if (node->date == 0)
-			node->date = time(NULL) - (3600*24 * (rand() % 10));
+			node->date = time(NULL) - (3600*24 * (i_rand() % 10));
 		node->date = time_truncate_to_day(node->date);
 		break;
 	case SEARCH_SENTBEFORE:
@@ -430,7 +430,7 @@ again:
 		if (t2 != 0)
 			node->date = ((long long)t1 + (long long)t2) / 2;
 		if (t2 == 0)
-			node->date = time(NULL) - (3600*24 * (rand() % 10));
+			node->date = time(NULL) - (3600*24 * (i_rand() % 10));
 		node->date = time_truncate_to_day(node->date);
 		break;
 	}
@@ -451,19 +451,19 @@ again:
 		if (str == NULL) {
 			/* check for existence of subject header */
 			str = "";
-		} else if (rand() % 10 == 0) {
+		} else if (i_rand() % 10 == 0) {
 			/* search for the entire subject */
 		} else {
 			/* get a random word within the subject */
 			words = t_strsplit_spaces(str, " ");
 			count = str_array_length(words);
-			str = count == 0 ? "" : words[rand() % count];
+			str = count == 0 ? "" : words[i_rand() % count];
 
 			/* get a random substring from the word */
 			len = strlen(str);
 			if (len > 1) {
-				start = rand() % (len - 1);
-				len = rand() % (len - 1 - start) + 1;
+				start = i_rand() % (len - 1);
+				len = i_rand() % (len - 1 - start) + 1;
 				str = t_strndup(str + start, len);
 			}
 		}
@@ -483,7 +483,7 @@ again:
 				words = array_get(&ms[i]->msg->body_words,
 						  &count);
 				if (count > 0) {
-					str = words[rand() % count];
+					str = words[i_rand() % count];
 					break;
 				}
 			}
@@ -494,8 +494,8 @@ again:
 		/* get a random substring from the word */
 		len = strlen(str);
 		if (len > 1) {
-			start = rand() % (len - 1);
-			len = rand() % (len - 1 - start) + 1;
+			start = i_rand() % (len - 1);
+			len = i_rand() % (len - 1 - start) + 1;
 			str = t_strndup(str + start, len);
 		}
 		node->str = p_strdup(pool, str);

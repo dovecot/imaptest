@@ -34,10 +34,10 @@ random_mailbox_source_get_next(struct mailbox_source *_source,
 {
 	struct random_mailbox_source *source =
 		(struct random_mailbox_source *)_source;
-	size_t buf_size = (rand() % source->max_size) + 1;
+	size_t buf_size = (i_rand() % source->max_size) + 1;
 	unsigned char *buf = i_malloc(buf_size);
 	for (size_t i = 0; i < buf_size; i++) {
-		buf[i] = rand();
+		buf[i] = i_rand();
 		if (buf[i] == '\r' || buf[i] == '\n') {
 			if (i+1 == buf_size)
 				buf[i] = ' ';

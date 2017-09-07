@@ -416,7 +416,7 @@ const char *mailbox_view_get_random_flags(struct mailbox_view *view,
 
 	str = t_str_new(128);
 	for (i = 0; i < N_ELEMENTS(storage->flags_owner_client_idx1); i++) {
-		if ((rand() % 2) != 0 || (1 << i) == MAIL_DELETED)
+		if ((i_rand() % 2) != 0 || (1 << i) == MAIL_DELETED)
 			continue;
 
 		if (storage->assign_flag_owners &&
@@ -437,7 +437,7 @@ const char *mailbox_view_get_random_flags(struct mailbox_view *view,
 	}
 
 	for (i = 0; i < N_ELEMENTS(keywords); i++) {
-		if ((rand() % 4) != 0)
+		if ((i_rand() % 4) != 0)
 			continue;
 
 		if (!mailbox_view_keyword_find(view, keywords[i], &idx))
@@ -460,13 +460,13 @@ const char *mailbox_view_get_random_flags(struct mailbox_view *view,
 	}
 
 #ifdef RAND_KEYWORDS
-	if ((rand() % 10) == 0) {
-		unsigned int j, len = (rand() % RAND_KEYWORDS) + 1;
+	if ((i_rand() % 10) == 0) {
+		unsigned int j, len = (i_rand() % RAND_KEYWORDS) + 1;
 
 		if (str_len(str) != 0)
 			str_append_c(str, ' ');
 		for (j = 0; j < len; j++)
-			str_append_c(str, (rand() % 26) + 'A');
+			str_append_c(str, (i_rand() % 26) + 'A');
 	}
 #endif
 	return str_c(str);
