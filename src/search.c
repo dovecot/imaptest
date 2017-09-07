@@ -314,7 +314,7 @@ static bool node_children_has_conflict(struct search_node *parent,
 
 static bool
 search_command_build(struct search_context *ctx, struct search_node *parent,
-		     int probability)
+		     unsigned int probability)
 {
 	struct imap_client *client = ctx->client;
 	pool_t pool = client->search_ctx->pool;

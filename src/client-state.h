@@ -62,8 +62,8 @@ struct state {
 	const char *name;
 	const char *short_name;
 	enum login_state login_state;
-	int probability;
-	int probability_again;
+	unsigned int probability;
+	unsigned int probability_again;
 	enum state_flags flags;
 };
 
