@@ -1002,7 +1002,7 @@ bool imap_client_get_random_seq_range(struct imap_client *client,
 	msgs = array_count(&client->view->uidmap);
 	for (i = tries = 0; i < count && tries < count*3; tries++) {
 		seq = i_rand() % msgs + 1;
-		metadata = array_idx_modifiable(&client->view->messages,
+		metadata = array_idx_get_space(&client->view->messages,
 						seq - 1);
 		owner = metadata->ms == NULL ? 0 :
 			metadata->ms->owner_client_idx1;

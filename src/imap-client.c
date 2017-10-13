@@ -100,7 +100,7 @@ static int imap_client_expunge(struct imap_client *client, unsigned int seq)
 		return -1;
 	}
 
-	metadata = array_idx_modifiable(&client->view->messages, seq - 1);
+	metadata = array_idx_get_space(&client->view->messages, seq - 1);
 	if (metadata->fetch_refcount > 0) {
 		imap_client_input_error(client,
 			"Referenced message expunged seq=%u uid=%u",

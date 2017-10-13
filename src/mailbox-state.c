@@ -519,7 +519,7 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 	}
 	uid = *uidp;
 
-	metadata = array_idx_modifiable(&view->messages, seq - 1);
+	metadata = array_idx_get_space(&view->messages, seq - 1);
 	if (metadata->ms == NULL && uid != 0) {
 		metadata->ms =
 			message_metadata_static_get(client->storage, uid);
