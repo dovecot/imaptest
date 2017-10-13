@@ -602,8 +602,8 @@ test_handle_untagged_match(struct imap_client *client, const struct imap_arg *ar
 	array_clear(&ctx->added_variables);
 	found = buffer_get_space_unsafe(ctx->cur_received_untagged, 0, count);
 	if (count > 0)
-		(void)array_idx_modifiable(&ctx->cur_maybe_matches, count-1);
-	maybes = array_idx_modifiable(&ctx->cur_maybe_matches, 0);
+		(void)array_idx_get_space(&ctx->cur_maybe_matches, count-1);
+	maybes = array_idx_get_space(&ctx->cur_maybe_matches, 0);
 	found_some = FALSE;
 	for (i = 0; i < count; i++) {
 		if (found[i] != 0)

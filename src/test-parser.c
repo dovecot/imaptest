@@ -65,7 +65,7 @@ test_parse_header_line(struct test_parser *parser, struct test *test,
 			test->require_user2 = TRUE;
 			value = conf.username2_template;
 		}
-		test_conn = array_idx_modifiable(&test->connections, idx-1);
+		test_conn = array_idx_get_space(&test->connections, idx-1);
 		test_conn->username = p_strdup(parser->pool, value);
 		return TRUE;
 	}

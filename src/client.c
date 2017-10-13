@@ -187,7 +187,7 @@ struct client *client_new_user(struct user *user)
 	if (!user_get_new_client_profile(user, &uc))
 		return NULL;
 	while (client_min_free_idx < conf.clients_count) {
-		clientp = array_idx_modifiable(&clients, client_min_free_idx);
+		clientp = array_idx_get_space(&clients, client_min_free_idx);
 		if (*clientp == NULL)
 			return client_new_full(client_min_free_idx, user, uc);
 		client_min_free_idx++;
