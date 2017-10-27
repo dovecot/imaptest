@@ -841,6 +841,7 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
 				/* Domino (FETCH/STORE/EXPUNGE) */
 				break;
 			}
+			/* fall through */
 		case STATE_APPEND:
 			if (client->try_create_mailbox)
 				break;
