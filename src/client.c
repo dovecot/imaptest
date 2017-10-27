@@ -50,6 +50,10 @@ static void client_input(struct client *client)
 		return;
 	case -1:
 		/* disconnected */
+		if (client->v.disconnected != NULL) {
+			if (!client->v.disconnected(client))
+				return;
+		}
 		client_unref(client, TRUE);
 		return;
 	case -2:

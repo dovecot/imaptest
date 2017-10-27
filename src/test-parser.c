@@ -388,8 +388,18 @@ test_parse_command_untagged(struct test_parser *parser,
 						   error_r))
 		return FALSE;
 
-	if (strncasecmp(str, "BYE", 3) == 0)
-		group->have_untagged_bye = TRUE;
+	if (strncasecmp(str, "BYE", 3) == 0) {
+		switch (existence) {
+		case TEST_EXISTENCE_MUST_NOT_EXIST:
+			break;
+		case TEST_EXISTENCE_MUST_EXIST:
+			group->have_untagged_bye = TRUE;
+			break;
+		case TEST_EXISTENCE_MAY_EXIST:
+			*error_r = "? BYE not currently supported";
+			return FALSE;
+		}
+	}
 
 	i_zero(&ut);
 	ut.args = array_idx(args_arr, 0);
