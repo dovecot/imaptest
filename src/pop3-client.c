@@ -378,12 +378,12 @@ static void pop3_client_free(struct client *_client)
 }
 
 static const struct client_vfuncs pop3_client_vfuncs = {
-	pop3_client_input,
-	pop3_client_output,
-	pop3_client_connected,
-	pop3_client_send_more_commands,
-	pop3_client_logout,
-	pop3_client_free
+	.input = pop3_client_input,
+	.output = pop3_client_output,
+	.connected = pop3_client_connected,
+	.send_more_commands = pop3_client_send_more_commands,
+	.logout = pop3_client_logout,
+	.free = pop3_client_free
 };
 
 struct pop3_client *

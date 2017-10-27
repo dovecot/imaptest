@@ -691,12 +691,11 @@ static void imap_client_free(struct client *_client)
 }
 
 static const struct client_vfuncs imap_client_vfuncs = {
-	imap_client_input,
-	imap_client_output,
-	imap_client_connected,
-	NULL,
-	imap_client_logout,
-	imap_client_free
+	.input = imap_client_input,
+	.output = imap_client_output,
+	.connected = imap_client_connected,
+	.logout = imap_client_logout,
+	.free = imap_client_free
 };
 
 struct imap_client *
