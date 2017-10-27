@@ -18,6 +18,7 @@ struct client_vfuncs {
 	int (*send_more_commands)(struct client *client);
 	void (*logout)(struct client *client);
 	void (*free)(struct client *client);
+	bool (*disconnected)(struct client *client);
 };
 
 struct client {

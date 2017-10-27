@@ -588,7 +588,8 @@ test_handle_untagged_match(struct imap_client *client, const struct imap_arg *ar
 	if (imap_arg_get_atom(args, &str)) {
 		if (strcasecmp(str, "ok") == 0 ||
 		    strcasecmp(str, "no") == 0 ||
-		    strcasecmp(str, "bad") == 0) {
+		    strcasecmp(str, "bad") == 0 ||
+		    strcasecmp(str, "bye") == 0) {
 			/* these will have human-readable text appended after
 			   [resp-text-code] */
 			prefix = TRUE;
@@ -1209,6 +1210,31 @@ static const char *mailbox_mutf7_to_url(const char *mailbox)
 	return str_c(urlval);
 }
 
+static bool test_exec_client_disconnected(struct client *_client)
+{
+	struct imap_client *client = (struct imap_client *)_client;
+	struct test_exec_context *ctx = client->test_exec_ctx;
+	struct test_command_group *const *groupp;
+	const struct test_command *cmd;
+
+	if (ctx->cur_group_idx == array_count(&ctx->test->cmd_groups))
+		return TRUE;
+	groupp = array_idx(&ctx->test->cmd_groups, ctx->cur_group_idx);
+	if ((*groupp)->have_untagged_bye && client->seen_bye) {
+		/* all commands must have "" as reply, or they'll fail */
+		array_foreach(&(*groupp)->commands, cmd) {
+			if (!imap_arg_atom_equals(&cmd->reply[0], "") ||
+			    cmd->reply[1].type != IMAP_ARG_EOL) {
+				test_fail(ctx, "Command expected '%s' as tagged reply - only \"\" allowed when BYE happens",
+					  imap_args_to_str(cmd->reply));
+			}
+		}
+		test_group_finished(ctx, *groupp);
+		return FALSE;
+	}
+	return TRUE;
+}
+
 static int test_execute(const struct test *test,
 			struct tests_execute_context *exec_ctx)
 {
@@ -1251,6 +1277,8 @@ static int test_execute(const struct test *test,
 			client = client_new_random(array_count(&clients), ctx->source);
 		}
 		i_assert(client != NULL);
+		i_assert(client->v.disconnected == NULL);
+		client->v.disconnected = test_exec_client_disconnected;
 		ctx->clients[i] = imap_client(client);
 		i_assert(ctx->clients[i] != NULL);
 		if (ctx->clients[i] == NULL) {
@@ -1372,6 +1400,8 @@ static bool test_execute_is_cur_group_with_bye(struct test_exec_context *ctx)
 {
 	struct test_command_group *const *groupp;
 
+	if (ctx->cur_group_idx == array_count(&ctx->test->cmd_groups))
+		return FALSE;
 	groupp = array_idx(&ctx->test->cmd_groups, ctx->cur_group_idx);
 	return (*groupp)->have_untagged_bye;
 }
