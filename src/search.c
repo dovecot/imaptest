@@ -340,6 +340,7 @@ again:
 	case SEARCH_SUB:
 		if (parent->type == SEARCH_SUB)
 			node->type = SEARCH_OR;
+		/* fall through */
 	case SEARCH_OR:
 		if (parent->type == SEARCH_OR && node->type == SEARCH_OR)
 			goto again;
