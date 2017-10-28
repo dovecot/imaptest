@@ -757,7 +757,8 @@ static bool parser_has_logout(struct test *test)
 
 	array_foreach(&test->cmd_groups, groupp) {
 		array_foreach(&(*groupp)->commands, cmd) {
-			if (strcasecmp(cmd->command, "logout") == 0)
+			if (strcasecmp(cmd->command, "logout") == 0 ||
+			    (*groupp)->have_untagged_bye)
 				return TRUE;
 		}
 	}
