@@ -726,7 +726,7 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 		if (!ok)
 			return FALSE;
 	}
-	if (!i_stream_is_eof(input)) {
+	if (!i_stream_read_eof(input)) {
 		i_error("%s: Last line doesn't end with LF", test->path);
 		return FALSE;
 	}

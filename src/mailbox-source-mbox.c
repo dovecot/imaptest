@@ -51,7 +51,7 @@ static bool mbox_mailbox_source_eof(struct mailbox_source *_source)
 		(struct mbox_mailbox_source *)_source;
 
 	mbox_mailbox_source_open(source);
-	return i_stream_is_eof(source->input);
+	return i_stream_read_eof(source->input);
 }
 
 static struct istream *
