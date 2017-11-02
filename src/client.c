@@ -382,6 +382,6 @@ void clients_init(void)
 void clients_deinit(void)
 {
 	if (ssl_ctx != NULL)
-		ssl_iostream_context_deinit(&ssl_ctx);
+		ssl_iostream_context_unref(&ssl_ctx);
 	array_free(&stalled_clients);
 }
