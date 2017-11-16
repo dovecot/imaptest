@@ -144,9 +144,9 @@ static void print_stalled_imap_client(string_t *str, struct imap_client *client)
 
 static void print_timeout(void *context ATTR_UNUSED)
 {
-#define CLIENT_IS_STALLED(c, secs) \
-	((c) != NULL && (c)->to == NULL && !(c)->idling && \
-	 (c)->last_io < ioloop_time - (secs))
+#define CLIENT_STALLED_SECS(c) \
+	(((c)->to != NULL || (c)->idling) ? 0 : \
+	 (ioloop_time - (c)->last_io))
 	struct client *const *c;
 	string_t *str;
         static int rowcount = 0;
@@ -179,7 +179,8 @@ static void print_timeout(void *context ATTR_UNUSED)
 		if (c[i]->state == STATE_BANNER)
 			banner_waits++;
 
-		if (CLIENT_IS_STALLED(c[i], SHORT_STALL_PRINT_SECS))
+		unsigned int stalled_secs = CLIENT_STALLED_SECS(c[i]);
+		if (stalled_secs > SHORT_STALL_PRINT_SECS)
 			stall_count++;
         }
 
@@ -196,7 +197,9 @@ static void print_timeout(void *context ATTR_UNUSED)
 	printf("\n");
 	str = t_str_new(256);
 	for (i = 0; i < count; i++) {
-		if (CLIENT_IS_STALLED(c[i], LONG_STALL_PRINT_SECS) &&
+		unsigned int stalled_secs =
+			c[i] == NULL ? 0 : CLIENT_STALLED_SECS(c[i]);
+		if (stalled_secs > LONG_STALL_PRINT_SECS &&
 		    c[i]->state != STATE_BANNER) {
 			struct imap_client *client = imap_client(c[i]);
 
