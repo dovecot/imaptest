@@ -182,6 +182,9 @@ static void print_timeout(void *context ATTR_UNUSED)
 		unsigned int stalled_secs = CLIENT_STALLED_SECS(c[i]);
 		if (stalled_secs > SHORT_STALL_PRINT_SECS)
 			stall_count++;
+		if (stalled_secs >= conf.stalled_disconnect_timeout &&
+		    conf.stalled_disconnect_timeout > 0)
+			client_disconnect(c[i]);
         }
 
 	printf("%3d/%3d", (clients_count - banner_waits), clients_count);
@@ -662,6 +665,11 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		/* checkpoint=# */
 		if (strcmp(key, "checkpoint") == 0) {
 			conf.checkpoint_interval = atoi(value);
+			continue;
+		}
+		/* stalled_disconnect_timeout=secs */
+		if (strcmp(key, "stalled_disconnect_timeout") == 0) {
+			conf.stalled_disconnect_timeout = atoi(value);
 			continue;
 		}
 
