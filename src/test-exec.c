@@ -1161,10 +1161,16 @@ static int test_send_lstate_commands(struct client *_client)
 			break;
 		case TEST_STARTUP_STATE_DELETED:
 			client->client.state = STATE_MCREATE;
-			str = t_strdup_printf("CREATE %s",
-				t_imap_quote_str(client->storage->name));
-			command_send(client, str, init_callback);
-			break;
+			/* if we're testing with INBOX, don't try to
+			   create it explicitly. it'll be autocreated, and
+			   trying to create it may fail. */
+			if (strcasecmp(client->storage->name, "INBOX") != 0) {
+				str = t_strdup_printf("CREATE %s",
+					t_imap_quote_str(client->storage->name));
+				command_send(client, str, init_callback);
+				break;
+			}
+			/* fall through */
 		case TEST_STARTUP_STATE_CREATED:
 			if (ctx->appends_left > 0 &&
 			    (!mailbox_source_eof(ctx->source) ||
