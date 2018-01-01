@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017 ImapTest authors, see the included COPYING file */
+/* Copyright (c) 2016-2018 ImapTest authors, see the included COPYING file */
 
 #include "lib.h"
 #include "hash.h"
