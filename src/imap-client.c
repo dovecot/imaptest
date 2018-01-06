@@ -5,7 +5,9 @@
 #include "str.h"
 #include "write-full.h"
 #include "istream.h"
+#include "istream-zlib.h"
 #include "ostream.h"
+#include "ostream-zlib.h"
 #include "imap-seqset.h"
 #include "imap-arg.h"
 #include "imap-parser.h"
@@ -442,6 +444,55 @@ int imap_client_handle_untagged(struct imap_client *client,
 	return 0;
 }
 
+static void imap_client_delayed_flush_callback(struct imap_client *client)
+{
+	o_stream_flush(client->client.output);
+	timeout_remove(&client->to_flush);
+}
+
+void imap_client_delayed_flush(struct imap_client *client)
+{
+	if (client->compress_enabled && client->to_flush == NULL) {
+		client->to_flush = timeout_add_short(0,
+			imap_client_delayed_flush_callback, client);
+	}
+}
+
+static int imap_client_enable_compress(struct imap_client *client)
+{
+	struct istream *input;
+	struct ostream *output;
+	const unsigned char *data;
+	size_t size;
+
+	/* We expect here to be CRLF. In theory that could arrive in a separate
+	   IP packet, but that's a bit too much effort to support. */
+	data = i_stream_get_data(client->client.input, &size);
+	if (size < 2 || data[0] != '\r' || data[1] != '\n')
+		return imap_client_input_error(client, "Missing CRLF in COMPRESS tagged reply");
+	i_stream_skip(client->client.input, 2);
+
+	io_remove(&client->client.io);
+	client_rawlog_deinit(&client->client);
+
+	input = i_stream_create_deflate(client->client.input);
+	output = o_stream_create_deflate(client->client.output, 6);
+	i_stream_unref(&client->client.input);
+	o_stream_unref(&client->client.output);
+	client->client.input = input;
+	client->client.output = output;
+
+	client_rawlog_init(&client->client);
+	imap_parser_set_streams(client->parser, client->client.input,
+				client->client.output);
+
+	client_input_continue(&client->client);
+
+	client->compress_enabled = TRUE;
+	(void)client_send_more_commands(&client->client);
+	return 0;
+}
+
 static int
 imap_client_input_banner(struct imap_client *client,
 			 const struct imap_arg *args)
@@ -535,7 +586,16 @@ imap_client_input_args(struct imap_client *client, const struct imap_arg *args)
 	cmd->callback(client, cmd, args, reply);
 	imap_client_cmd_reply_finish(client);
 	o_stream_uncork(client->client.output);
+
+	bool compress = FALSE;
+	if (cmd->compress_on_ok) {
+		i_assert(client->compress_enabling);
+		client->compress_enabling = FALSE;
+		compress = (reply == REPLY_OK);
+	}
 	command_free(cmd);
+	if (compress)
+		return imap_client_enable_compress(client);
 	return 0;
 }
 
@@ -687,6 +747,7 @@ static void imap_client_free(struct client *_client)
 		imap_parser_unref(&client->parser);
 	if (client->append_stream != NULL)
 		i_stream_unref(&client->append_stream);
+	timeout_remove(&client->to_flush);
 
 	if (client->capabilities_list != NULL)
 		p_strsplit_free(default_pool, client->capabilities_list);

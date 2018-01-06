@@ -44,11 +44,14 @@ noinst_HEADERS = \
 	user.h
 
 imaptest_CFLAGS = $(AM_CPPFLAGS) $(BINARY_CFLAGS)
-imaptest_LDADD = $(LIBDOVECOT) \
-		 $(LIBDOVECOT_OPENSSL) \
-		 -lm $(BINARY_LDFLAGS)
+imaptest_LDADD = \
+	$(LIBDOVECOT) \
+	$(LIBDOVECOT_COMPRESS) \
+	$(LIBDOVECOT_OPENSSL) \
+	-lm $(BINARY_LDFLAGS)
 imaptest_DEPENDENCIES = \
 	$(LIBDOVECOT_DEPS) \
+	$(LIBDOVECOT_COMPRESS_DEPS) \
 	$(LIBDOVECOT_OPENSSL_DEPS)
 imaptest_LDFLAGS += -static-libtool-libs
 

@@ -28,6 +28,7 @@ struct state states[] = {
 	{ "BANNER",	  "Bann", LSTATE_NONAUTH,  0,   0,  0 },
 	{ "AUTHENTICATE", "Auth", LSTATE_NONAUTH,  0,   0,  FLAG_STATECHANGE | FLAG_STATECHANGE_AUTH },
 	{ "LOGIN",	  "Logi", LSTATE_NONAUTH,  100, 0,  FLAG_STATECHANGE | FLAG_STATECHANGE_AUTH },
+	{ "COMPRESS",	  "Comp", LSTATE_AUTH,     0,   0,  0 },
 	{ "LIST",	  "List", LSTATE_AUTH,     50,  0,  FLAG_EXPUNGES },
 	{ "MCREATE",	  "MCre", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "MDELETE",	  "MDel", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
@@ -253,6 +254,11 @@ static enum client_state client_update_plan(struct imap_client *client)
 			/* can't do this now */
 			continue;
 		}
+		if (state == STATE_COMPRESS &&
+		    (client->compress_enabling || client->compress_enabled)) {
+			/* can't do more than one COMPRESS */
+			continue;
+		}
 
 		client->plan[client->plan_size++] = state;
 		if ((states[state].flags & FLAG_STATECHANGE) != 0)
@@ -294,6 +300,7 @@ int imap_client_plan_send_more_commands(struct client *_client)
 	enum state_flags pending_flags;
 	enum login_state new_lstate;
 	enum client_state state;
+	int ret;
 
 	while (array_count(&client->commands) < MAX_COMMAND_QUEUE_LEN) {
 		state = client_update_plan(client);
@@ -333,8 +340,8 @@ int imap_client_plan_send_more_commands(struct client *_client)
 			continue;
 		}
 
-		if (imap_client_plan_send_next_cmd(client) < 0)
-			return -1;
+		if ((ret = imap_client_plan_send_next_cmd(client)) <= 0)
+			return ret;
 	}
 
 	if (!_client->delayed && do_rand(STATE_DELAY)) {
@@ -365,6 +372,7 @@ int imap_client_append_continue(struct imap_client *client)
 	}
 
 	/* finished this mail */
+	imap_client_delayed_flush(client);
 	i_stream_unref(&client->append_stream);
 	if ((client->capabilities & CAP_MULTIAPPEND) != 0 &&
 	    states[STATE_APPEND].probability_again != 0 &&
@@ -1172,6 +1180,10 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 	msgs = array_count(&client->view->uidmap);
 	if (msgs == 0 && states[state].login_state == LSTATE_SELECTED) {
 		/* no messages, no point in doing this command */
+		return 1;
+	}
+	if (client->compress_enabling) {
+		/* wait until COMPRESS is enabled */
 		return 0;
 	}
 
@@ -1197,6 +1209,10 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		if (conf.imap4rev2)
 			command_send(client, "ENABLE IMAP4REV2", state_callback);
 		o_stream_uncork(_client->output);
+		break;
+	case STATE_COMPRESS:
+		i_assert(!client->compress_enabled);
+		command_send(client, "COMPRESS DEFLATE", state_callback);
 		break;
 	case STATE_LIST:
 		//str = t_strdup_printf("LIST \"\" * RETURN (X-STATUS (MESSAGES))");
@@ -1517,7 +1533,7 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 	case STATE_COUNT:
 		i_unreached();
 	}
-	return 0;
+	return 1;
 }
 
 void state_callback(struct imap_client *client, struct command *cmd,

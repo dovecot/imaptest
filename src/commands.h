@@ -29,6 +29,7 @@ struct command {
 	struct timeout *delay_to;
 
 	bool expect_bad:1;
+	bool compress_on_ok:1; /* IMAP COMPRESS command */
 };
 
 struct command *command_send(struct imap_client *client, const char *cmdline,

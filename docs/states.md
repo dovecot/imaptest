@@ -21,6 +21,7 @@ You can disable all except LOGIN, LOGOUT and SELECT states by giving `-` paramet
 | -------------- | ---------- | --------- | --------------------------------------------------------------------------- |
 | `AUTHENTICATE` | `Auth`     | `0`       | Authentication with "AUTHENTICATE PLAIN" command                            |
 | `LOGIN`        | `Logi`     | `100`     | Authentication with LOGIN command                                         |
+| `COMPRESS`     | `Comp`     | `0`       | Enable IMAP COMPRESS                                                        |
 | `LIST`         | `List`     | `50`      | 'LIST "" \*'                                                                 |
 | `MCREATE`      | `LCre`     | `0`       | CREATE test/x/y mailboxes randomly. `/` separator is hardcoded currently. |
 | `MDELETE`      | `LDel`     | `0`       | DELETE test/x/y mailboxes randomly                                        |

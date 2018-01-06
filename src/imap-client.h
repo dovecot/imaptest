@@ -44,6 +44,7 @@ struct imap_client {
 	struct dsasl_client *sasl_client;
 	enum imap_capability capabilities;
 	char **capabilities_list;
+	struct timeout *to_flush;
 
 	/* plan[0] contains always the next state we move to. */
 	enum client_state plan[STATE_COUNT];
@@ -90,6 +91,8 @@ struct imap_client {
 	bool preauth:1;
 	bool uid_fetch_performed:1;
 	bool imap4rev2_enabled:1;
+	bool compress_enabling:1;
+	bool compress_enabled:1;
 };
 
 static inline struct imap_client *imap_client(struct client *client)
@@ -101,6 +104,7 @@ static inline struct imap_client *imap_client(struct client *client)
 
 struct imap_client *
 imap_client_new(unsigned int idx, struct user *user, struct user_client *uc);
+void imap_client_delayed_flush(struct imap_client *client);
 
 void imap_client_exists(struct imap_client *client, unsigned int msgs);
 void imap_client_mailbox_close(struct imap_client *client);
