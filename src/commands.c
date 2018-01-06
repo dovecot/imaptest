@@ -145,6 +145,7 @@ command_send_binary(struct imap_client *client, const char *cmdline,
 	unsigned int tag = client->tag_counter++;
 
 	i_assert(!client->append_unfinished);
+	i_assert(!client->compress_enabling);
 
 	if (client->client.idling && !client->idle_done_sent) {
 		client->idle_done_sent = TRUE;
@@ -198,6 +199,9 @@ command_send_binary(struct imap_client *client, const char *cmdline,
 			if (storage != NULL)
 				mailbox_storage_reset(storage);
 		}
+	} else if (strcasecmp(cmdname, "COMPRESS") == 0) {
+		cmd->compress_on_ok = TRUE;
+		client->compress_enabling = TRUE;
 	}
 
 	prefix = t_strdup_printf("%u.%u ", client->client.global_id, tag);
@@ -213,6 +217,7 @@ command_send_binary(struct imap_client *client, const char *cmdline,
 	if (client->delay_timeout_ms > 0)
 		cmd->delay_to = timeout_add(client->delay_timeout_ms,
 					    command_delay_timeout, client);
+	imap_client_delayed_flush(client);
 
 	array_append(&client->commands, &cmd, 1);
 	client->last_cmd = cmd;
