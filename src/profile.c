@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define RANDU (i_rand() / (double)RAND_MAX)
+#define RANDU (i_rand_limit(RAND_MAX) / (double)RAND_MAX)
 #define RANDN2(mu, sigma) \
 	(mu + (i_rand()%2 != 0 ? -1.0 : 1.0) * sigma * pow(-log(0.99999*RANDU), 0.5))
 #define weighted_rand(n) \
