@@ -453,6 +453,12 @@ static int user_timestamp_handle(struct user *user, enum user_timestamp ts,
 		if (ts == USER_TIMESTAMP_LOGIN) {
 			user->timestamps[ts] = user_get_next_login_time(user);
 			user_set_min_timestamp(user, user->timestamps[ts]);
+		} else if (ts == USER_TIMESTAMP_LOGOUT && user_connected) {
+			/* have to have a logout timestamp when there are
+			   connected clients. */
+			user->timestamps[ts] =
+				user_get_next_timeout(user, ioloop_time, ts);
+			i_assert(user->timestamps[ts] > 0);
 		}
 		return -1;
 	}
