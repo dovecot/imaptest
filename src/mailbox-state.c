@@ -690,6 +690,8 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 			*sizep = value_size;
 		}
 	}
+	if (i != list_count)
+		imap_client_input_error(client, "FETCH reply doesn't have key-value pairs");
 
 	/* assign owner only after processing FETCH so that we don't think the
 	   FETCH changes caused a change yet */
