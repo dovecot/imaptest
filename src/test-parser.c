@@ -300,6 +300,8 @@ static void test_add_default_directives(struct list_directives_context *ctx,
 			args_directive(ctx, args_arr, "$!unordered");
 			args_directive(ctx, args_arr, "$!noextra");
 			args_directive(ctx, args_arr, "$!ignore=\\recent");
+			args_directive(ctx, args_arr, "$!ignore=$HasAttachment");
+			args_directive(ctx, args_arr, "$!ignore=$HasNoAttachment");
 		}
 	}
 }
