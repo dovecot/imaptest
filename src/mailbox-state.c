@@ -786,7 +786,7 @@ int mailbox_state_set_permanent_flags(struct mailbox_view *view,
 
 	keywords = array_get_modifiable(&view->keywords, &count);
 	for (i = 0; i < count; i++) {
-		if (!keywords[i].permanent &&
+		if (view->readwrite && !keywords[i].permanent &&
 		    !keywords[i].name->seen_nonpermanent &&
 		    keywords[i].flags_counter == view->flags_counter) {
 			i_warning("Keyword not in PERMANENTFLAGS found: %s",
