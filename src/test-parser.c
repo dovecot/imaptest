@@ -16,6 +16,12 @@
 
 #define DEFAULT_MBOX_FNAME "default.mbox"
 
+struct ifenv {
+	unsigned int linenum;
+	bool else_seen;
+	bool skip;
+};
+
 struct test_parser {
 	pool_t pool;
 	const char *default_mbox_path;
@@ -23,6 +29,9 @@ struct test_parser {
 	struct imap_arg *reply_ok, *reply_no, *reply_bad, *reply_any;
 	struct test_command_group *cur_cmd_group;
 	ARRAY_TYPE(test) tests;
+
+	ARRAY(struct ifenv) ifenv_stack;
+	bool skip;
 };
 
 static bool
@@ -521,6 +530,53 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 	void *cmdmem;
 	enum test_existence existence;
 
+	if (strncmp(line, "!ifenv ", 7) == 0 ||
+	    strncmp(line, "!ifnenv ", 8) == 0) {
+		struct ifenv *ifenv;
+		bool have_env = getenv(line+7) == NULL;
+
+		if (strncmp(line, "!ifnenv ", 8) == 0)
+			have_env = !have_env;
+
+		ifenv = array_append_space(&parser->ifenv_stack);
+		ifenv->linenum = linenum;
+		ifenv->skip = parser->skip;
+		if (have_env)
+			parser->skip = TRUE;
+		return TRUE;
+	}
+	if (strcmp(line, "!else") == 0) {
+		unsigned int count;
+		struct ifenv *ifenvs =
+			array_get_modifiable(&parser->ifenv_stack, &count);
+		if (count == 0) {
+			*error_r = "!else without !ifenv";
+			return FALSE;
+		}
+		if (ifenvs[count-1].else_seen) {
+			*error_r = "!else already seen";
+			return FALSE;
+		}
+		ifenvs[count-1].else_seen = TRUE;
+		if (!ifenvs[count-1].skip)
+			parser->skip = !parser->skip;
+		return TRUE;
+	}
+	if (strcmp(line, "!endif") == 0) {
+		unsigned int count;
+		const struct ifenv *ifenvs =
+			array_get(&parser->ifenv_stack, &count);
+		if (count == 0) {
+			*error_r = "!endif without !ifenv";
+			return FALSE;
+		}
+		parser->skip = ifenvs[count-1].skip;
+		array_delete(&parser->ifenv_stack, count-1, 1);
+		return TRUE;
+	}
+	if (parser->skip)
+		return TRUE;
+
 	if (group != NULL) {
 		/* continuing the command */
 		if (strncmp(line, "!sleep ", 7) == 0) {
@@ -747,6 +803,13 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 			test->path, linenum, cmd->linenum);
 		return FALSE;
 	}
+	if (array_count(&parser->ifenv_stack) > 0) {
+		const struct ifenv *ifenv = array_idx(&parser->ifenv_stack, 0);
+		i_error("%s: !ifenv at line %u not closed with !endif",
+			test->path, ifenv->linenum);
+		return FALSE;
+	}
+	i_assert(!parser->skip);
 	return TRUE;
 }
 
@@ -920,6 +983,7 @@ struct test_parser *test_parser_init(const char *path)
 	parser = p_new(pool, struct test_parser, 1);
 	parser->pool = pool;
 	i_array_init(&parser->tests, 128);
+	p_array_init(&parser->ifenv_stack, pool, 4);
 
 	parser->reply_ok = test_parser_reply_init(pool, "ok");
 	parser->reply_no = test_parser_reply_init(pool, "no");
