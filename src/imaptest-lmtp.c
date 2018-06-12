@@ -162,7 +162,7 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 void imaptest_lmtp_delivery_deinit(void)
 {
 	while (lmtp_deliveries != NULL)
-		smtp_client_connection_disconnect(lmtp_deliveries->lmtp_conn);
+		smtp_client_transaction_abort(lmtp_deliveries->lmtp_trans);
 	if (lmtp_client != NULL)
 		smtp_client_deinit(&lmtp_client);
 }
