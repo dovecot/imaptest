@@ -1063,6 +1063,29 @@ capability_callback(struct imap_client *client, struct command *command,
 	imap_client_handle_tagged_reply(client, command, args, reply);
 }
 
+static void
+skip_logout_callback(struct imap_client *client ATTR_UNUSED,
+		     struct command *command ATTR_UNUSED,
+		     const struct imap_arg *args ATTR_UNUSED,
+		     enum command_reply reply ATTR_UNUSED)
+{
+}
+
+static void test_skip(struct test_exec_context *ctx)
+{
+	ctx->skipped = TRUE;
+	/* Send LOGOUT to all connections and wait for their disconnection.
+	   This way we don't exit while IMAP server is still in the middle of
+	   processing some of the connections. */
+	for (unsigned int i = 0; i < ctx->test->connection_count; i++) {
+		ctx->clients[i]->client.state = STATE_LOGOUT;
+		ctx->clients[i]->client.logout_sent = TRUE;
+		ctx->disconnects_waiting++;
+		command_send(ctx->clients[i], "LOGOUT",
+			     skip_logout_callback);
+	}
+}
+
 static bool test_have_all_capabilities(struct imap_client *client)
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
@@ -1145,8 +1168,7 @@ static int test_send_lstate_commands(struct client *_client)
 					     capability_callback);
 				return 0;
 			} else if (!test_have_all_capabilities(client)) {
-				ctx->skipped = TRUE;
-				test_execute_finish(ctx);
+				test_skip(ctx);
 				return 0;
 			}
 			mask = t_strconcat(client->storage->name, "*", NULL);
