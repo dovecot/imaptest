@@ -44,6 +44,7 @@ static void imaptest_lmtp_free(struct imaptest_lmtp_delivery *d)
 {
 	DLLIST_REMOVE(&lmtp_deliveries, d);
 	lmtp_count--;
+	smtp_client_connection_unref(&d->lmtp_conn);
 	if (d->lmtp_trans != NULL)
 		smtp_client_transaction_destroy(&d->lmtp_trans);
 	if (d->data_input != NULL)
@@ -148,7 +149,6 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 
 	d->lmtp_trans = smtp_client_transaction_create(d->lmtp_conn,
 		NULL, NULL, imaptest_lmtp_finish, d);
-	smtp_client_connection_unref(&d->lmtp_conn);
 
 	smtp_client_transaction_add_rcpt(d->lmtp_trans, rcpt_to, NULL,
 		imaptest_lmtp_rcpt_to_callback,
