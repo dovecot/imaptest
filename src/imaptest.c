@@ -34,6 +34,8 @@ static struct ioloop *ioloop;
 static int return_value = 0;
 static time_t next_checkpoint_time;
 static struct ostream *results_output = NULL;
+static struct timeout *to_stop;
+static unsigned int final_wait_secs;
 
 #define STATE_IS_VISIBLE(state) \
 	(states[i].probability != 0)
@@ -306,11 +308,14 @@ static void sig_die(const siginfo_t *si ATTR_UNUSED, void *context ATTR_UNUSED)
 	return_value = 1;
 }
 
-static void timeout_stop(void *context ATTR_UNUSED)
+static void timeout_stop(void *context)
 {
-	if (!disconnect_clients)
+	if (!disconnect_clients) {
 		disconnect_clients = TRUE;
-	else {
+		timeout_remove(&to_stop);
+		to_stop = timeout_add(final_wait_secs * 1000,
+				      timeout_stop, context);
+	} else {
 		i_info("Second timeout triggered while trying to stop - stopping immediately");
 		io_loop_stop(ioloop);
 	}
@@ -509,7 +514,6 @@ bool username_format_is_valid(const char *s, const char **error_r)
 
 int main(int argc ATTR_UNUSED, char *argv[])
 {
-	struct timeout *to_stop;
 	struct state *state;
 	struct profile *profile = NULL;
 	const char *error, *key, *value, *testpath = NULL;
@@ -547,8 +551,17 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			return 0;
 		}
 		if (strcmp(key, "secs") == 0) {
-			to_stop = timeout_add(atoi(value) * 1000,
-					      timeout_stop, NULL);
+			unsigned int secs;
+			const char *p;
+
+			if (str_parse_uint(value, &secs, &p) < 0)
+				i_fatal("Invalid secs: %s", value);
+			if (p[0] == '\0')
+				final_wait_secs = 30;
+			else if (p[0] != ',' ||
+				 str_to_uint(p+1, &final_wait_secs) < 0)
+				i_fatal("Invalid secs: %s", value);
+			to_stop = timeout_add(secs * 1000, timeout_stop, NULL);
 			continue;
 		}
 		if (strcmp(key, "seed") == 0) {
