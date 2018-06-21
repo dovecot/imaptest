@@ -40,7 +40,8 @@ static const struct setting_define profile_client_setting_defines[] = {
     DEF(SET_STR, imap_fetch_manual),
     DEF(SET_TIME, imap_status_interval),
     DEF(SET_TIME, login_interval),
-
+    DEF(SET_STR, imap_metadata_extension)
+,
     SETTING_DEFINE_LIST_END};
 
 const struct profile_client profile_client_default_settings = {

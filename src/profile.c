@@ -368,11 +368,23 @@ user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
 
     client->client.state = STATE_FETCH2;
     command_send(client, cmd, state_callback);
+
     /* and mark the message as \Seen */
     cmd = t_strdup_printf("UID STORE %u +FLAGS \\Seen", uid);
     client->client.state = STATE_STORE;
     command_send(client, cmd, state_callback);
 
+    if (client->client.user_client->profile->imap_metadata_extension != NULL && client->view->last_xguid != NULL) {
+      // i_debug("fetching metadata with %d, %s", client->view->last_uid, client->view->last_xguid);
+      cmd = t_strdup_printf("GETMETADATA INBOX (%s%s)", client->client.user_client->profile->imap_metadata_extension,
+                            client->view->last_xguid);
+      client->client.state = STATE_GET_METADATA;
+      command_send(client, cmd, state_callback);
+    }
+    if (client->view->last_xguid != NULL) {
+    // free the xguid buffer!
+      free(client->view->last_xguid);
+    }
     cache->last_action_uid_body_fetched = TRUE;
     return TRUE;
 	}

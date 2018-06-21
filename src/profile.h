@@ -22,6 +22,7 @@ struct profile_client {
 	const char *imap_search_query;
 	unsigned int imap_status_interval;
 	unsigned int login_interval;
+    const char *imap_metadata_extension;
 };
 ARRAY_DEFINE_TYPE(profile_client, struct profile_client *);
 

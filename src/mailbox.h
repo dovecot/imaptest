@@ -162,7 +162,8 @@ struct mailbox_view {
 	unsigned int recent_count;
 	unsigned int select_uidnext; /* UIDNEXT received on SELECT */
 	uint64_t highest_modseq;
-
+	unsigned int last_uid;
+	char* last_xguid;
 	char *last_thread_reply;
 
 	/* all keywords used currently in a mailbox */

@@ -484,8 +484,8 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 	struct mailbox_view *view = client->view;
 	struct message_metadata_dynamic *metadata;
 	const struct imap_arg *arg, *listargs;
-	const char *name, *value, **p;
-	uoff_t value_size, *sizep;
+  const char *name, *value, **p, *xguid;
+  uoff_t value_size, *sizep;
 	uint32_t uid, *uidp;
 	unsigned int i, list_count;
 	bool uid_changed = FALSE;
@@ -497,6 +497,11 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 		return;
 	}
 
+    arg = fetch_list_get(args, "x-guid");
+    if (arg != NULL && imap_arg_get_atom(arg, &xguid)) {
+    view->last_xguid = malloc(sizeof(char) * strlen(xguid) + 1);
+    memcpy(view->last_xguid, xguid, strlen(xguid) + 1);
+    }
 	arg = fetch_list_get(args, "UID");
 	if (arg == NULL && client->qresync_enabled) {
 		imap_client_input_error(client,
@@ -530,8 +535,10 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 	}
 
 	if (metadata->ms != NULL) {
-		i_assert(metadata->ms->uid == uid);
-		/* Get Message-ID from envelope if it exists. */
+    	i_assert(metadata->ms->uid == uid);
+    	view->last_uid = uid;
+
+    /* Get Message-ID from envelope if it exists. */
 		arg = fetch_list_get(args, "ENVELOPE");
 		if (arg != NULL) {
 			const struct imap_arg *env_args;
