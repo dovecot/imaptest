@@ -45,8 +45,8 @@ enum client_state {
   STATE_DELAY,
   STATE_CHECKPOINT,
   STATE_LMTP,
-  STATE_COUNT,
-  STATE_GET_METADATA
+  STATE_GET_METADATA,
+  STATE_COUNT
 };
 
 enum state_flags {

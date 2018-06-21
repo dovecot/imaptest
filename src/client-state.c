@@ -51,7 +51,8 @@ struct state states[STATE_COUNT] = {
 	{ "DISCONNECT",	  "Disc", LSTATE_NONAUTH,  0,   0,  0 },
 	{ "DELAY",	  "Dela", LSTATE_NONAUTH,  0,   0,  0 },
 	{ "CHECKPOINT!",  "ChkP", LSTATE_NONAUTH,  0,   0,  0 },
-	{ "LMTP",         "LMTP", LSTATE_NONAUTH,  0,   0,  0 }
+	{ "LMTP", "LMTP", LSTATE_NONAUTH, 0, 0, 0 }, {
+    "METADATA", "Meta", LSTATE_SELECTED, 0, 0, 0 }
 };
 
 unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
@@ -1134,10 +1135,10 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		break;
 	case STATE_MCREATE:
 		if (i_rand() % 2 != 0)
-			str = t_strdup_printf("CREATE \"test%c%d\"", 
+			str = t_strdup_printf("CREATE \"test%c%d\"",
 					      IMAP_HIERARCHY_SEP, i_rand() % 20);
 		else
-			str = t_strdup_printf("CREATE \"test%c%d%c%d\"", 
+			str = t_strdup_printf("CREATE \"test%c%d%c%d\"",
 					      IMAP_HIERARCHY_SEP, i_rand() % 20,
 					      IMAP_HIERARCHY_SEP, i_rand() % 20);
 		command_send(client, str, state_callback);
@@ -1156,10 +1157,10 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 	}
 	case STATE_MDELETE:
 		if (i_rand() % 2 != 0)
-			str = t_strdup_printf("DELETE \"test%c%d\"", 
+			str = t_strdup_printf("DELETE \"test%c%d\"",
 					      IMAP_HIERARCHY_SEP, i_rand() % 20);
 		else
-			str = t_strdup_printf("DELETE \"test%c%d%c%d\"", 
+			str = t_strdup_printf("DELETE \"test%c%d%c%d\"",
 					      IMAP_HIERARCHY_SEP, i_rand() % 20,
 					      IMAP_HIERARCHY_SEP, i_rand() % 20);
 		command_send(client, str, state_callback);

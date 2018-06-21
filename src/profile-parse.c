@@ -374,5 +374,6 @@ struct profile *profile_parse(const char *path)
 
 	profile_finish(&parser);
 	states[STATE_LMTP].probability = 100;
+	states[STATE_GET_METADATA].probability = 100;
 	return profile;
 }
