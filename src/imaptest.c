@@ -757,7 +757,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		return 1;
 	}
 	if (conf.mailbox == NULL)
-		conf.mailbox = testpath == NULL ? "INBOX" : "imaptest";
+		conf.mailbox = testpath == NULL ? "INBOX" : "INBOX.imaptest";
 
 	if (conf.username_template == NULL)
 		i_fatal("Missing username");

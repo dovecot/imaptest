@@ -336,57 +336,71 @@ static void user_mailbox_action_reply(struct imap_client *client, uint32_t uid)
 	command_send(client, cmd, state_callback);
 }
 
+static void user_mailbox_action_search(struct imap_client *client) {
+	const char *cmd;
+
+        cmd = t_strdup_printf(
+            "SEARCH %s",
+            client->client.user_client->profile->imap_search_query);
+        client->client.state = STATE_SEARCH;
+	command_send(client, cmd, state_callback);
+}
+
 static bool
 user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
 {
-	struct user_client *uc = user->active_client;
-	struct imap_client *client;
-	const char *cmd;
-	uint32_t uid = cache->last_action_uid;
+  struct user_client *uc = user->active_client;
+  struct imap_client *client;
+  const char *cmd;
+  uint32_t uid = cache->last_action_uid;
 
-	client = user_find_client_by_mailbox(uc, cache->mailbox_name);
-	if (client == NULL)
-		return FALSE;
+  client = user_find_client_by_mailbox(uc, cache->mailbox_name);
+  if (client == NULL)
+    return FALSE;
 
-	if (uid >= cache->uidnext)
-		return FALSE;
+  if (uid >= cache->uidnext)
+    return FALSE;
 
-	if (!cache->last_action_uid_body_fetched) {
-		/* fetch the next new message's body */
-		cache = user_get_mailbox_cache(uc, client->storage->name);
-		cmd = t_strdup_printf("UID FETCH %u (%s)", uid,
-				      client->client.user_client->profile->imap_fetch_manual);
-		client->client.state = STATE_FETCH2;
-		command_send(client, cmd, state_callback);
-		/* and mark the message as \Seen */
-		cmd = t_strdup_printf("UID STORE %u +FLAGS \\Seen", uid);
-		client->client.state = STATE_STORE;
-		command_send(client, cmd, state_callback);
+  if (!cache->last_action_uid_body_fetched) {
+    /* fetch the next new message's body */
+    cache = user_get_mailbox_cache(uc, client->storage->name);
+    cmd = t_strdup_printf("UID FETCH %u (%s)", uid, client->client.user_client->profile->imap_fetch_manual);
 
-		cache->last_action_uid_body_fetched = TRUE;
-		return TRUE;
+    client->client.state = STATE_FETCH2;
+    command_send(client, cmd, state_callback);
+    /* and mark the message as \Seen */
+    cmd = t_strdup_printf("UID STORE %u +FLAGS \\Seen", uid);
+    client->client.state = STATE_STORE;
+    command_send(client, cmd, state_callback);
+
+    cache->last_action_uid_body_fetched = TRUE;
+    return TRUE;
 	}
 	/* handle the action for mails in INBOX */
-	cache->last_action_uid++;
-	cache->last_action_uid_body_fetched = FALSE;
+  cache->last_action_uid++;
+  cache->last_action_uid_body_fetched = FALSE;
 
-	if (strcasecmp(cache->mailbox_name, "INBOX") != 0)
-		return TRUE;
+  if (strcasecmp(cache->mailbox_name, "INBOX") != 0)
+    return TRUE;
 
-	if ((unsigned)i_rand() % 100 < user->profile->mail_inbox_delete_percentage)
-		user_mailbox_action_delete(client, uid);
-	else if ((unsigned)i_rand() % 100 < user->profile->mail_inbox_move_percentage)
-		user_mailbox_action_move(client, PROFILE_MAILBOX_SPAM, uid);
-	else if ((unsigned)i_rand() % 100 < user->profile->mail_inbox_reply_percentage)
+  if ((unsigned) i_rand() % 100 < user->profile->mail_inbox_delete_percentage) {
+          user_mailbox_action_delete(client, uid);
+  } else if ((unsigned) i_rand() % 100 < user->profile->mail_inbox_move_percentage) {
+          user_mailbox_action_move(client, PROFILE_MAILBOX_SPAM, uid);
+  }
+	else if ((unsigned) i_rand() % 100 < user->profile->mail_inbox_reply_percentage) {
 		user_mailbox_action_reply(client, uid);
-	return TRUE;
+  }
+  else if ((unsigned) i_rand() % 100 < user->profile->mail_inbox_search_percentage) {
+          user_mailbox_action_search(client);
+  }
+  return TRUE;
 }
 
 static void deliver_new_mail(struct user *user, const char *mailbox)
 {
 	struct smtp_address *rcpt_to;
 	const char *error;
-
 	if (smtp_address_parse_username(pool_datastack_create(), user->username,
 		&rcpt_to, &error) < 0) {
 		i_fatal("Username is not a valid e-mail address: %s", error);
