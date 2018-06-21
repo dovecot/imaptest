@@ -499,6 +499,10 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 
     arg = fetch_list_get(args, "x-guid");
     if (arg != NULL && imap_arg_get_atom(arg, &xguid)) {
+    if (view->last_xguid != NULL) {
+      free(view->last_xguid);
+      view->last_xguid = NULL;
+    }
     view->last_xguid = malloc(sizeof(char) * strlen(xguid) + 1);
     memcpy(view->last_xguid, xguid, strlen(xguid) + 1);
     }

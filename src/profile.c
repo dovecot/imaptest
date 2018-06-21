@@ -339,7 +339,7 @@ static void user_mailbox_action_reply(struct imap_client *client, uint32_t uid)
 static void user_mailbox_action_search(struct imap_client *client) {
 	const char *cmd;
 
-        cmd = t_strdup_printf(
+  cmd = t_strdup_printf(
             "SEARCH %s",
             client->client.user_client->profile->imap_search_query);
         client->client.state = STATE_SEARCH;
@@ -384,6 +384,7 @@ user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
     if (client->view->last_xguid != NULL) {
     // free the xguid buffer!
       free(client->view->last_xguid);
+      client->view->last_xguid = NULL;
     }
     cache->last_action_uid_body_fetched = TRUE;
     return TRUE;
@@ -403,7 +404,8 @@ user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
 	else if ((unsigned) i_rand() % 100 < user->profile->mail_inbox_reply_percentage) {
 		user_mailbox_action_reply(client, uid);
   }
-  else if ((unsigned) i_rand() % 100 < user->profile->mail_inbox_search_percentage) {
+  else if ((unsigned) i_rand() % 100 < user->profile->mail_inbox_search_percentage
+      && cache->last_action_uid_body_fetched) {
           user_mailbox_action_search(client);
   }
   return TRUE;
