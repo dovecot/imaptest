@@ -23,6 +23,12 @@
 #define weighted_rand(n) \
 	(int)RANDN2(n, n/2)
 
+typedef void stacked_cmd_t(struct imap_client *client, struct command *cmd);
+struct fetch_command_param {
+  uint32_t uid;
+  stacked_cmd_t *stacked_cmd;
+};
+
 static time_t users_min_timestamp = INT_MAX;
 static struct timeout *to_users;
 
@@ -106,6 +112,31 @@ int imap_client_profile_send_more_commands(struct client *_client)
 	}
 	return 0;
 }
+static void stacked_cmd_imap_metadata_extension(struct imap_client *client, struct command *cmd) {
+  const char *cmd_str;
+  struct fetch_command_param *cb_param;
+  if (cmd == NULL) {
+    return;
+  }
+  cb_param = (struct fetch_command_param*) cmd->cb_param;
+
+  struct message_metadata_static *ms = message_metadata_static_get(client->storage, cb_param->uid);
+  if (ms == NULL) {
+    i_debug("message metadata is null uid %d", cb_param->uid);
+    return;
+  }
+  // i_debug("message get_metadata uid for %d", cb_param->uid);
+  if (client->client.user_client->profile->imap_metadata_extension != NULL && ms->xguid != NULL) {
+    // i_debug("fetching metadata with %d, %s", client->view->last_uid, client->view->last_xguid);
+    cmd_str = t_strdup_printf("GETMETADATA INBOX (%s%s)", client->client.user_client->profile->imap_metadata_extension,
+                          ms->xguid);
+    client->client.state = STATE_GET_METADATA;
+    command_send(client, cmd_str, state_callback);
+  }
+
+
+  message_metadata_static_unref(client->storage, &ms);
+}
 
 static void client_profile_handle_exists(struct imap_client *client)
 {
@@ -116,8 +147,12 @@ static void client_profile_handle_exists(struct imap_client *client)
 	cache = user_get_mailbox_cache(client->client.user_client, client->storage->name);
 	cmd = t_strdup_printf("UID FETCH %u:* (%s)", cache->uidnext,
 			      client->client.user_client->profile->imap_fetch_immediate);
-	client->client.state = STATE_FETCH;
-	command_send(client, cmd, state_callback);
+    client->client.state = STATE_FETCH;
+    client->stacked_cmd = stacked_cmd_imap_metadata_extension;
+    struct fetch_command_param *cb_param = malloc(sizeof(struct fetch_command_param));
+    cb_param->uid = cache->uidnext;
+    // i_debug("fetching for: %d", cache->uidnext);
+    command_send_with_param(client, cmd, fetch_state_callback, (void*) cb_param);
 }
 
 static void client_profile_handle_fetch(struct imap_client *client,
@@ -346,6 +381,14 @@ static void user_mailbox_action_search(struct imap_client *client) {
 	command_send(client, cmd, state_callback);
 }
 
+
+struct msg_old_flags {
+  enum mail_flags flags;
+  uint8_t *keyword_bitmask;
+  unsigned int kw_alloc_size;
+};
+
+
 static bool
 user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
 {
@@ -365,27 +408,19 @@ user_mailbox_action(struct user *user, struct user_mailbox_cache *cache)
     /* fetch the next new message's body */
     cache = user_get_mailbox_cache(uc, client->storage->name);
     cmd = t_strdup_printf("UID FETCH %u (%s)", uid, client->client.user_client->profile->imap_fetch_manual);
-
+    client->stacked_cmd = stacked_cmd_imap_metadata_extension;
     client->client.state = STATE_FETCH2;
-    command_send(client, cmd, state_callback);
+    //   i_debug("fetching for: %d", uid);
+    struct fetch_command_param *cb_param = malloc(sizeof(struct fetch_command_param));
+    cb_param->uid = uid;
+
+    command_send_with_param(client, cmd, fetch_state_callback, (void*) cb_param);
 
     /* and mark the message as \Seen */
     cmd = t_strdup_printf("UID STORE %u +FLAGS \\Seen", uid);
     client->client.state = STATE_STORE;
     command_send(client, cmd, state_callback);
 
-    if (client->client.user_client->profile->imap_metadata_extension != NULL && client->view->last_xguid != NULL) {
-      // i_debug("fetching metadata with %d, %s", client->view->last_uid, client->view->last_xguid);
-      cmd = t_strdup_printf("GETMETADATA INBOX (%s%s)", client->client.user_client->profile->imap_metadata_extension,
-                            client->view->last_xguid);
-      client->client.state = STATE_GET_METADATA;
-      command_send(client, cmd, state_callback);
-    }
-    if (client->view->last_xguid != NULL) {
-    // free the xguid buffer!
-      free(client->view->last_xguid);
-      client->view->last_xguid = NULL;
-    }
     cache->last_action_uid_body_fetched = TRUE;
     return TRUE;
 	}

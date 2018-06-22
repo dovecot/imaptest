@@ -120,16 +120,20 @@ command_get_cmdline(struct imap_client *client, const char **_cmdline,
 	*_cmdline_len = str_len(str);
 }
 
-struct command *command_send(struct imap_client *client, const char *cmdline,
-			     command_callback_t *callback)
+struct command *command_send_with_param(struct imap_client *client, const char *cmdline,
+           command_callback_t *callback, void *cb_param)
 {
-	return command_send_binary(client, cmdline, strlen(cmdline), callback);
+  return command_send_binary(client, cmdline, strlen(cmdline), callback, cb_param);
+}
+
+struct command *command_send(struct imap_client *client, const char *cmdline, command_callback_t *callback) {
+  return command_send_binary(client, cmdline, strlen(cmdline), callback, NULL);
 }
 
 struct command *
 command_send_binary(struct imap_client *client, const char *cmdline,
 		    unsigned int cmdline_len,
-		    command_callback_t *callback)
+                    command_callback_t *callback, void *cb_param)
 {
 	struct command *cmd;
 	struct const_iovec iov[3];
@@ -150,6 +154,7 @@ command_send_binary(struct imap_client *client, const char *cmdline,
 		memcpy(cmd->cmdline, cmdline, cmdline_len);
 		cmd->cmdline_len = cmdline_len;
 	} T_END;
+    cmd->cb_param = cb_param;
 	cmd->state = client->client.state;
 	cmd->tag = tag;
 	cmd->callback = callback;
@@ -231,6 +236,9 @@ void command_free(struct command *cmd)
 	if (array_is_created(&cmd->seq_range))
 		array_free(&cmd->seq_range);
 	i_free(cmd->cmdline);
+    if (cmd->cb_param != NULL) {
+      i_free(cmd->cb_param);
+    }
 	i_free(cmd);
 }
 

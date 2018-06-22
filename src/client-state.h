@@ -111,6 +111,8 @@ bool imap_client_get_random_seq_range(struct imap_client *client,
 
 void state_callback(struct imap_client *client, struct command *cmd,
 		    const struct imap_arg *args, enum command_reply reply);
+void fetch_state_callback(struct imap_client *client, struct command *cmd, const struct imap_arg *args,
+                          enum command_reply reply);
 void imap_client_cmd_reply_finish(struct imap_client *client);
 
 #endif

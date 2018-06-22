@@ -31,7 +31,7 @@ struct message_global {
 struct message_metadata_static {
 	uint32_t uid;
 	unsigned int refcount;
-
+    char* xguid;
 	/* timestamp when this message should be removed if it still has
 	   refcount=0 */
 	time_t ref0_timeout;
@@ -161,9 +161,7 @@ struct mailbox_view {
 	unsigned int flags_counter;
 	unsigned int recent_count;
 	unsigned int select_uidnext; /* UIDNEXT received on SELECT */
-	uint64_t highest_modseq;
-	unsigned int last_uid;
-	char* last_xguid;
+    uint64_t highest_modseq;
 	char *last_thread_reply;
 
 	/* all keywords used currently in a mailbox */

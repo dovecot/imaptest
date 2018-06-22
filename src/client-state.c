@@ -1408,17 +1408,29 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		break;
 	case STATE_LOGOUT:
 		client_logout(_client);
-		break;
+      break;
 
 	case STATE_BANNER:
 	case STATE_DISCONNECT:
 	case STATE_DELAY:
 	case STATE_CHECKPOINT:
 	case STATE_LMTP:
+    case STATE_GET_METADATA:
 	case STATE_COUNT:
 		i_unreached();
 	}
 	return 0;
+}
+void fetch_state_callback(struct imap_client *client, struct command *cmd, const struct imap_arg *args,
+                          enum command_reply reply) {
+
+  if (client_handle_cmd_reply(client, cmd, args + 1, reply) < 0) {
+    client_disconnect(&client->client);
+  } else {
+    if (client->stacked_cmd != NULL) {
+      (*client->stacked_cmd)(client, cmd);
+    }
+  }
 }
 
 void state_callback(struct imap_client *client, struct command *cmd,

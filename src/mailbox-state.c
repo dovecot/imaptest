@@ -497,15 +497,6 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 		return;
 	}
 
-    arg = fetch_list_get(args, "x-guid");
-    if (arg != NULL && imap_arg_get_atom(arg, &xguid)) {
-    if (view->last_xguid != NULL) {
-      free(view->last_xguid);
-      view->last_xguid = NULL;
-    }
-    view->last_xguid = malloc(sizeof(char) * strlen(xguid) + 1);
-    memcpy(view->last_xguid, xguid, strlen(xguid) + 1);
-    }
 	arg = fetch_list_get(args, "UID");
 	if (arg == NULL && client->qresync_enabled) {
 		imap_client_input_error(client,
@@ -540,7 +531,18 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 
 	if (metadata->ms != NULL) {
     	i_assert(metadata->ms->uid == uid);
-    	view->last_uid = uid;
+
+    arg = fetch_list_get(args, "x-guid");
+    if (arg != NULL && imap_arg_get_atom(arg, &xguid)) {
+      if (metadata->ms->xguid != NULL) {
+        //i_debug("..... xguid %s for uid: %ld", metadata->ms->xguid, uid);
+        free(metadata->ms->xguid);
+        metadata->ms->xguid = NULL;
+      }
+      metadata->ms->xguid = malloc(sizeof(char) * strlen(xguid) + 1);
+      memcpy(metadata->ms->xguid, xguid, strlen(xguid) + 1);
+      //i_debug("setting xguid %s for uid: %ld", metadata->ms->xguid, uid);
+    }
 
     /* Get Message-ID from envelope if it exists. */
 		arg = fetch_list_get(args, "ENVELOPE");
