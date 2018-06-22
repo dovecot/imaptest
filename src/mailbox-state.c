@@ -534,11 +534,6 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 
     arg = fetch_list_get(args, "x-guid");
     if (arg != NULL && imap_arg_get_atom(arg, &xguid)) {
-      if (metadata->ms->xguid != NULL) {
-        //i_debug("..... xguid %s for uid: %ld", metadata->ms->xguid, uid);
-        free(metadata->ms->xguid);
-        metadata->ms->xguid = NULL;
-      }
       metadata->ms->xguid = malloc(sizeof(char) * strlen(xguid) + 1);
       memcpy(metadata->ms->xguid, xguid, strlen(xguid) + 1);
       //i_debug("setting xguid %s for uid: %ld", metadata->ms->xguid, uid);

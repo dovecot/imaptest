@@ -77,6 +77,12 @@ void message_metadata_static_unref(struct mailbox_storage *storage,
 		i_unreached();
 	else
 		array_delete(&storage->static_metadata, idx, 1);
+
+  if (ms->xguid != NULL) {
+    //i_debug("..... xguid %s for uid: %ld", metadata->ms->xguid, uid);
+    free(ms->xguid);
+    ms->xguid = NULL;
+  }
 	i_free(ms);
 }
 
