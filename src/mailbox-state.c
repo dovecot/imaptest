@@ -63,7 +63,7 @@ fetch_list_get(const struct imap_arg *args, const char *name)
 {
 	const char *str;
 
-	while (!IMAP_ARG_IS_EOL(args) && !IMAP_ARG_IS_EOL(&args[1])) {
+  while (!IMAP_ARG_IS_EOL(args) && !IMAP_ARG_IS_EOL(&args[1])) {
 		if (imap_arg_get_atom(args, &str) &&
 		    strcasecmp(name, str) == 0)
 			return &args[1];
@@ -72,6 +72,34 @@ fetch_list_get(const struct imap_arg *args, const char *name)
 	return NULL;
 }
 
+static const struct imap_arg *
+fetch_list_metadata(const struct imap_arg *args, struct message_metadata_static *ms) {
+  const char *str;
+  const char* value;
+  while (!IMAP_ARG_IS_EOL(args) && !IMAP_ARG_IS_EOL(&args[1])) {
+    if (!imap_arg_get_atom(args, &str)) {
+      args += 2;
+      continue;
+    }
+    if (!imap_arg_get_atom(&args[1], &value)) {
+      args += 2;
+      continue;
+    }
+
+    if (value != NULL) {
+      struct fetch_metadata *m;
+      m =i_new(struct fetch_metadata, 1);
+
+      m->key = strdup(str);
+      m->value = strdup(value);
+      //i_debug("adding metadata: %s %s", m->key, m->value);
+      array_append(&ms->fetch_m, m, 1);
+
+    }
+    args += 2;
+  }
+  return NULL;
+}
 struct msg_old_flags {
 	enum mail_flags flags;
 	uint8_t *keyword_bitmask;
@@ -497,6 +525,10 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 		return;
 	}
 
+
+
+
+
 	arg = fetch_list_get(args, "UID");
 	if (arg == NULL && client->qresync_enabled) {
 		imap_client_input_error(client,
@@ -532,13 +564,18 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 	if (metadata->ms != NULL) {
     	i_assert(metadata->ms->uid == uid);
 
+    if (!array_is_created(&metadata->ms->fetch_m)) {
+      pool_t pool = mailbox_source_get_messages_pool(client->storage->source);
+      p_array_init(&metadata->ms->fetch_m, pool, list_count);
+    }
+    fetch_list_metadata(args, metadata->ms);
+
     arg = fetch_list_get(args, "x-guid");
     if (arg != NULL && imap_arg_get_atom(arg, &xguid)) {
       metadata->ms->xguid = malloc(sizeof(char) * strlen(xguid) + 1);
       memcpy(metadata->ms->xguid, xguid, strlen(xguid) + 1);
       //i_debug("setting xguid %s for uid: %ld", metadata->ms->xguid, uid);
     }
-
     /* Get Message-ID from envelope if it exists. */
 		arg = fetch_list_get(args, "ENVELOPE");
 		if (arg != NULL) {
@@ -559,8 +596,9 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 
 	/* the message is known, verify that everything looks ok */
 	for (i = 0; i+1 < list_count; i += 2) {
-		if (!imap_arg_get_atom(&args[i], &name))
+    if (!imap_arg_get_atom(&args[i], &name)) {
 			continue;
+    }
 
 		name = t_str_ucase(name);
 		listargs = NULL;

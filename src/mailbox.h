@@ -28,10 +28,19 @@ struct message_global {
 	ARRAY(const char *) body_words;
 };
 
+struct fetch_metadata {
+  char* key;
+  char* value;
+};
+
+ARRAY_DEFINE_TYPE( fetch_metadata, struct fetch_metadata);
+
 struct message_metadata_static {
 	uint32_t uid;
 	unsigned int refcount;
-    char* xguid;
+  char* xguid;
+  /* seq -> uid */
+  ARRAY_TYPE( fetch_metadata) fetch_m;
 	/* timestamp when this message should be removed if it still has
 	   refcount=0 */
 	time_t ref0_timeout;

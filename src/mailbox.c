@@ -83,6 +83,20 @@ void message_metadata_static_unref(struct mailbox_storage *storage,
     free(ms->xguid);
     ms->xguid = NULL;
   }
+  if (array_is_created(&ms->fetch_m)) {
+    unsigned int count;
+    const struct fetch_metadata *fm_map = array_get(&ms->fetch_m, &count);
+    for (unsigned int i = 0; i < count; i++) {
+      if (fm_map[i].key != NULL) {
+        free(fm_map[i].key);
+      }
+      if (fm_map[i].value != NULL) {
+        free(fm_map[i].value);
+      }
+      array_delete(&ms->fetch_m, i, 1);
+    }
+
+  }
 	i_free(ms);
 }
 

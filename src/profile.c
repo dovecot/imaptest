@@ -112,6 +112,7 @@ int imap_client_profile_send_more_commands(struct client *_client)
 	}
 	return 0;
 }
+
 static void stacked_cmd_imap_metadata_extension(struct imap_client *client, struct command *cmd) {
   const char *cmd_str;
   struct fetch_command_param *cb_param;
@@ -125,8 +126,17 @@ static void stacked_cmd_imap_metadata_extension(struct imap_client *client, stru
     i_debug("message metadata is null uid %d", cb_param->uid);
     return;
   }
+
   // i_debug("message get_metadata uid for %d", cb_param->uid);
   if (client->client.user_client->profile->imap_metadata_extension != NULL && ms->xguid != NULL) {
+    if (array_is_created(&ms->fetch_m)) {
+      unsigned int count;
+      const struct fetch_metadata *fm_map;
+      fm_map = array_get(&ms->fetch_m, &count);
+      for (unsigned int i = 0; i < count; i++) {
+        i_debug("fetch m: %s = %s", fm_map[i].key, fm_map[i].value);
+      }
+    }
     // i_debug("fetching metadata with %d, %s", client->view->last_uid, client->view->last_xguid);
     cmd_str = t_strdup_printf("GETMETADATA INBOX (%s%s)", client->client.user_client->profile->imap_metadata_extension,
                           ms->xguid);
