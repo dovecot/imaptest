@@ -113,6 +113,101 @@ int imap_client_profile_send_more_commands(struct client *_client)
 	return 0;
 }
 
+// query string format: sometext$VAR$VAR2$VAR3...$VAR4...
+// fetch_m has key value pair e.g. key=VAR, value=abcd
+static char* replace_variable(const char* query_str, ARRAY_TYPE( fetch_metadata) *fetch_m) {
+  if (query_str == NULL || fetch_m == NULL || strlen(query_str) ==0) {
+    return NULL;
+  }
+
+  unsigned int count;
+  char* varname;
+  char* value;
+  unsigned int query_len = 0;
+  unsigned int i = 0;
+
+  const struct fetch_metadata *fm_map;
+  fm_map = array_get(fetch_m, &count);
+
+  // make a copy of input string
+  char* query_dup = strdup(query_str);
+
+  char *var = NULL;
+  for (unsigned int j = 0; j < count; j++) {
+
+    query_len = strlen(query_dup);
+
+    varname = fm_map[j].key;
+    value = fm_map[j].value;
+
+    if(value==NULL || varname == NULL || strlen(varname) == 0) {
+      i_debug("value or key is null: %s : %s ",varname, value);
+      continue;
+    }
+
+    // build variable name, we expect variable given in UPPER case
+    int length = strlen(varname) + 2;
+    var = malloc(sizeof(char) * length);
+    var[0] = '$';
+    for (i=0; i < strlen(varname); i++) {
+      var[i + 1] = varname[i];
+    }
+    var[length-1] = 0;  // dont' forget to nullterminate!
+
+    // check if str contain the variable
+    const char* ptr = strstr(query_dup, var);
+    if (ptr != NULL) {
+      unsigned int new_query_size = query_len + strlen(value) - strlen(varname);
+      char* new_query = malloc(sizeof(char) * new_query_size);
+      if (new_query == NULL) {
+        return NULL;
+      }
+      memset(new_query, 0, strlen(new_query));
+      // find the starting pos of var.
+      unsigned int start_idx = query_len + 1;
+      for (i = 0; i < query_len; i++) {
+        if (strncmp(&query_dup[i], var, strlen(var)) == 0) {
+          start_idx = i;
+          break;
+        }
+      }
+      if (start_idx == query_len + 1) {
+        free(new_query);
+        new_query = NULL;
+      } else {
+        // variable found, replace variable with value.
+        for (i = 0; i < start_idx; i++) {
+          new_query[i] = query_dup[i];
+        }
+
+        for (i = 0; i < strlen(value); i++) {
+          new_query[start_idx + i] = value[i];
+        }
+        //i_debug("value is %s",new_str);
+
+        int start_offset = start_idx + strlen(var);
+        int offset_new_str = start_idx + strlen(value);
+        while (query_dup[start_offset] != 0) {
+          new_query[offset_new_str] = query_dup[start_offset];
+          offset_new_str++;
+          start_offset++;
+        }
+        new_query[new_query_size - 1] = 0;
+
+        memset(query_dup, 0, strlen(query_dup) - 1);
+        free(query_dup);
+        query_dup = new_query;
+        //      i_debug("VALUE: %s",value);
+
+      }
+    }
+    if(var!=NULL) {
+      free(var);
+    }
+  }
+  return query_dup;
+}
+
 static void stacked_cmd_imap_metadata_extension(struct imap_client *client, struct command *cmd) {
   const char *cmd_str;
   struct fetch_command_param *cb_param;
@@ -127,19 +222,19 @@ static void stacked_cmd_imap_metadata_extension(struct imap_client *client, stru
     return;
   }
 
+  char* imap_metadata_extension_query = NULL;
   // i_debug("message get_metadata uid for %d", cb_param->uid);
-  if (client->client.user_client->profile->imap_metadata_extension != NULL && ms->xguid != NULL) {
-    if (array_is_created(&ms->fetch_m)) {
-      unsigned int count;
-      const struct fetch_metadata *fm_map;
-      fm_map = array_get(&ms->fetch_m, &count);
-      for (unsigned int i = 0; i < count; i++) {
-        i_debug("fetch m: %s = %s", fm_map[i].key, fm_map[i].value);
-      }
+  if (client->client.user_client->profile->imap_metadata_extension != NULL && array_is_created(&ms->fetch_m)) {
+
+      imap_metadata_extension_query = replace_variable(client->client.user_client->profile->imap_metadata_extension,
+                                                       &ms->fetch_m);
+    if (imap_metadata_extension_query == NULL) {
+      cmd_str = t_strdup_printf("GETMETADATA INBOX (%s)",
+                                client->client.user_client->profile->imap_metadata_extension);
+    } else {
+      cmd_str = t_strdup_printf("GETMETADATA INBOX (%s)", imap_metadata_extension_query);
+      free(imap_metadata_extension_query);
     }
-    // i_debug("fetching metadata with %d, %s", client->view->last_uid, client->view->last_xguid);
-    cmd_str = t_strdup_printf("GETMETADATA INBOX (%s%s)", client->client.user_client->profile->imap_metadata_extension,
-                          ms->xguid);
     client->client.state = STATE_GET_METADATA;
     command_send(client, cmd_str, state_callback);
   }

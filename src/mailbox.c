@@ -78,11 +78,7 @@ void message_metadata_static_unref(struct mailbox_storage *storage,
 	else
 		array_delete(&storage->static_metadata, idx, 1);
 
-  if (ms->xguid != NULL) {
-    //i_debug("..... xguid %s for uid: %ld", metadata->ms->xguid, uid);
-    free(ms->xguid);
-    ms->xguid = NULL;
-  }
+
   if (array_is_created(&ms->fetch_m)) {
     unsigned int count;
     const struct fetch_metadata *fm_map = array_get(&ms->fetch_m, &count);
@@ -93,8 +89,8 @@ void message_metadata_static_unref(struct mailbox_storage *storage,
       if (fm_map[i].value != NULL) {
         free(fm_map[i].value);
       }
-      array_delete(&ms->fetch_m, i, 1);
     }
+    array_free(&ms->fetch_m);
 
   }
 	i_free(ms);
