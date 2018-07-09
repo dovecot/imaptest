@@ -50,6 +50,10 @@ static void client_input(struct client *client)
 		return;
 	case -1:
 		/* disconnected */
+		if (client->input->stream_errno != 0 &&
+		    client->input->stream_errno != EPIPE)
+			i_error("Client disconnected: %s",
+				i_stream_get_error(client->input));
 		if (client->v.disconnected != NULL) {
 			if (!client->v.disconnected(client))
 				return;
