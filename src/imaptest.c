@@ -52,7 +52,7 @@ static void print_results_header(void)
 			    states[i].name, states[i].name);
 	}
 	str_append_c(str, '\n');
-	o_stream_send(results_output, str_data(str)+1, str_len(str)-1);
+	o_stream_nsend(results_output, str_data(str)+1, str_len(str)-1);
 }
 
 static void print_results(void)
@@ -69,7 +69,7 @@ static void print_results(void)
 		timer_counts[i] = 0;
 	}
 	str_append_c(str, '\n');
-	o_stream_send(results_output, str_data(str)+1, str_len(str)-1);
+	o_stream_nsend(results_output, str_data(str)+1, str_len(str)-1);
 }
 
 static void print_timers(void)

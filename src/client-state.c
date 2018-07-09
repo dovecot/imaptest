@@ -118,7 +118,7 @@ static void auth_plain_callback(struct imap_client *client, struct command *cmd,
 	base64_encode(buf->data, buf->used, str);
 	str_append(str, "\r\n");
 
-	o_stream_send_str(_client->output, str_c(str));
+	o_stream_nsend_str(_client->output, str_c(str));
 }
 
 static enum client_state client_eat_first_plan(struct imap_client *client)
@@ -370,7 +370,7 @@ int imap_client_append_continue(struct imap_client *client)
 
 	client->append_unfinished = FALSE;
 	client->append_can_send = FALSE;
-	o_stream_send_str(client->client.output, "\r\n");
+	o_stream_nsend_str(client->client.output, "\r\n");
 	return 0;
 }
 
@@ -407,7 +407,7 @@ int imap_client_append(struct imap_client *client, const char *args, bool add_da
 	if (client->append_unfinished) {
 		/* continues the last APPEND call */
 		str_append(cmd, "\r\n");
-		o_stream_send_str(client->client.output, str_c(cmd));
+		o_stream_nsend_str(client->client.output, str_c(cmd));
 	} else {
 		client->client.state = STATE_APPEND;
 		*cmd_r = command_send(client, str_c(cmd), callback);

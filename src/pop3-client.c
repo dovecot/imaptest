@@ -48,7 +48,7 @@ static void pop3_command_send(struct pop3_client *client, const char *cmdline,
 	cmd->callback = callback;
 	gettimeofday(&cmd->tv_start, NULL);
 
-	o_stream_send_str(client->client.output, cmd->cmdline);
+	o_stream_nsend_str(client->client.output, cmd->cmdline);
 	array_append(&client->commands, &cmd, 1);
 }
 
@@ -168,7 +168,7 @@ auth_plain_callback(struct pop3_client *client, struct pop3_command *cmd,
 	base64_encode(buf->data, buf->used, str);
 	str_append(str, "\r\n");
 
-	o_stream_send_str(_client->output, str_c(str));
+	o_stream_nsend_str(_client->output, str_c(str));
 	client->auth_reply_sent = TRUE;
 	return 0;
 }
