@@ -37,10 +37,6 @@ static unsigned int client_min_free_idx = 0;
 static unsigned int global_id_counter = 0;
 static struct ssl_iostream_context *ssl_ctx = NULL;
 
-static const struct ssl_iostream_settings ssl_set = {
-	.ca_dir = "ssl_client_ca_dir"
-};
-
 static void client_input(struct client *client)
 {
 	client->last_io = ioloop_time;
@@ -145,12 +141,12 @@ static void client_wait_connect(struct client *client)
 		return;
 	}
 
-	if (conf.port == 993) {
+	if (conf.ssl) {
 		if (ssl_ctx == NULL) {
-			if (ssl_iostream_context_init_client(&ssl_set, &ssl_ctx, &error) < 0)
+			if (ssl_iostream_context_init_client(&conf.ssl_set, &ssl_ctx, &error) < 0)
 				i_fatal("Failed to initialize SSL context: %s", error);
 		}
-		if (io_stream_create_ssl_client(ssl_ctx, conf.host, &ssl_set,
+		if (io_stream_create_ssl_client(ssl_ctx, conf.host, &conf.ssl_set,
 						&client->input, &client->output,
 						&client->ssl_iostream, &error) < 0)
 			i_fatal("Couldn't create SSL iostream: %s", error);
