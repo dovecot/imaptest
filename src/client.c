@@ -84,7 +84,7 @@ void client_input_stop(struct client *client)
 void client_input_continue(struct client *client)
 {
 	if (client->io == NULL && !client->input->closed)
-		client->io = io_add(client->fd, IO_READ, client_input, client);
+		client->io = io_add_istream(client->input, client_input, client);
 }
 
 static void client_delay_timeout(struct client *client)
@@ -160,7 +160,7 @@ static void client_wait_connect(struct client *client)
 	}
 
 	io_remove(&client->io);
-	client->io = io_add(client->fd, IO_READ, client_input, client);
+	client->io = io_add_istream(client->input, client_input, client);
 	client->v.connected(client);
 }
 
