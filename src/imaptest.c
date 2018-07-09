@@ -789,8 +789,13 @@ int main(int argc ATTR_UNUSED, char *argv[])
 
 	if (to_stop != NULL)
 		timeout_remove(&to_stop);
-	if (results_output != NULL)
+	if (results_output != NULL) {
+		if (o_stream_flush(results_output) < 0) {
+			i_error("Failed to write results: %s",
+				o_stream_get_error(results_output));
+		}
 		o_stream_destroy(&results_output);
+	}
 
 	lib_signals_deinit();
 	io_loop_destroy(&ioloop);
