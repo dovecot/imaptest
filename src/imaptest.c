@@ -729,6 +729,16 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			results_output = o_stream_create_fd_file_autoclose(&fd, 0);
 			continue;
 		}
+		if (strcmp(key, "ssl") == 0) {
+			conf.ssl = TRUE;
+			if (value == NULL)
+				;
+			else if (strcmp(value, "any-cert") == 0)
+				conf.ssl_set.allow_invalid_cert = TRUE;
+			else
+				i_fatal("Invalid ssl value: %s", value);
+			continue;
+		}
 
 		printf("Unknown arg: %s\n", *argv);
 		return 1;

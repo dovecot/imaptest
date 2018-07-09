@@ -2,6 +2,7 @@
 #define SETTINGS_H
 
 #include "net.h"
+#include "iostream-ssl.h"
 
 /* host / port where to connect to */
 #define HOST "127.0.0.1"
@@ -55,6 +56,9 @@ struct settings {
 
 	struct ip_addr *ips;
 	unsigned int ip_idx, ips_count;
+
+	bool ssl;
+	struct ssl_iostream_settings ssl_set;
 };
 
 extern struct settings conf;
