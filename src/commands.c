@@ -140,7 +140,7 @@ command_send_binary(struct imap_client *client, const char *cmdline,
 
 	if (client->client.idling && !client->idle_done_sent) {
 		client->idle_done_sent = TRUE;
-		o_stream_send_str(client->client.output, "DONE\r\n");
+		o_stream_nsend_str(client->client.output, "DONE\r\n");
 	}
 
 	cmd = i_new(struct command, 1);
@@ -199,7 +199,7 @@ command_send_binary(struct imap_client *client, const char *cmdline,
 	iov[1].iov_len = cmd->cmdline_len;
 	iov[2].iov_base = "\r\n";
 	iov[2].iov_len = 2;
-	o_stream_sendv(client->client.output, iov, 3);
+	o_stream_nsendv(client->client.output, iov, 3);
 	gettimeofday(&cmd->tv_start, NULL);
 
 	array_append(&client->commands, &cmd, 1);
