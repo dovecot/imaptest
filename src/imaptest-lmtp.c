@@ -125,7 +125,7 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 
 	if (lmtp_client == NULL) {
 		i_zero(&lmtp_set);
-		lmtp_set.my_hostname = "localhost";
+    lmtp_set.my_hostname = "dovecot-server";
 		lmtp_client = smtp_client_init(&lmtp_set);
 	}
 

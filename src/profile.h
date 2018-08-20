@@ -80,6 +80,7 @@ struct profile {
 	unsigned int lmtp_max_parallel_count;
 	unsigned int total_user_count;
 	unsigned int rampup_time;
+	  const char *influx_db_write;
 };
 
 struct profile *profile_parse(const char *path);

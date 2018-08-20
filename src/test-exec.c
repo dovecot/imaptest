@@ -882,8 +882,8 @@ static void test_send_next_command(struct test_exec_context *ctx,
 			client->client.state = STATE_SELECT;
 		}
 		cmd = command_send_binary(client, cmdline, cmdline_len,
-					  test_cmd_callback);
-		if (imap_arg_is_bad(test_cmd->reply))
+					  test_cmd_callback, NULL);
+    if (imap_arg_is_bad(test_cmd->reply))
 			cmd->expect_bad = TRUE;
 	}
 	test_cmd->cur_cmd_tag = cmd->tag;
