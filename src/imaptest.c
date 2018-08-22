@@ -200,12 +200,6 @@ static void print_timeout(void *context ATTR_UNUSED) {
 
     sprintf(str, "imaptest_msg,state=%s value=%d,avg_time_ms=%.4f\n", states[i].name, counters[i], mean[i]);
 
-    // printf("%s", str);
-    // string_t *state_msg = t_str_new(128);
-    // str_printfa(state_msg, "imaptest_msg,state=%s value=%d\n", states[i].name, counters[i]);
-
-    // buffer_append(msg, state_msg->data, state_msg->used);
-
     total_msg += counters[i];
     mean[i] = 0;
     counters[i] = 0;
@@ -230,6 +224,14 @@ static void print_timeout(void *context ATTR_UNUSED) {
       stall_count++;
     if (stalled_secs >= conf.stalled_disconnect_timeout && conf.stalled_disconnect_timeout > 0)
       client_disconnect(c[i]);
+  }
+  if (profile != NULL) {
+    if (profile->client_id != NULL) {
+      char str[128];
+      sprintf(str, "imaptest_clients,id=%s value=%d,total=%d\n", profile->client_id, (clients_count - banner_waits),
+              clients_count);
+      send_statistics(str);
+    }
   }
   printf("%3d/%3d", (clients_count - banner_waits), clients_count);
   if (stall_count > 0)
@@ -522,8 +524,6 @@ static inline bool username_format_is_valid(const char *s, const char **error_r)
   }
   return FALSE;
 }
-
-<<<<<<< HEAD
 int main(int argc ATTR_UNUSED, char *argv[])
 {
 	struct state *state;

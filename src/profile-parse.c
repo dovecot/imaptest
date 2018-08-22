@@ -210,6 +210,9 @@ static void profile_parse_line_root(struct profile_parser *parser, char *line) {
     } else if (strcmp(key, "influx_db_write") == 0) {
       parser->profile->influx_db_write = malloc(strlen(value) + 1);
       strcpy(parser->profile->influx_db_write, value);
+    } else if (strcmp(key, "client_id") == 0) {
+      parser->profile->client_id = malloc(strlen(value) + 1);
+      strcpy(parser->profile->client_id, value);
     } else {
       i_fatal("Unknown setting at line %u: %s", parser->linenum, key);
     }
