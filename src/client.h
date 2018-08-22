@@ -4,49 +4,45 @@
 #include "client-state.h"
 #include "user.h"
 
-enum client_protocol {
-	CLIENT_PROTOCOL_IMAP = 0,
-	CLIENT_PROTOCOL_POP3
-};
+enum client_protocol { CLIENT_PROTOCOL_IMAP = 0, CLIENT_PROTOCOL_POP3 };
 
 struct mailbox_source;
 
 struct client_vfuncs {
-	void (*input)(struct client *client);
-	int (*output)(struct client *client);
-	void (*connected)(struct client *client);
-	int (*send_more_commands)(struct client *client);
-	void (*logout)(struct client *client);
-	void (*free)(struct client *client);
-	bool (*disconnected)(struct client *client);
+  void (*input)(struct client *client);
+  int (*output)(struct client *client);
+  void (*connected)(struct client *client);
+  int (*send_more_commands)(struct client *client);
+  void (*logout)(struct client *client);
+  void (*free)(struct client *client);
+  bool (*disconnected)(struct client *client);
 };
-
 struct client {
-	int refcount;
-	struct user *user;
-	struct user_client *user_client;
-	struct client_vfuncs v;
-	enum client_protocol protocol;
-	unsigned int port;
+  int refcount;
+  struct user *user;
+  struct user_client *user_client;
+  struct client_vfuncs v;
+  enum client_protocol protocol;
+  unsigned int port;
 
-        unsigned int idx, global_id;
-        unsigned int cur;
+  unsigned int idx, global_id;
+  unsigned int cur;
 
-	int fd, rawlog_fd;
-	struct istream *input;
-	struct ostream *output;
-	struct ssl_iostream *ssl_iostream;
-	struct io *io;
-	struct timeout *to;
+  int fd, rawlog_fd;
+  struct istream *input;
+  struct ostream *output;
+  struct ssl_iostream *ssl_iostream;
+  struct io *io;
+  struct timeout *to;
 
-	enum login_state login_state;
-	enum client_state state;
-        time_t last_io;
+  enum login_state login_state;
+  enum client_state state;
+  time_t last_io;
 
-	bool delayed:1;
-	bool disconnected:1;
-	bool logout_sent:1;
-	bool idling:1;
+  bool delayed : 1;
+  bool disconnected : 1;
+  bool logout_sent : 1;
+  bool idling : 1;
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
 
@@ -57,8 +53,7 @@ extern bool stalled, disconnect_clients, no_new_clients;
 
 struct client *client_new_user(struct user *user);
 struct client *client_new_random(unsigned int i, struct mailbox_source *source);
-int client_init(struct client *client, unsigned int idx,
-		struct user *user, struct user_client *uc);
+int client_init(struct client *client, unsigned int idx, struct user *user, struct user_client *uc);
 bool client_unref(struct client *client, bool reconnect);
 void client_logout(struct client *client);
 void client_disconnect(struct client *client);

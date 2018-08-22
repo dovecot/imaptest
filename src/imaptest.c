@@ -197,7 +197,14 @@ static void print_timeout(void *context ATTR_UNUSED) {
     printf("%4d ", counters[i]);
     total_counters[i] += counters[i];
     char str[128];
-    sprintf(str, "imaptest_msg,state=%s value=%d\n", states[i].name, counters[i]);
+
+    sprintf(str, "imaptest_msg,state=%s value=%d,avg_time_ms=%.4f\n", states[i].name, counters[i], mean[i]);
+    // printf("%s", str);
+    // string_t *state_msg = t_str_new(128);
+    // str_printfa(state_msg, "imaptest_msg,state=%s value=%d\n", states[i].name, counters[i]);
+
+    // buffer_append(msg, state_msg->data, state_msg->used);
+
     total_msg += counters[i];
     counters[i] = 0;
     send_statistics(str);

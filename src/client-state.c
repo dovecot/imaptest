@@ -24,37 +24,38 @@
 #include <stdlib.h>
 
 struct state states[STATE_COUNT] = {
-    {"BANNER", "Bann", LSTATE_NONAUTH, 0, 0, 0},
-    {"AUTHENTICATE", "Auth", LSTATE_NONAUTH, 0, 0, FLAG_STATECHANGE | FLAG_STATECHANGE_AUTH},
-    {"LOGIN", "Logi", LSTATE_NONAUTH, 100, 0, FLAG_STATECHANGE | FLAG_STATECHANGE_AUTH},
-    {"LIST", "List", LSTATE_AUTH, 50, 0, FLAG_EXPUNGES},
-    {"MCREATE", "MCre", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES},
-    {"MDELETE", "MDel", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES},
-    {"MSUBS", "MSub", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES},
-    {"STATUS", "Stat", LSTATE_AUTH, 50, 0, FLAG_EXPUNGES},
-    {"SELECT", "Sele", LSTATE_AUTH, 100, 0, FLAG_STATECHANGE | FLAG_STATECHANGE_SELECTED},
-    {"UIDFETCH", "UIDF", LSTATE_SELECTED, 0, 0, FLAG_MSGSET | FLAG_EXPUNGES},
-    {"FETCH", "Fetc", LSTATE_SELECTED, 100, 0, FLAG_MSGSET},
-    {"FETCH2", "Fet2", LSTATE_SELECTED, 100, 30, FLAG_MSGSET},
-    {"SEARCH", "Sear", LSTATE_SELECTED, 0, 0, FLAG_MSGSET},
-    {"SORT", "Sort", LSTATE_SELECTED, 0, 0, FLAG_MSGSET},
-    {"THREAD", "Thre", LSTATE_SELECTED, 0, 0, FLAG_MSGSET},
-    {"COPY", "Copy", LSTATE_SELECTED, 33, 5, FLAG_MSGSET | FLAG_EXPUNGES},
-    {"STORE", "Stor", LSTATE_SELECTED, 50, 0, FLAG_MSGSET},
-    {"DELETE", "Dele", LSTATE_SELECTED, 100, 0, FLAG_MSGSET},
-    {"EXPUNGE", "Expu", LSTATE_SELECTED, 100, 0, FLAG_EXPUNGES},
-    {"APPEND", "Appe", LSTATE_AUTH, 100, 5, FLAG_EXPUNGES},
-    {"NOOP", "Noop", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES},
-    {"IDLE", "Noop", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES | FLAG_STATECHANGE},
-    {"CHECK", "Chec", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES},
-    {"LOGOUT", "Logo", LSTATE_NONAUTH, 100, 0, FLAG_STATECHANGE | FLAG_STATECHANGE_NONAUTH},
-    {"DISCONNECT", "Disc", LSTATE_NONAUTH, 0, 0, 0},
-    {"DELAY", "Dela", LSTATE_NONAUTH, 0, 0, 0},
-    {"CHECKPOINT!", "ChkP", LSTATE_NONAUTH, 0, 0, 0},
-    {"LMTP", "LMTP", LSTATE_NONAUTH, 0, 0, 0},
-    {"METADATA", "Meta", LSTATE_SELECTED, 0, 0, 0}};
+    {"BANNER", "Bann", LSTATE_NONAUTH, 0, 0, 0, 0, 0},
+    {"AUTHENTICATE", "Auth", LSTATE_NONAUTH, 0, 0, FLAG_STATECHANGE | FLAG_STATECHANGE_AUTH, 0, 0},
+    {"LOGIN", "Logi", LSTATE_NONAUTH, 100, 0, FLAG_STATECHANGE | FLAG_STATECHANGE_AUTH, 0, 0},
+    {"LIST", "List", LSTATE_AUTH, 50, 0, FLAG_EXPUNGES, 0, 0},
+    {"MCREATE", "MCre", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES, 0, 0},
+    {"MDELETE", "MDel", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES, 0, 0},
+    {"MSUBS", "MSub", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES, 0, 0},
+    {"STATUS", "Stat", LSTATE_AUTH, 50, 0, FLAG_EXPUNGES, 0, 0},
+    {"SELECT", "Sele", LSTATE_AUTH, 100, 0, FLAG_STATECHANGE | FLAG_STATECHANGE_SELECTED, 0, 0},
+    {"UIDFETCH", "UIDF", LSTATE_SELECTED, 0, 0, FLAG_MSGSET | FLAG_EXPUNGES, 0, 0},
+    {"FETCH", "Fetc", LSTATE_SELECTED, 100, 0, FLAG_MSGSET, 0, 0},
+    {"FETCH2", "Fet2", LSTATE_SELECTED, 100, 30, FLAG_MSGSET, 0, 0},
+    {"SEARCH", "Sear", LSTATE_SELECTED, 0, 0, FLAG_MSGSET, 0, 0},
+    {"SORT", "Sort", LSTATE_SELECTED, 0, 0, FLAG_MSGSET, 0, 0},
+    {"THREAD", "Thre", LSTATE_SELECTED, 0, 0, FLAG_MSGSET, 0, 0},
+    {"COPY", "Copy", LSTATE_SELECTED, 33, 5, FLAG_MSGSET | FLAG_EXPUNGES, 0, 0},
+    {"STORE", "Stor", LSTATE_SELECTED, 50, 0, FLAG_MSGSET, 0, 0},
+    {"DELETE", "Dele", LSTATE_SELECTED, 100, 0, FLAG_MSGSET, 0, 0},
+    {"EXPUNGE", "Expu", LSTATE_SELECTED, 100, 0, FLAG_EXPUNGES, 0, 0},
+    {"APPEND", "Appe", LSTATE_AUTH, 100, 5, FLAG_EXPUNGES, 0, 0},
+    {"NOOP", "Noop", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES, 0, 0},
+    {"IDLE", "Noop", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES | FLAG_STATECHANGE, 0, 0},
+    {"CHECK", "Chec", LSTATE_AUTH, 0, 0, FLAG_EXPUNGES, 0, 0},
+    {"LOGOUT", "Logo", LSTATE_NONAUTH, 100, 0, FLAG_STATECHANGE | FLAG_STATECHANGE_NONAUTH, 0, 0},
+    {"DISCONNECT", "Disc", LSTATE_NONAUTH, 0, 0, 0, 0, 0},
+    {"DELAY", "Dela", LSTATE_NONAUTH, 0, 0, 0, 0, 0},
+    {"CHECKPOINT!", "ChkP", LSTATE_NONAUTH, 0, 0, 0, 0, 0},
+    {"LMTP", "LMTP", LSTATE_NONAUTH, 0, 0, 0, 0, 0},
+    {"METADATA", "Meta", LSTATE_SELECTED, 0, 0, 0, 0, 0}};
 
 unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
+float mean[STATE_COUNT];
 unsigned int timer_counts[STATE_COUNT];
 unsigned long long timers[STATE_COUNT];
 
@@ -705,17 +706,31 @@ void imap_client_handle_tagged_reply(struct imap_client *client, struct command 
 
   imap_client_handle_resp_text_code(client, args);
 }
+static float calculate_mean(long current_value, float old_mean, unsigned int count) {
+  // Welford's method:
+  // M1 = x1
+  // Mk = Mk-1 + ((xk -Mk-1)/k)
+  return old_mean + ((current_value - old_mean) / count);
+}
 
 static int client_handle_cmd_reply(struct imap_client *client, struct command *cmd, const struct imap_arg *args,
                                    enum command_reply reply) {
   const char *str, *line;
   unsigned int i;
+  long response_time = time(NULL);
 
   line = imap_args_to_str(args);
   switch (reply) {
     case REPLY_OK:
-      if (cmd->state != STATE_DISCONNECT && (cmd->state != STATE_LOGOUT || !client->seen_bye))
+      if (cmd->state != STATE_DISCONNECT && (cmd->state != STATE_LOGOUT || !client->seen_bye)) {
         counters[cmd->state]++;
+        long current_value = response_time - cmd->request_ts;
+        if (mean[cmd->state] == 0) {
+          mean[cmd->state] = current_value;
+        } else {
+          mean[cmd->state] = calculate_mean(current_value, mean[cmd->state], counters[cmd->state]);
+        }
+      }
       if (cmd->state == STATE_AUTHENTICATE || cmd->state == STATE_LOGIN) {
         /* update before handling resp-text, so that
            postlogin_capability is set */
