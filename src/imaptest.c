@@ -199,6 +199,7 @@ static void print_timeout(void *context ATTR_UNUSED) {
     char str[128];
 
     sprintf(str, "imaptest_msg,state=%s value=%d,avg_time_ms=%.4f\n", states[i].name, counters[i], mean[i]);
+
     // printf("%s", str);
     // string_t *state_msg = t_str_new(128);
     // str_printfa(state_msg, "imaptest_msg,state=%s value=%d\n", states[i].name, counters[i]);
@@ -206,6 +207,7 @@ static void print_timeout(void *context ATTR_UNUSED) {
     // buffer_append(msg, state_msg->data, state_msg->used);
 
     total_msg += counters[i];
+    mean[i] = 0;
     counters[i] = 0;
     send_statistics(str);
 
@@ -229,7 +231,6 @@ static void print_timeout(void *context ATTR_UNUSED) {
     if (stalled_secs >= conf.stalled_disconnect_timeout && conf.stalled_disconnect_timeout > 0)
       client_disconnect(c[i]);
   }
-
   printf("%3d/%3d", (clients_count - banner_waits), clients_count);
   if (stall_count > 0)
     printf(" (%u stalled >%us)", stall_count, SHORT_STALL_PRINT_SECS);
