@@ -199,8 +199,8 @@ static void print_timeout(void *context ATTR_UNUSED) {
     char str[128];
     if (profile != NULL) {
       if (profile->client_id != NULL) {
-        sprintf(str, "imaptest_msg,state=%s value=%d,avg_time_ms=%.4f,id=%s\n", states[i].name, counters[i], mean[i],
-                profile->client_id);
+        sprintf(str, "imaptest_msg,state=%s,id=%s value=%d,avg_time_ms=%.4f\n", states[i].name, profile->client_id,
+                counters[i], mean[i]);
       }
     }
     total_msg += counters[i];
