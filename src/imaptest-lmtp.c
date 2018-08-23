@@ -65,6 +65,7 @@ static void imaptest_lmtp_rcpt_to_callback(const struct smtp_reply *reply, struc
 static void imaptest_lmtp_data_callback(const struct smtp_reply *reply, struct imaptest_lmtp_delivery *d) {
   if (!smtp_reply_is_success(reply)) {
     i_error("LMTP: DATA for <%s> failed: %s", smtp_address_encode(d->rcpt_to), smtp_reply_log(reply));
+    bad_requests++;
   } else {
     long response_time = time(NULL);
     counters[STATE_LMTP]++;
@@ -84,6 +85,7 @@ static void imaptest_lmtp_data_dummy_callback(const struct smtp_reply *reply ATT
 
 static void imaptest_lmtp_timeout(struct imaptest_lmtp_delivery *d) {
   i_error("LMTP: Timeout in %s", smtp_client_transaction_get_state_name(d->lmtp_trans));
+  timeout_requests++;
   smtp_client_connection_disconnect(d->lmtp_conn);
 }
 
