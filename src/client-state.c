@@ -56,6 +56,7 @@ struct state states[STATE_COUNT] = {
 
 unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
 float mean[STATE_COUNT];
+int bad_requests;
 unsigned int timer_counts[STATE_COUNT];
 unsigned long long timers[STATE_COUNT];
 
@@ -112,6 +113,8 @@ static void auth_plain_callback(struct imap_client *client, struct command *cmd,
 	str_append(str, "\r\n");
 
 	o_stream_nsend_str(_client->output, str_c(str));
+
+}
 
 
 static enum client_state client_eat_first_plan(struct imap_client *client) {
@@ -738,6 +741,7 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
       }
       break;
     case REPLY_NO:
+      bad_requests++;
       switch (cmd->state) {
         case STATE_COPY:
         case STATE_MCREATE:
@@ -791,9 +795,11 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
       break;
 
     case REPLY_BAD:
+      bad_requests++;
       imap_client_input_warn(client, "%s replied BAD", states[cmd->state].name);
       return -1;
     case REPLY_CONT:
+      bad_requests++;
       if (client->idle_wait_cont) {
         client->idle_wait_cont = FALSE;
         return 0;

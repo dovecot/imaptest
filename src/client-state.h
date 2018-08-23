@@ -71,6 +71,7 @@ enum client_random_flag_type {
   CLIENT_RANDOM_FLAG_TYPE_STORE,
   CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT
 };
+#define NUM_BAD_STATES 3
 
 typedef void command_callback_t(struct imap_client *client, struct command *cmd, const struct imap_arg *args,
                                 enum command_reply reply);
@@ -80,6 +81,7 @@ extern unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
 extern unsigned int timer_counts[STATE_COUNT];
 extern unsigned long long timers[STATE_COUNT];
 extern float mean[STATE_COUNT];
+extern int bad_requests;
 
 bool do_rand(enum client_state state);
 bool do_rand_again(enum client_state state);

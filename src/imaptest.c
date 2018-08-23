@@ -198,15 +198,15 @@ static void print_timeout(void *context ATTR_UNUSED) {
     total_counters[i] += counters[i];
     char str[128];
     if (profile != NULL) {
-      if (profile->client_id != NULL) {
+      if (profile->client_id != NULL && counters[i] > 0) {
         sprintf(str, "imaptest_msg,state=%s,id=%s value=%d,avg_time_ms=%.4f\n", states[i].name, profile->client_id,
                 counters[i], mean[i]);
+        send_statistics(str);
       }
     }
     total_msg += counters[i];
     mean[i] = 0;
     counters[i] = 0;
-    send_statistics(str);
 
   }
 
@@ -231,9 +231,10 @@ static void print_timeout(void *context ATTR_UNUSED) {
   if (profile != NULL) {
     if (profile->client_id != NULL) {
       char str[128];
-      sprintf(str, "imaptest_clients,id=%s value=%d,total=%d\n", profile->client_id, (clients_count - banner_waits),
-              clients_count);
+      sprintf(str, "imaptest_clients,id=%s value=%d,total=%d,bad_requests=%d\n", profile->client_id,
+              (clients_count - banner_waits), clients_count, bad_requests);
       send_statistics(str);
+      bad_requests = 0;
     }
   }
   printf("%3d/%3d", (clients_count - banner_waits), clients_count);
@@ -527,304 +528,286 @@ static inline bool username_format_is_valid(const char *s, const char **error_r)
   }
   return FALSE;
 }
-int main(int argc ATTR_UNUSED, char *argv[])
-{
-	struct state *state;
-	struct profile *profile = NULL;
-	const char *error, *key, *value, *testpath = NULL;
-	unsigned int i;
-	int ret, fd;
 
-	lib_init();
-	ioloop = io_loop_create();
+int main(int argc ATTR_UNUSED, char *argv[]) {
+  struct state *state;
+  const char *error, *key, *value, *testpath = NULL;
+  unsigned int i;
+  int ret, fd;
 
-	lib_signals_init();
-	lib_signals_ignore(SIGPIPE, TRUE);
-	lib_signals_set_handler(SIGINT, LIBSIG_FLAG_DELAYED, sig_die, NULL);
+  lib_init();
+  ioloop = io_loop_create();
 
-	conf.password = PASSWORD;
-	conf.username_template = USERNAME_TEMPLATE;
-	conf.host = HOST;
-	conf.mbox_path = home_expand(MBOX_PATH);
-	conf.clients_count = CLIENTS_COUNT;
-	conf.message_count_threshold = MESSAGE_COUNT_THRESHOLD;
-	conf.users_rand_start = 1;
-	conf.users_rand_count = USER_RAND;
-	conf.domains_rand_start = 1;
-	conf.domains_rand_count = DOMAIN_RAND;
-	to_stop = NULL;
+  lib_signals_init();
+  lib_signals_ignore(SIGPIPE, TRUE);
+  lib_signals_set_handler(SIGINT, LIBSIG_FLAG_DELAYED, sig_die, NULL);
 
-	for (argv++; *argv != NULL; argv++) {
-		value = strchr(*argv, '=');
-		key = value == NULL ? *argv :
-			t_strdup_until(*argv, value);
-		if (value != NULL) value++;
+  conf.password = PASSWORD;
+  conf.username_template = USERNAME_TEMPLATE;
+  conf.host = HOST;
+  conf.mbox_path = home_expand(MBOX_PATH);
+  conf.clients_count = CLIENTS_COUNT;
+  conf.message_count_threshold = MESSAGE_COUNT_THRESHOLD;
+  conf.users_rand_start = 1;
+  conf.users_rand_count = USER_RAND;
+  conf.domains_rand_start = 1;
+  conf.domains_rand_count = DOMAIN_RAND;
 
-		if (strcmp(*argv, "-h") == 0 ||
-		    strcmp(*argv, "--help") == 0) {
-			print_help();
-			return 0;
-		}
-		if (strcmp(key, "secs") == 0) {
-			unsigned int secs;
-			const char *p;
+  to_stop = NULL;
 
-			if (str_parse_uint(value, &secs, &p) < 0)
-				i_fatal("Invalid secs: %s", value);
-			if (p[0] == '\0')
-				final_wait_secs = 30;
-			else if (p[0] != ',' ||
-				 str_to_uint(p+1, &final_wait_secs) < 0)
-				i_fatal("Invalid secs: %s", value);
-			to_stop = timeout_add(secs * 1000, timeout_stop, NULL);
-			continue;
-		}
-		if (strcmp(key, "seed") == 0) {
-			srand(atoi(value));
-			continue;
-		}
+  bad_requests = 0;
 
-		if (strcmp(*argv, "-") == 0) {
-			for (i = STATE_LOGIN+1; i < STATE_LOGOUT; i++) {
-				if (i != STATE_SELECT)
-					states[i].probability = 0;
-			}
-			continue;
-		}
+  for (argv++; *argv != NULL; argv++) {
+    value = strchr(*argv, '=');
+    key = value == NULL ? *argv : t_strdup_until(*argv, value);
+    if (value != NULL)
+      value++;
 
-		state = state_find(key);
-		if (state != NULL) {
-			/* [<probability>[,<probability_again>]] */
-			const char *p;
+    if (strcmp(*argv, "-h") == 0 || strcmp(*argv, "--help") == 0) {
+      print_help();
+      return 0;
+    }
+    if (strcmp(key, "secs") == 0) {
+      unsigned int secs;
+      const char *p;
 
-			if (value == NULL) {
-				state->probability = 100;
-				continue;
-			}
-			p = strchr(value, ',');
-			if (p != NULL)
-				value = t_strdup_until(value, p++);
+      if (str_parse_uint(value, &secs, &p) < 0)
+        i_fatal("Invalid secs: %s", value);
+      if (p[0] == '\0')
+        final_wait_secs = 30;
+      else if (p[0] != ',' || str_to_uint(p + 1, &final_wait_secs) < 0)
+        i_fatal("Invalid secs: %s", value);
+      to_stop = timeout_add(secs * 1000, timeout_stop, NULL);
+      continue;
+    }
+    if (strcmp(key, "seed") == 0) {
+      srand(atoi(value));
+      continue;
+    }
 
-			state->probability = atoi(value);
-			if (p != NULL)
-				state->probability_again = atoi(p);
-			continue;
-		}
+    if (strcmp(*argv, "-") == 0) {
+      for (i = STATE_LOGIN + 1; i < STATE_LOGOUT; i++) {
+        if (i != STATE_SELECT)
+          states[i].probability = 0;
+      }
+      continue;
+    }
 
-		if (strcmp(*argv, "random") == 0) {
-			conf.random_states = TRUE;
-			continue;
-		}
-		if (strcmp(*argv, "no_pipelining") == 0) {
-			conf.no_pipelining = TRUE;
-			continue;
-		}
-		if (strcmp(*argv, "no_tracking") == 0) {
-			conf.no_tracking = TRUE;
-			continue;
-		}
-		if (strcmp(*argv, "disconnect_quit") == 0) {
-			conf.disconnect_quit = TRUE;
-			continue;
-		}
-		if (strcmp(*argv, "error_quit") == 0) {
-			conf.error_quit = TRUE;
-			continue;
-		}
-		if (strcmp(*argv, "rawlog") == 0) {
-			conf.rawlog = TRUE;
-			continue;
-		}
-		if (strcmp(*argv, "own_msgs") == 0) {
-			conf.own_msgs = TRUE;
-			continue;
-		}
-		if (strcmp(*argv, "own_flags") == 0) {
-			conf.own_flags = TRUE;
-			continue;
-		}
-		if (strcmp(*argv, "qresync") == 0) {
-			conf.qresync = TRUE;
-			continue;
-		}
+    state = state_find(key);
+    if (state != NULL) {
+      /* [<probability>[,<probability_again>]] */
+      const char *p;
 
-		/* pass=password */
-		if (strcmp(key, "pass") == 0) {
-			conf.password = value;
-			continue;
-		}
+      if (value == NULL) {
+        state->probability = 100;
+        continue;
+      }
+      p = strchr(value, ',');
+      if (p != NULL)
+        value = t_strdup_until(value, p++);
 
-		/* mbox=path */
-		if (strcmp(key, "mbox") == 0) {
-			conf.mbox_path = home_expand(value);
-			continue;
-		}
-		if (strcmp(key, "random_msg_size") == 0) {
-			if (str_to_uint(value, &conf.random_msg_size) < 0)
-				i_fatal("Invalid random_msg_size: %s", value);
-			continue;
-		}
+      state->probability = atoi(value);
+      if (p != NULL)
+        state->probability_again = atoi(p);
+      continue;
+    }
 
-		/* clients=# */
-		if (strcmp(key, "clients") == 0) {
-			conf.clients_count = atoi(value);
-			continue;
-		}
+    if (strcmp(*argv, "random") == 0) {
+      conf.random_states = TRUE;
+      continue;
+    }
+    if (strcmp(*argv, "no_pipelining") == 0) {
+      conf.no_pipelining = TRUE;
+      continue;
+    }
+    if (strcmp(*argv, "no_tracking") == 0) {
+      conf.no_tracking = TRUE;
+      continue;
+    }
+    if (strcmp(*argv, "disconnect_quit") == 0) {
+      conf.disconnect_quit = TRUE;
+      continue;
+    }
+    if (strcmp(*argv, "error_quit") == 0) {
+      conf.error_quit = TRUE;
+      continue;
+    }
+    if (strcmp(*argv, "rawlog") == 0) {
+      conf.rawlog = TRUE;
+      continue;
+    }
+    if (strcmp(*argv, "own_msgs") == 0) {
+      conf.own_msgs = TRUE;
+      continue;
+    }
+    if (strcmp(*argv, "own_flags") == 0) {
+      conf.own_flags = TRUE;
+      continue;
+    }
+    if (strcmp(*argv, "qresync") == 0) {
+      conf.qresync = TRUE;
+      continue;
+    }
 
-		/* users=# */
-		if (strcmp(key, "users") == 0) {
-			parse_possible_range(value,
-					     &conf.users_rand_start,
-					     &conf.users_rand_count);
-			continue;
-		}
-		/* domains=# */
-		if (strcmp(key, "domains") == 0) {
-			parse_possible_range(value,
-					     &conf.domains_rand_start,
-					     &conf.domains_rand_count);
-			continue;
-		}
+    /* pass=password */
+    if (strcmp(key, "pass") == 0) {
+      conf.password = value;
+      continue;
+    }
 
-		/* msgs=# */
-		if (strcmp(key, "msgs") == 0) {
-			conf.message_count_threshold = atoi(value);
-			continue;
-		}
-		/* checkpoint=# */
-		if (strcmp(key, "checkpoint") == 0) {
-			conf.checkpoint_interval = atoi(value);
-			continue;
-		}
-		/* stalled_disconnect_timeout=secs */
-		if (strcmp(key, "stalled_disconnect_timeout") == 0) {
-			conf.stalled_disconnect_timeout = atoi(value);
-			continue;
-		}
+    /* mbox=path */
+    if (strcmp(key, "mbox") == 0) {
+      conf.mbox_path = home_expand(value);
+      continue;
+    }
+    if (strcmp(key, "random_msg_size") == 0) {
+      if (str_to_uint(value, &conf.random_msg_size) < 0)
+        i_fatal("Invalid random_msg_size: %s", value);
+      continue;
+    }
 
-		/* box=mailbox */
-		if (strcmp(key, "box") == 0) {
-			conf.mailbox = value;
-			continue;
-		}
-		/* test=dir */
-		if (strcmp(key, "test") == 0) {
-			testpath = value;
-			continue;
-		}
-		/* profile=path */
-		if (strcmp(key, "profile") == 0) {
-			profile = profile_parse(value);
-			profile_running = TRUE;
-			continue;
-		}
+    /* clients=# */
+    if (strcmp(key, "clients") == 0) {
+      conf.clients_count = atoi(value);
+      continue;
+    }
 
-		/* copybox=mailbox */
-		if (strcmp(key, "copybox") == 0) {
-			conf.copy_dest = value;
-			continue;
-		}
-		if (strcmp(key, "user") == 0) {
-			if (!username_format_is_valid(value, &error))
-				i_fatal("invalid user format: %s", error);
-			conf.username_template = value;
-			continue;
-		}
-		if (strcmp(key, "user2") == 0) {
-			conf.username2_template = value;
-			continue;
-		}
-		if (strcmp(key, "userfile") == 0) {
-			conf_read_usernames(value);
-			continue;
-		}
-		if (strcmp(key, "master") == 0) {
-			conf.master_user = value;
-			continue;
-		}
-		if (strcmp(key, "host") == 0) {
-			conf.host = value;
-			continue;
-		}
-		if (strcmp(key, "port") == 0) {
-			conf.port = atoi(value);
-			continue;
-		}
-		if (strcmp(key, "output") == 0) {
-			fd = creat(value, 0600);
-			if (fd == -1)
-				i_fatal("creat(%s) failed: %m", value);
-			results_output = o_stream_create_fd_file_autoclose(&fd, 0);
-			continue;
-		}
-		if (strcmp(key, "ssl") == 0) {
-			conf.ssl = TRUE;
-			if (value == NULL)
-				;
-			else if (strcmp(value, "any-cert") == 0)
-				conf.ssl_set.allow_invalid_cert = TRUE;
-			else
-				i_fatal("Invalid ssl value: %s", value);
-			continue;
-		}
+    /* users=# */
+    if (strcmp(key, "users") == 0) {
+      parse_possible_range(value, &conf.users_rand_start, &conf.users_rand_count);
+      continue;
+    }
+    /* domains=# */
+    if (strcmp(key, "domains") == 0) {
+      parse_possible_range(value, &conf.domains_rand_start, &conf.domains_rand_count);
+      continue;
+    }
 
-		printf("Unknown arg: %s\n", *argv);
-		return 1;
-	}
-	if (conf.mailbox == NULL)
-		conf.mailbox = testpath == NULL ? "INBOX" : "INBOX.imaptest";
+    /* msgs=# */
+    if (strcmp(key, "msgs") == 0) {
+      conf.message_count_threshold = atoi(value);
+      continue;
+    }
+    /* checkpoint=# */
+    if (strcmp(key, "checkpoint") == 0) {
+      conf.checkpoint_interval = atoi(value);
+      continue;
+    }
+    /* stalled_disconnect_timeout=secs */
+    if (strcmp(key, "stalled_disconnect_timeout") == 0) {
+      conf.stalled_disconnect_timeout = atoi(value);
+      continue;
+    }
 
-	if (conf.username_template == NULL)
-		i_fatal("Missing username");
-	if (testpath != NULL && strchr(conf.username_template, '%') != NULL) {
-		printf("Don't use %% in username with tests\n");
-		return 1;
-	}
+    /* box=mailbox */
+    if (strcmp(key, "box") == 0) {
+      conf.mailbox = value;
+      continue;
+    }
+    /* test=dir */
+    if (strcmp(key, "test") == 0) {
+      testpath = value;
+      continue;
+    }
+    /* profile=path */
+    if (strcmp(key, "profile") == 0) {
+      profile = profile_parse(value);
+      profile_running = TRUE;
+      continue;
+    }
 
-	if ((ret = net_gethostbyname(conf.host, &conf.ips,
-				     &conf.ips_count)) != 0) {
-		i_error("net_gethostbyname(%s) failed: %s",
-			conf.host, net_gethosterror(ret));
-		return 1;
-	}
+    /* copybox=mailbox */
+    if (strcmp(key, "copybox") == 0) {
+      conf.copy_dest = value;
+      continue;
+    }
+    if (strcmp(key, "user") == 0) {
+      if (!username_format_is_valid(value, &error))
+        i_fatal("invalid user format: %s", error);
+      conf.username_template = value;
+      continue;
+    }
+    if (strcmp(key, "user2") == 0) {
+      conf.username2_template = value;
+      continue;
+    }
+    if (strcmp(key, "userfile") == 0) {
+      conf_read_usernames(value);
+      continue;
+    }
+    if (strcmp(key, "master") == 0) {
+      conf.master_user = value;
+      continue;
+    }
+    if (strcmp(key, "host") == 0) {
+      conf.host = value;
+      continue;
+    }
+    if (strcmp(key, "port") == 0) {
+      conf.port = atoi(value);
+      continue;
+    }
+    if (strcmp(key, "output") == 0) {
+      fd = creat(value, 0600);
+      if (fd == -1)
+        i_fatal("creat(%s) failed: %m", value);
+      results_output = o_stream_create_fd_file_autoclose(&fd, 0);
+      continue;
+    }
 
-	if (results_output != NULL)
-		print_results_header();
-	fix_probabilities();
-	mailbox_source = imaptest_mailbox_source();
-	users_init(profile, mailbox_source);
-	mailboxes_init();
-	clients_init();
+    printf("Unknown arg: %s\n", *argv);
+    return 1;
+  }
+  if (conf.mailbox == NULL)
+    conf.mailbox = testpath == NULL ? "INBOX" : "INBOX.imaptest";
 
-	i_array_init(&clients, CLIENTS_COUNT);
-	if (testpath == NULL)
-		imaptest_run();
-	else
-		imaptest_run_tests(testpath);
+  if (conf.username_template == NULL)
+    i_fatal("Missing username");
+  if (testpath != NULL && strchr(conf.username_template, '%') != NULL) {
+    printf("Don't use %% in username with tests\n");
+    return 1;
+  }
 
-	imaptest_lmtp_delivery_deinit();
-	clients_deinit();
-	mailboxes_deinit();
-	users_deinit();
-	if (profile != NULL) {
-		pool_unref(&profile->pool);
-		profile_deinit();
-	}
-	mailbox_source_unref(&mailbox_source);
+  if ((ret = net_gethostbyname(conf.host, &conf.ips, &conf.ips_count)) != 0) {
+    i_error("net_gethostbyname(%s) failed: %s", conf.host, net_gethosterror(ret));
+    return 1;
+  }
 
-	if (to_stop != NULL)
-		timeout_remove(&to_stop);
-	if (results_output != NULL) {
-		if (o_stream_flush(results_output) < 0) {
-			i_error("Failed to write results: %s",
-				o_stream_get_error(results_output));
-		}
-		o_stream_destroy(&results_output);
-	}
+  if (results_output != NULL)
+    print_results_header();
+  fix_probabilities();
+  mailbox_source = imaptest_mailbox_source();
+  users_init(profile, mailbox_source);
+  mailboxes_init();
+  clients_init();
 
-	lib_signals_deinit();
-	io_loop_destroy(&ioloop);
-	lib_deinit();
-	return return_value;
+  i_array_init(&clients, CLIENTS_COUNT);
+  if (testpath == NULL)
+    imaptest_run();
+  else
+    imaptest_run_tests(testpath);
 
+  imaptest_lmtp_delivery_deinit();
+  clients_deinit();
+  mailboxes_deinit();
+  users_deinit();
+  if (profile != NULL) {
+    pool_unref(&profile->pool);
+    profile_deinit();
+  }
+  mailbox_source_unref(&mailbox_source);
+
+  if (to_stop != NULL)
+    timeout_remove(&to_stop);
+  if (results_output != NULL)
+    o_stream_destroy(&results_output);
+
+  lib_signals_deinit();
+  io_loop_destroy(&ioloop);
+  lib_deinit();
+  if (curl) {
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+  }
+  return return_value;
 }
