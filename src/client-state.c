@@ -706,7 +706,7 @@ void imap_client_handle_tagged_reply(struct imap_client *client, struct command 
 
   imap_client_handle_resp_text_code(client, args);
 }
-static float calculate_mean(long current_value, float old_mean, unsigned int count) {
+float calculate_mean(long current_value, float old_mean, unsigned int count) {
   // Welford's method:
   // M1 = x1
   // Mk = Mk-1 + ((xk -Mk-1)/k)

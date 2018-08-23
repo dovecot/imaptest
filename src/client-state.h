@@ -107,4 +107,6 @@ void fetch_state_callback(struct imap_client *client, struct command *cmd, const
                           enum command_reply reply);
 void imap_client_cmd_reply_finish(struct imap_client *client);
 
+extern float calculate_mean(long current_value, float old_mean, unsigned int count);
+
 #endif

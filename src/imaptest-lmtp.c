@@ -30,12 +30,6 @@ struct imaptest_lmtp_delivery {
   struct timeout *to;
   long request_ts;
 };
-static float calculate_mean(long current_value, float old_mean, unsigned int count) {
-  // Welford's method:
-  // M1 = x1
-  // Mk = Mk-1 + ((xk -Mk-1)/k)
-  return old_mean + ((current_value - old_mean) / count);
-}
 
 static struct smtp_client *lmtp_client = NULL;
 static struct imaptest_lmtp_delivery *lmtp_deliveries = NULL;
