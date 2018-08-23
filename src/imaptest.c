@@ -231,10 +231,12 @@ static void print_timeout(void *context ATTR_UNUSED) {
   if (profile != NULL) {
     if (profile->client_id != NULL) {
       char str[128];
-      sprintf(str, "imaptest_clients,id=%s value=%d,total=%d,bad_requests=%d\n", profile->client_id,
-              (clients_count - banner_waits), clients_count, bad_requests);
+      sprintf(str, "imaptest_clients,id=%s value=%d,total=%d,bad_requests=%d,timeouts=%d,cont=%d\n", profile->client_id,
+              (clients_count - banner_waits), clients_count, bad_requests, timeout_requests, cont_requests);
       send_statistics(str);
       bad_requests = 0;
+      timeout_requests = 0;
+      cont_requests = 0;
     }
   }
   printf("%3d/%3d", (clients_count - banner_waits), clients_count);
@@ -555,7 +557,7 @@ int main(int argc ATTR_UNUSED, char *argv[]) {
 
   to_stop = NULL;
 
-  bad_requests = 0;
+  bad_requests = timeout_requests = cont_requests = 0;
 
   for (argv++; *argv != NULL; argv++) {
     value = strchr(*argv, '=');

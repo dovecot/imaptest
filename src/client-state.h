@@ -82,7 +82,8 @@ extern unsigned int timer_counts[STATE_COUNT];
 extern unsigned long long timers[STATE_COUNT];
 extern float mean[STATE_COUNT];
 extern int bad_requests;
-
+extern int timeout_requests;
+extern int cont_requests;
 bool do_rand(enum client_state state);
 bool do_rand_again(enum client_state state);
 void client_state_add_to_timer(enum client_state state, const struct timeval *tv_start);
