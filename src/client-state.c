@@ -20,6 +20,7 @@
 #include "search.h"
 #include "imap-client.h"
 #include "client-state.h"
+#include <sys/timeb.h>
 
 #include <stdlib.h>
 
@@ -722,19 +723,22 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
                                    enum command_reply reply) {
   const char *str, *line;
   unsigned int i;
-  long response_time = time(NULL);
+  struct timeb resp_time;
+  int r = ftime(&resp_time);
 
   line = imap_args_to_str(args);
   switch (reply) {
     case REPLY_OK:
+
+      /*if (mean[cmd->state] == 0) {
+        mean[cmd->state] = current_value;
+      } else {*/
       if (cmd->state != STATE_DISCONNECT && (cmd->state != STATE_LOGOUT || !client->seen_bye)) {
         counters[cmd->state]++;
-        long current_value = response_time - cmd->request_ts;
-        if (mean[cmd->state] == 0) {
-          mean[cmd->state] = current_value;
-        } else {
-          mean[cmd->state] = calculate_mean(current_value, mean[cmd->state], counters[cmd->state]);
-        }
+
+        long current_value =
+            (int)(1000.0 * (resp_time.time - cmd->request_ts.time) + (resp_time.millitm - cmd->request_ts.millitm));
+        mean[cmd->state] = calculate_mean(current_value, mean[cmd->state], counters[cmd->state]);
       }
       if (cmd->state == STATE_AUTHENTICATE || cmd->state == STATE_LOGIN) {
         /* update before handling resp-text, so that

@@ -3,7 +3,7 @@
 
 #include "seq-range-array.h"
 #include "client-state.h"
-
+#include <sys/timeb.h>
 #include <sys/time.h>
 
 enum command_reply { REPLY_BAD, REPLY_OK, REPLY_NO, REPLY_CONT };
@@ -14,7 +14,7 @@ struct command;
 struct command {
   char *cmdline;
   unsigned int cmdline_len; /* in case there are NUL chars */
-  long request_ts;
+  struct timeb request_ts;
   enum client_state state;
   unsigned int tag;
   ARRAY_TYPE(seq_range) seq_range;

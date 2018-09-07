@@ -64,6 +64,7 @@ static void send_statistics(const char *statistic) {
 
     /* if we don't provide POSTFIELDSIZE, libcurl will strlen() by
      itself */
+
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(statistic));
     // curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(postthis));
 
@@ -201,6 +202,7 @@ static void print_timeout(void *context ATTR_UNUSED) {
       if (profile->client_id != NULL && counters[i] > 0) {
         sprintf(str, "imaptest_msg,state=%s,id=%s value=%d,avg_time_ms=%.4f\n", states[i].name, profile->client_id,
                 counters[i], mean[i]);
+
         send_statistics(str);
       }
     }

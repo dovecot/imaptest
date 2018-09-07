@@ -13,7 +13,7 @@
 #include "client.h"
 #include "client-state.h"
 #include "imaptest-lmtp.h"
-
+#include <sys/timeb.h>
 #include <sys/time.h>
 
 #define LMTP_DELIVERY_TIMEOUT_MSECS (1000 * 60)
@@ -28,7 +28,7 @@ struct imaptest_lmtp_delivery {
   struct smtp_address *rcpt_to;
   struct istream *data_input;
   struct timeout *to;
-  long request_ts;
+  struct timeb request_ts;
 };
 
 static struct smtp_client *lmtp_client = NULL;
@@ -59,6 +59,7 @@ static void imaptest_lmtp_finish(struct imaptest_lmtp_delivery *d) { imaptest_lm
 static void imaptest_lmtp_rcpt_to_callback(const struct smtp_reply *reply, struct imaptest_lmtp_delivery *d) {
   if (!smtp_reply_is_success(reply)) {
     i_error("LMTP: RCPT TO <%s> failed: %s", smtp_address_encode(d->rcpt_to), smtp_reply_log(reply));
+    bad_requests++;
   }
 }
 
@@ -67,9 +68,11 @@ static void imaptest_lmtp_data_callback(const struct smtp_reply *reply, struct i
     i_error("LMTP: DATA for <%s> failed: %s", smtp_address_encode(d->rcpt_to), smtp_reply_log(reply));
     bad_requests++;
   } else {
-    long response_time = time(NULL);
+    struct timeb resp_time;
+    int r = ftime(&resp_time);
     counters[STATE_LMTP]++;
-    long current_value = response_time - d->request_ts;
+    long current_value =
+        (int)(1000.0 * (resp_time.time - d->request_ts.time) + (resp_time.millitm - d->request_ts.millitm));
     if (mean[STATE_LMTP] == 0) {
       mean[STATE_LMTP] = current_value;
     } else {
@@ -123,7 +126,8 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
   ip = &conf.ips[conf.ip_idx];
   if (++conf.ip_idx == conf.ips_count)
     conf.ip_idx = 0;
-  d->request_ts = time(NULL);
+
+  ftime(&d->request_ts);
   d->lmtp_conn = smtp_client_connection_create(lmtp_client, SMTP_PROTOCOL_LMTP, net_ip2addr(ip), port,
                                                SMTP_CLIENT_SSL_MODE_NONE, NULL);
   smtp_client_connection_connect(d->lmtp_conn, NULL, NULL);

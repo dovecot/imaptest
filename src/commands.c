@@ -95,7 +95,6 @@ static void command_get_cmdline(struct imap_client *client, const char **_cmdlin
       str_append(str, "\r\n");
       cmdline += len;
       cmdline_len -= len;
-
       /* add literal contents without parsing it */
       i_assert(cmdline_len >= lit_size);
       buffer_append(str, cmdline, lit_size);
@@ -144,7 +143,9 @@ struct command *command_send_binary(struct imap_client *client, const char *cmdl
   T_END;
   cmd->cb_param = cb_param;
   cmd->state = client->client.state;
-  cmd->request_ts = time(NULL);
+
+  ftime(&cmd->request_ts);
+
   cmd->tag = tag;
   cmd->callback = callback;
 
