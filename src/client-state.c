@@ -806,6 +806,7 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
       imap_client_input_warn(client, "%s replied BAD", states[cmd->state].name);
       switch (cmd->state) {
         case STATE_FETCH2:
+        case STATE_GET_METADATA:
           return 0;
         default:
           return -1;
