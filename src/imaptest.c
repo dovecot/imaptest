@@ -39,13 +39,23 @@ static struct ostream *results_output = NULL;
 static struct timeout *to_stop;
 static unsigned int final_wait_secs;
 static struct profile *profile = NULL;
-
+static FILE *log = NULL;
 #define STATE_IS_VISIBLE(state) (states[i].probability != 0)
 
 static CURL *curl = NULL;
 static void send_statistics(const char *statistic) {
   if (profile == NULL) {
     return;
+  }
+  if (profile->influx_file_write != NULL) {
+    if (log == NULL) {
+      log = fopen(profile->influx_file_write, "w+");
+    }
+    if (log == NULL) {
+      printf("Error! can't open log file.");
+      return;
+    }
+    fprintf(log, "%s", statistic);
   }
   if (profile->influx_db_write == NULL) {
     return;
@@ -812,6 +822,9 @@ int main(int argc ATTR_UNUSED, char *argv[]) {
   if (curl) {
     /* always cleanup */
     curl_easy_cleanup(curl);
+  }
+  if (log != NULL) {
+    fclose(log);
   }
   return return_value;
 }
