@@ -4,6 +4,7 @@
 #include "ioloop.h"
 #include "str.h"
 #include "var-expand.h"
+#include "istream.h"
 #include "smtp-address.h"
 #include "imap-arg.h"
 #include "imap-quote.h"
@@ -13,7 +14,7 @@
 #include "commands.h"
 #include "imaptest-lmtp.h"
 #include "profile.h"
-
+#include <fcntl.h>
 #include <stdlib.h>
 #include <math.h>
 
@@ -711,6 +712,52 @@ static void user_init_client_profiles(struct user *user, struct profile *profile
   }
 }
 
+static int conf_read_usernames(const struct profile_user *user_profile, ARRAY_TYPE(user) * users,
+                               struct mailbox_source *source, struct profile *profile) {
+  struct istream *input;
+  int fd;
+  const char *line;
+  time_t start_time;
+  struct user *user;
+  unsigned int username_count = 1;
+  if (user_profile->user_file == NULL || user_profile->user_count == 0) {
+    return -1;
+  }
+
+  fd = open(user_profile->user_file, O_RDONLY);
+  if (fd == -1) {
+    i_fatal("open(%s) failed: %m", user_profile->user_file);
+    return -1;
+  }
+
+  input = i_stream_create_fd_autoclose(&fd, (size_t)-1);
+  i_stream_set_return_partial_line(input, TRUE);
+  while ((line = i_stream_read_next_line(input)) != NULL) {
+    if (*line != '\0' && *line != ':') {
+      line = i_strdup(line);
+
+      if (user_profile->username_start_index > username_count) {
+        ++username_count;
+        continue;
+      }
+
+      start_time = ioloop_time + profile->rampup_time * username_count / user_profile->user_count;
+      user = user_get(line, source);
+      user->profile = user_profile;
+      user_init_client_profiles(user, profile);
+      user_fill_timestamps(user, start_time);
+
+      array_append(users, &user, 1);
+      ++username_count;
+      if (username_count >= user_profile->user_count) {
+        break;  // exit max user erreicht.
+      }
+    }
+  }
+  i_stream_destroy(&input);
+  return 0;
+}
+
 static void users_add_from_user_profile(const struct profile_user *user_profile, struct profile *profile,
                                         ARRAY_TYPE(user) * users, struct mailbox_source *source) {
   static struct var_expand_table tab[] = {{'n', NULL, NULL}, {'\0', NULL, NULL}};
@@ -722,14 +769,20 @@ static void users_add_from_user_profile(const struct profile_user *user_profile,
   char num[10];
 
   tab[0].value = num;
+  if (conf_read_usernames(user_profile, users, source, profile) == 0) {
+    // user from file
+    return;
+  }
 
   for (i = 1; i <= user_profile->user_count; i++) {
     start_time = ioloop_time + profile->rampup_time * i / user_profile->user_count;
 
     str_truncate(str, 0);
     i_snprintf(num, sizeof(num), "%u", user_profile->username_start_index + i - 1);
+
     if (var_expand(str, user_profile->username_format, tab, &error) < 0)
       i_error("var_expand(%s) failed: %s", user_profile->username_format, error);
+
     user = user_get(str_c(str), source);
     user->profile = user_profile;
     user_init_client_profiles(user, profile);
