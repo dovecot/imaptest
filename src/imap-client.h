@@ -30,11 +30,9 @@ struct mailbox_list_entry {
   char *name;
   bool found;
 };
-typedef void stacked_cmd_t(struct imap_client *client, struct command *cmd);
 
 struct imap_client {
   struct client client;
-  stacked_cmd_t *stacked_cmd;
 
   struct imap_parser *parser;
   enum imap_capability capabilities;

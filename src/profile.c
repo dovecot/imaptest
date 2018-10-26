@@ -22,10 +22,8 @@
 #define RANDN2(mu, sigma) (mu + (i_rand() % 2 != 0 ? -1.0 : 1.0) * sigma * pow(-log(0.99999 * RANDU), 0.5))
 #define weighted_rand(n) (int)RANDN2(n, n / 2)
 
-typedef void stacked_cmd_t(struct imap_client *client, struct command *cmd);
 struct fetch_command_param {
   uint32_t uid;
-  stacked_cmd_t *stacked_cmd;
 };
 
 static time_t users_min_timestamp = INT_MAX;
@@ -175,8 +173,6 @@ static char *replace_variable(const char *query_str, ARRAY_TYPE(fetch_metadata) 
         for (i = 0; i < strlen(value); i++) {
           new_query[start_idx + i] = value[i];
         }
-        // i_debug("value is %s",new_str);
-
         int start_offset = start_idx + strlen(var);
         int offset_new_str = start_idx + strlen(value);
         while (query_dup[start_offset] != 0) {
@@ -186,10 +182,9 @@ static char *replace_variable(const char *query_str, ARRAY_TYPE(fetch_metadata) 
         }
         new_query[new_query_size - 1] = 0;
 
-        memset(query_dup, 0, strlen(query_dup) - 1);
+        // memset(query_dup, 0, strlen(query_dup) - 1);
         free(query_dup);
         query_dup = new_query;
-        //      i_debug("VALUE: %s",value);
       }
     }
     if (var != NULL) {
@@ -197,43 +192,6 @@ static char *replace_variable(const char *query_str, ARRAY_TYPE(fetch_metadata) 
     }
   }
   return query_dup;
-}
-
-static void stacked_cmd_imap_metadata_extension(struct imap_client *client, struct command *cmd) {
-  const char *cmd_str;
-  struct fetch_command_param *cb_param;
-  if (cmd == NULL) {
-    return;
-  }
-
-  if (1 == 1) {
-  // disable callback!!!!
-    return;
-  }
-  cb_param = (struct fetch_command_param *)cmd->cb_param;
-
-  struct message_metadata_static *ms = message_metadata_static_get(client->storage, cb_param->uid);
-  if (ms == NULL) {
-    i_debug("message metadata is null uid %d", cb_param->uid);
-    return;
-  }
-
-  char *imap_metadata_extension_query = NULL;
-  // i_debug("message get_metadata uid for %d", cb_param->uid);
-  if (client->client.user_client->profile->imap_metadata_extension != NULL && array_is_created(&ms->fetch_m)) {
-    imap_metadata_extension_query =
-        replace_variable(client->client.user_client->profile->imap_metadata_extension, &ms->fetch_m);
-    if (imap_metadata_extension_query == NULL) {
-      cmd_str = t_strdup_printf("GETMETADATA INBOX (%s)", client->client.user_client->profile->imap_metadata_extension);
-    } else {
-      cmd_str = t_strdup_printf("GETMETADATA INBOX (%s)", imap_metadata_extension_query);
-      free(imap_metadata_extension_query);
-    }
-    client->client.state = STATE_GET_METADATA;
-    command_send(client, cmd_str, state_callback);
-  }
-
-  message_metadata_static_unref(client->storage, &ms);
 }
 
 static void send_get_metadata_extension(struct imap_client *client, int uid) {
@@ -252,12 +210,14 @@ static void send_get_metadata_extension(struct imap_client *client, int uid) {
         replace_variable(client->client.user_client->profile->imap_metadata_extension, &ms->fetch_m);
     if (imap_metadata_extension_query == NULL) {
       cmd_str = t_strdup_printf("GETMETADATA INBOX (%s)", client->client.user_client->profile->imap_metadata_extension);
+      i_error("imap_metadata_extension_query == NULL");
     } else {
       cmd_str = t_strdup_printf("GETMETADATA INBOX (%s)", imap_metadata_extension_query);
+      //   i_error("imap_metadata_extension_query != NULL");
+      client->client.state = STATE_GET_METADATA;
+      command_send(client, cmd_str, state_callback);
       free(imap_metadata_extension_query);
     }
-    client->client.state = STATE_GET_METADATA;
-    command_send(client, cmd_str, state_callback);
   }
   message_metadata_static_unref(client->storage, &ms);
 }
@@ -270,7 +230,6 @@ static void client_profile_handle_exists(struct imap_client *client) {
   cmd =
       t_strdup_printf("UID FETCH %u:* (%s)", cache->uidnext, client->client.user_client->profile->imap_fetch_immediate);
   client->client.state = STATE_FETCH;
-  client->stacked_cmd = stacked_cmd_imap_metadata_extension;
   /* DISABLE XUID FETCH
     int count;
     array_get_modifiable(&client->storage->static_metadata, &count);
@@ -510,7 +469,6 @@ static bool user_mailbox_action(struct user *user, struct user_mailbox_cache *ca
     /* fetch the next new message's body */
     cache = user_get_mailbox_cache(uc, client->storage->name);
     cmd = t_strdup_printf("UID FETCH %u (%s)", uid, client->client.user_client->profile->imap_fetch_manual);
-    client->stacked_cmd = stacked_cmd_imap_metadata_extension;
     client->client.state = STATE_FETCH2;
 
     struct fetch_command_param *cb_param = malloc(sizeof(struct fetch_command_param));
@@ -527,23 +485,23 @@ static bool user_mailbox_action(struct user *user, struct user_mailbox_cache *ca
     return TRUE;
   }
 
-  int count;
-  array_get_modifiable(&client->storage->static_metadata, &count);
-  // struct message_metadata_static *ms = message_metadata_static_get(client->storage, uid);
-  if (count > 0) {
-    //    i_error("hello ms_fetch = is created (user_mailbox_action) : %d", uid);
-    if (!cache->last_action_xuid_fetched) {
-      send_get_metadata_extension(client, uid);
-      cache->last_action_xuid_fetched = TRUE;
-      return TRUE;
-    }
-  }
   /* handle the action for mails in INBOX */
   cache->last_action_uid++;
   cache->last_action_uid_body_fetched = FALSE;
 
   if (strcasecmp(cache->mailbox_name, "INBOX") != 0)
     return TRUE;
+
+  unsigned int count;
+  array_get_modifiable(&client->storage->static_metadata, &count);
+  // struct message_metadata_static *ms = message_metadata_static_get(client->storage, uid);
+  if (count > 0) {
+    if (!cache->last_action_xuid_fetched) {
+      send_get_metadata_extension(client, uid);
+      cache->last_action_xuid_fetched = TRUE;
+      return TRUE;
+    }
+  }
 
   if ((unsigned)i_rand() % 100 < user->profile->mail_inbox_delete_percentage) {
     user_mailbox_action_delete(client, uid);

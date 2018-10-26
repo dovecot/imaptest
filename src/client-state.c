@@ -724,8 +724,7 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
   const char *str, *line;
   unsigned int i;
   struct timeb resp_time;
-  int r = ftime(&resp_time);
-
+  ftime(&resp_time);
   line = imap_args_to_str(args);
   switch (reply) {
     case REPLY_OK:
@@ -1331,10 +1330,6 @@ void fetch_state_callback(struct imap_client *client, struct command *cmd, const
                           enum command_reply reply) {
   if (client_handle_cmd_reply(client, cmd, args + 1, reply) < 0) {
     client_disconnect(&client->client);
-  }
-  if (client->stacked_cmd != NULL) {
-    (*client->stacked_cmd)(client, cmd);
-    client->stacked_cmd = NULL;
   }
 }
 
