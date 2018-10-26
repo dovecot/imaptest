@@ -9,7 +9,7 @@ before_install:
 - travis_wait 30 docker run -itd --name build --net=ceph_network -e SOURCE_VERSION=$DOVECOT -v $(pwd):/repo cephdovecot/travis-build:$DOVECOT sh
 - docker exec build apt-get -qq update
 - docker exec build apt-get -qq upgrade
-- docker exec build sh -c 'DEBIAN_FRONTEND=noninteractive apt-get install -qq -q libcurl3'
+- docker exec build sh -c 'DEBIAN_FRONTEND=noninteractive apt-get install -qq -q libcurl4-openssl-dev'
 before_script:
 - docker exec build sh -c 'cd /usr/local/src/dovecot; git pull origin $SOURCE_VERSION'
 - docker exec build sh -c 'cd /usr/local/src/dovecot; make install'
