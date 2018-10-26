@@ -148,7 +148,7 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 	smtp_client_connection_connect(d->lmtp_conn, NULL, NULL);
 
 	d->lmtp_trans = smtp_client_transaction_create(d->lmtp_conn,
-		NULL, NULL, imaptest_lmtp_finish, d);
+		NULL, NULL, 0, imaptest_lmtp_finish, d);
 
 	smtp_client_transaction_add_rcpt(d->lmtp_trans, rcpt_to, NULL,
 		imaptest_lmtp_rcpt_to_callback,
