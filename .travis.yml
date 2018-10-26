@@ -3,9 +3,7 @@ language: cpp
 services:
 - docker
 env:
-- DOVECOT="release-2.2.21"
 - DOVECOT="master-2.3"
-- DOVECOT="master-2.2"
 before_install:
 - docker network create --driver=bridge --subnet=192.168.100.0/24 --gateway=192.168.100.1 ceph_network
 - travis_wait 30 docker run -itd --name build --net=ceph_network -e SOURCE_VERSION=$DOVECOT -v $(pwd):/repo cephdovecot/travis-build:$DOVECOT sh
