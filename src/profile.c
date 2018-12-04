@@ -441,8 +441,8 @@ static void user_mailbox_action_search(struct imap_client *client) {
   const char *cmd;
 
   cmd = t_strdup_printf("SEARCH %s", client->client.user_client->profile->imap_search_query);
-  client->client.state = STATE_SELECT;
-  // client->client.state = STATE_SEARCH;
+  // client->client.state = STATE_SELECT;
+  client->client.state = STATE_SEARCH;
   command_send(client, cmd, state_callback);
 }
 
