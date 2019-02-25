@@ -230,6 +230,9 @@ static void client_profile_handle_exists(struct imap_client *client) {
   cmd =
       t_strdup_printf("UID FETCH %u:* (%s)", cache->uidnext, client->client.user_client->profile->imap_fetch_immediate);
   client->client.state = STATE_FETCH;
+
+  command_send(client, cmd, state_callback);
+
   /* DISABLE XUID FETCH
     int count;
     array_get_modifiable(&client->storage->static_metadata, &count);
@@ -240,10 +243,10 @@ static void client_profile_handle_exists(struct imap_client *client) {
       i_error("hello ms_fetch = not created (client_profile_handle_exists): ");
     }
   */
-  struct fetch_command_param *cb_param = malloc(sizeof(struct fetch_command_param));
-  cb_param->uid = cache->uidnext;
+  // struct fetch_command_param *cb_param = malloc(sizeof(struct fetch_command_param));
+  // cb_param->uid = cache->uidnext;
   // i_debug("fetching for: %d", cache->uidnext);
-  command_send_with_param(client, cmd, fetch_state_callback, (void *)cb_param);
+  // command_send_with_param(client, cmd, fetch_state_callback, (void *)cb_param);
 }
 
 static void client_profile_handle_fetch(struct imap_client *client, const struct imap_arg *list_arg) {
@@ -471,10 +474,10 @@ static bool user_mailbox_action(struct user *user, struct user_mailbox_cache *ca
     cmd = t_strdup_printf("UID FETCH %u (%s)", uid, client->client.user_client->profile->imap_fetch_manual);
     client->client.state = STATE_FETCH2;
 
-    struct fetch_command_param *cb_param = malloc(sizeof(struct fetch_command_param));
-    cb_param->uid = uid;
+    struct fetch_command_param cb_param;
+    cb_param.uid = uid;
 
-    command_send_with_param(client, cmd, fetch_state_callback, (void *)cb_param);
+    command_send_with_param(client, cmd, state_callback, (void *)&cb_param);
 
     /* and mark the message as \Seen */
     cmd = t_strdup_printf("UID STORE %u +FLAGS \\Seen", uid);
@@ -744,14 +747,12 @@ static int conf_read_usernames(const struct profile_user *user_profile, ARRAY_TY
   input = i_stream_create_fd_autoclose(&fd, (size_t)-1);
   i_stream_set_return_partial_line(input, TRUE);
   while ((line = i_stream_read_next_line(input)) != NULL) {
+    if (user_profile->username_start_index > username_count) {
+      ++username_count;
+      continue;
+    }
     if (*line != '\0' && *line != ':') {
       line = i_strdup(line);
-
-      if (user_profile->username_start_index > username_count) {
-        ++username_count;
-        continue;
-      }
-
       start_time = ioloop_time + profile->rampup_time * username_count / user_profile->user_count;
       user = user_get(line, source);
       user->profile = user_profile;

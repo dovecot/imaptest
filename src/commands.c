@@ -220,9 +220,9 @@ void command_free(struct command *cmd) {
   if (array_is_created(&cmd->seq_range))
     array_free(&cmd->seq_range);
   i_free(cmd->cmdline);
-  if (cmd->cb_param != NULL) {
-    i_free(cmd->cb_param);
-  }
+  /* if (cmd->cb_param != NULL) {
+     i_free(cmd->cb_param);
+   }*/
   i_free(cmd);
 }
 

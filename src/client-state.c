@@ -770,6 +770,11 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
             /* Archiveopteryx */
             break;
           }
+
+          if (strstr(line, "No mailbox selected") != NULL) {
+            /* time */
+            break;
+          }
         /* fall through */
         case STATE_STORE:
         case STATE_STORE_DEL:
@@ -789,13 +794,24 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
             /* Domino (FETCH/STORE/EXPUNGE) */
             break;
           }
+          if (strstr(line, "No mailbox selected") != NULL) {
+            /* time */
+            break;
+          }
         /* fall through */
         case STATE_APPEND:
           if (client->try_create_mailbox)
             break;
         /* fall through */
+        case STATE_GET_METADATA:
+          i_warning("GET_METADATA: NO_REPLY: (timeout?) %s", line);
+          break;
+
+        case STATE_SEARCH:
+          i_warning("STATE_SEARCH: NO_REPLY: (timeout?) %s", line);
+          break;
         default:
-          imap_client_state_error(client, "%s failed", states[cmd->state].name);
+          imap_client_state_error(client, "%s failed: line %s", states[cmd->state].name, line);
           break;
       }
       break;
