@@ -132,7 +132,7 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
                                                SMTP_CLIENT_SSL_MODE_NONE, NULL);
   smtp_client_connection_connect(d->lmtp_conn, NULL, NULL);
 
-  d->lmtp_trans = smtp_client_transaction_create(d->lmtp_conn, NULL, NULL, imaptest_lmtp_finish, d);
+  d->lmtp_trans = smtp_client_transaction_create(d->lmtp_conn, NULL, NULL, 0, imaptest_lmtp_finish, d);
 
   smtp_client_transaction_add_rcpt(d->lmtp_trans, rcpt_to, NULL, imaptest_lmtp_rcpt_to_callback,
                                    imaptest_lmtp_data_callback, d);
