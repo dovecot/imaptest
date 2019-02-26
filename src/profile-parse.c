@@ -209,13 +209,13 @@ static void profile_parse_line_root(struct profile_parser *parser, char *line) {
         i_fatal("Invalid setting %s at line %u: %s", key, parser->linenum, error);
       }
     } else if (strcmp(key, "influx_db_write") == 0) {
-      parser->profile->influx_db_write = malloc(strlen(value) + 1);
+      parser->profile->influx_db_write = p_malloc(parser->profile->pool, strlen(value) + 1);
       strcpy(parser->profile->influx_db_write, value);
     } else if (strcmp(key, "influx_file_write") == 0) {
-      parser->profile->influx_file_write = malloc(strlen(value) + 1);
+      parser->profile->influx_file_write = p_malloc(parser->profile->pool, strlen(value) + 1);
       strcpy(parser->profile->influx_file_write, value);
     } else if (strcmp(key, "client_id") == 0) {
-      parser->profile->client_id = malloc(strlen(value) + 1);
+      parser->profile->client_id = p_malloc(parser->profile->pool, strlen(value) + 1);
       strcpy(parser->profile->client_id, value);
     } else {
       i_fatal("Unknown setting at line %u: %s", parser->linenum, key);

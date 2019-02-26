@@ -60,9 +60,11 @@ static const struct imap_arg *fetch_list_get(const struct imap_arg *args, const 
   return NULL;
 }
 
-static const struct imap_arg *fetch_list_metadata(const struct imap_arg *args, struct message_metadata_static *ms) {
+static const struct imap_arg *fetch_list_metadata(const struct imap_arg *args, struct message_metadata_static *ms,
+                                                  pool_t pool) {
   const char *str;
   const char *value;
+
   while (!IMAP_ARG_IS_EOL(args) && !IMAP_ARG_IS_EOL(&args[1])) {
     if (!imap_arg_get_atom(args, &str)) {
       args += 2;
@@ -74,12 +76,10 @@ static const struct imap_arg *fetch_list_metadata(const struct imap_arg *args, s
     }
 
     if (value != NULL) {
-      struct fetch_metadata m;
-
-      m.key = strdup(str);
-      m.value = strdup(value);
-      // i_debug("adding metadata: %s %s", m->key, m->value);
-      array_append(&ms->fetch_m, &m, 1);
+      struct fetch_metadata *m = p_new(pool, struct fetch_metadata, 1);
+      m->key = p_strdup(pool, str);
+      m->value = p_strdup(pool, value);
+      array_append(&ms->fetch_m, m, 1);
     }
     args += 2;
   }
@@ -333,7 +333,6 @@ static void headers_match(struct imap_client *client, ARRAY_TYPE(message_header)
     }
   }
 }
-
 static int fetch_parse_header_fields(struct imap_client *client, const struct imap_arg *args,
                                      struct message_metadata_static *ms) {
   const struct imap_arg *header_args, *arg;
@@ -478,12 +477,12 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq, co
 
   if (metadata->ms != NULL) {
     i_assert(metadata->ms->uid == uid);
+    pool_t pool = mailbox_source_get_messages_pool(client->storage->source);
 
     if (!array_is_created(&metadata->ms->fetch_m)) {
-      pool_t pool = mailbox_source_get_messages_pool(client->storage->source);
       p_array_init(&metadata->ms->fetch_m, pool, list_count);
     }
-    fetch_list_metadata(args, metadata->ms);
+    fetch_list_metadata(args, metadata->ms, pool);
 
     /* Get Message-ID from envelope if it exists. */
     arg = fetch_list_get(args, "ENVELOPE");

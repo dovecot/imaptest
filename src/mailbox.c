@@ -67,10 +67,10 @@ void message_metadata_static_unref(struct mailbox_storage *storage, struct messa
     const struct fetch_metadata *fm_map = array_get(&ms->fetch_m, &count);
     for (unsigned int i = 0; i < count; i++) {
       if (fm_map[i].key != NULL) {
-        free(fm_map[i].key);
+        // free(fm_map[i].key);
       }
       if (fm_map[i].value != NULL) {
-        free(fm_map[i].value);
+        //  free(fm_map[i].value);
       }
     }
     array_free(&ms->fetch_m);

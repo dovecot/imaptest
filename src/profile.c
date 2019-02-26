@@ -121,7 +121,7 @@ static char *replace_variable(const char *query_str, ARRAY_TYPE(fetch_metadata) 
   fm_map = array_get(fetch_m, &count);
 
   // make a copy of input string
-  char *query_dup = strdup(query_str);
+  char *query_dup = i_strdup(query_str);
 
   char *var = NULL;
   for (unsigned int j = 0; j < count; j++) {
@@ -137,7 +137,7 @@ static char *replace_variable(const char *query_str, ARRAY_TYPE(fetch_metadata) 
 
     // build variable name, we expect variable given in UPPER case
     int length = strlen(varname) + 2;
-    var = malloc(sizeof(char) * length);
+    var = i_malloc(sizeof(char) * length);
     var[0] = '$';
     for (i = 0; i < strlen(varname); i++) {
       var[i + 1] = varname[i];
@@ -148,7 +148,7 @@ static char *replace_variable(const char *query_str, ARRAY_TYPE(fetch_metadata) 
     const char *ptr = strstr(query_dup, var);
     if (ptr != NULL) {
       unsigned int new_query_size = query_len + strlen(value) - strlen(varname);
-      char *new_query = malloc(sizeof(char) * new_query_size);
+      char *new_query = i_malloc(sizeof(char) * new_query_size);
       if (new_query == NULL) {
         return NULL;
       }
@@ -162,7 +162,7 @@ static char *replace_variable(const char *query_str, ARRAY_TYPE(fetch_metadata) 
         }
       }
       if (start_idx == query_len + 1) {
-        free(new_query);
+        i_free(new_query);
         new_query = NULL;
       } else {
         // variable found, replace variable with value.
@@ -183,12 +183,12 @@ static char *replace_variable(const char *query_str, ARRAY_TYPE(fetch_metadata) 
         new_query[new_query_size - 1] = 0;
 
         // memset(query_dup, 0, strlen(query_dup) - 1);
-        free(query_dup);
+        i_free(query_dup);
         query_dup = new_query;
       }
     }
     if (var != NULL) {
-      free(var);
+      i_free(var);
     }
   }
   return query_dup;
