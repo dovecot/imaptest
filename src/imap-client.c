@@ -431,8 +431,8 @@ static int imap_client_input_args(struct imap_client *client, const struct imap_
   else if (strcasecmp(tag_status, "BAD") == 0) {
     reply = REPLY_BAD;
     if (!cmd->expect_bad) {
-      imap_client_input_error(client, "BAD reply for command: %s , client_state[%d],  disconnected %d", cmd->cmdline,
-                              client->client.state, client->client.disconnected);
+      imap_client_input_error(client, "BAD reply for command: %s , client_state[%d],  disconnected %d, storage_name: %s", cmd->cmdline,
+                              client->client.state, client->client.disconnected,client->storage->name);
     }
   } else {
     return imap_client_input_error(client, "Broken tagged reply");
