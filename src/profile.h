@@ -90,10 +90,11 @@ struct profile {
 struct profile *profile_parse(const char *path);
 int imap_client_profile_send_more_commands(struct client *client);
 int imap_client_profile_handle_untagged(struct imap_client *client,
-					const struct imap_arg *args);
+                                        const struct imap_arg *args);
 
-void profile_add_users(struct profile *profile, ARRAY_TYPE(user) *users,
-		       struct mailbox_source *source);
+void profile_add_users(struct profile *profile, ARRAY_TYPE(user) * users,
+                       struct mailbox_source *source);
+
 
 void profile_deinit(void);
 

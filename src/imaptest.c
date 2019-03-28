@@ -1,5 +1,4 @@
 /* Copyright (c) 2007-2018 ImapTest authors, see the included COPYING file */
-
 #include "lib.h"
 #include "lib-signals.h"
 #include "ioloop.h"
@@ -28,6 +27,7 @@
 #include <unistd.h>
 #include <curl/curl.h>
 #include <string.h>
+
 
 struct settings conf;
 bool profile_running = FALSE;
@@ -62,12 +62,14 @@ static void send_statistics(const char *statistic) {
   }
   CURLcode res;
 
-  // static const char *postthis = "imaptest,host=server01,region=us-west value=0.65 1434055562000000002";
+  // static const char *postthis = "imaptest,host=server01,region=us-west
+  // value=0.65 1434055562000000002";
   if (curl == NULL) {
     curl = curl_easy_init();
   }
   if (curl) {
-    // curl_easy_setopt(curl, CURLOPT_URL, "http://192.168.178.22:8086/write?db=imaptest");
+    // curl_easy_setopt(curl, CURLOPT_URL,
+    // "http://192.168.178.22:8086/write?db=imaptest");
     curl_easy_setopt(curl, CURLOPT_URL, profile->influx_db_write);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, statistic);
     // curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postthis);
@@ -82,7 +84,8 @@ static void send_statistics(const char *statistic) {
     res = curl_easy_perform(curl);
     /* Check for errors */
     if (res != CURLE_OK)
-      fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
   }
   return;
 }
@@ -92,8 +95,7 @@ static void print_results_header(void) {
   unsigned int i;
 
   for (i = 1; i < STATE_COUNT; i++) {
-    if (!STATE_IS_VISIBLE(i))
-      continue;
+    if (!STATE_IS_VISIBLE(i)) continue;
     str_printfa(str, "\t%s count\t%s msecs", states[i].name, states[i].name);
   }
   str_append_c(str, '\n');
@@ -106,8 +108,7 @@ static void print_results(void) {
   unsigned int i;
 
   for (i = 1; i < STATE_COUNT; i++) {
-    if (!STATE_IS_VISIBLE(i))
-      continue;
+    if (!STATE_IS_VISIBLE(i)) continue;
 
     str_printfa(str, "\t%d\t%d\t%lld", counters[i], timer_counts[i], timers[i]);
     timers[i] = 0;
@@ -121,20 +122,19 @@ static void print_results(void) {
 static void print_timers(void) {
   unsigned int i;
 
-  if (isatty(STDOUT_FILENO) > 0)
-    printf("\x1b[1m");
+  if (isatty(STDOUT_FILENO) > 0) printf("\x1b[1m");
 
   for (i = 1; i < STATE_COUNT; i++) {
-    if (!STATE_IS_VISIBLE(i))
-      continue;
+    if (!STATE_IS_VISIBLE(i)) continue;
 
-    printf("%4d ", timer_counts[i] == 0 ? 0 : (unsigned int)(timers[i] / timer_counts[i]));
+    printf(
+        "%4d ",
+        timer_counts[i] == 0 ? 0 : (unsigned int)(timers[i] / timer_counts[i]));
     timers[i] = 0;
     timer_counts[i] = 0;
   }
   printf("ms/cmd avg\n");
-  if (isatty(STDOUT_FILENO) > 0)
-    printf("\x1b[0m");
+  if (isatty(STDOUT_FILENO) > 0) printf("\x1b[0m");
 }
 
 static void print_header(void) {
@@ -142,27 +142,22 @@ static void print_header(void) {
   bool have_agains = FALSE;
 
   for (i = 1; i < STATE_COUNT; i++) {
-    if (!STATE_IS_VISIBLE(i))
-      continue;
+    if (!STATE_IS_VISIBLE(i)) continue;
     printf("%s ", states[i].short_name);
   }
   printf("\n");
-  if (profile_running)
-    return;
+  if (profile_running) return;
 
   for (i = 1; i < STATE_COUNT; i++) {
-    if (!STATE_IS_VISIBLE(i))
-      continue;
-    if (states[i].probability_again != 0)
-      have_agains = TRUE;
+    if (!STATE_IS_VISIBLE(i)) continue;
+    if (states[i].probability_again != 0) have_agains = TRUE;
     printf("%3d%% ", states[i].probability);
   }
   printf("\n");
 
   if (have_agains) {
     for (i = 1; i < STATE_COUNT; i++) {
-      if (!STATE_IS_VISIBLE(i))
-        continue;
+      if (!STATE_IS_VISIBLE(i)) continue;
       if (states[i].probability_again == 0)
         printf("     ");
       else
@@ -172,7 +167,8 @@ static void print_header(void) {
   }
 }
 
-static void print_stalled_imap_client(string_t *str, struct imap_client *client) {
+static void print_stalled_imap_client(string_t *str,
+                                      struct imap_client *client) {
   struct command *const *cmds;
   unsigned int cmdcount;
 
@@ -187,31 +183,34 @@ static void print_stalled_imap_client(string_t *str, struct imap_client *client)
 }
 
 static void print_timeout(void *context ATTR_UNUSED) {
-#define CLIENT_STALLED_SECS(c) (((c)->to != NULL || (c)->idling) ? 0 : (ioloop_time - (c)->last_io))
+#define CLIENT_STALLED_SECS(c) \
+  (((c)->to != NULL || (c)->idling) ? 0 : (ioloop_time - (c)->last_io))
   struct client *const *c;
   string_t *str;
   static int rowcount = 0;
+  unsigned int ts_offset = 0;
   unsigned int i, count, banner_waits, stall_count;
 
-  if (results_output != NULL)
-    print_results();
+  if (results_output != NULL) print_results();
   if ((rowcount++ % 10) == 0) {
-    if (rowcount > 1 && results_output == NULL)
-      print_timers();
+    if (rowcount > 1 && results_output == NULL) print_timers();
     print_header();
   }
   int total_msg = 0;
+  // default ts for influx db rest api is nano sek
+  unsigned long ts = time(NULL) *1000*1000*1000;
 
   for (i = 1; i < STATE_COUNT; i++) {
-    if (!STATE_IS_VISIBLE(i))
-      continue;
+    if (!STATE_IS_VISIBLE(i)) continue;
     printf("%4d ", counters[i]);
     total_counters[i] += counters[i];
     char str[128];
     if (profile != NULL) {
       if (profile->client_id != NULL && counters[i] > 0) {
-        sprintf(str, "imaptest_msg,state=%s,id=%s value=%d,avg_time_ms=%.4f\n", states[i].name, profile->client_id,
-                counters[i], mean[i]);
+        sprintf(str,
+                "imaptest_msg,state=%s,id=%s value=%d,avg_time_ms=%.4f %lu\n",
+                states[i].name, profile->client_id, counters[i], mean[i],
+                ts);
 
         send_statistics(str);
       }
@@ -229,22 +228,23 @@ static void print_timeout(void *context ATTR_UNUSED) {
 #define SHORT_STALL_PRINT_SECS 3
   c = array_get(&clients, &count);
   for (i = 0; i < count; i++) {
-    if (c[i] == NULL)
-      continue;
-    if (c[i]->state == STATE_BANNER)
-      banner_waits++;
+    if (c[i] == NULL) continue;
+    if (c[i]->state == STATE_BANNER) banner_waits++;
 
     unsigned int stalled_secs = CLIENT_STALLED_SECS(c[i]);
-    if (stalled_secs > SHORT_STALL_PRINT_SECS)
-      stall_count++;
-    if (stalled_secs >= conf.stalled_disconnect_timeout && conf.stalled_disconnect_timeout > 0)
+    if (stalled_secs > SHORT_STALL_PRINT_SECS) stall_count++;
+    if (stalled_secs >= conf.stalled_disconnect_timeout &&
+        conf.stalled_disconnect_timeout > 0)
       client_disconnect(c[i]);
   }
   if (profile != NULL) {
     if (profile->client_id != NULL) {
       char str[128];
-      sprintf(str, "imaptest_clients,id=%s value=%d,total=%d,bad_requests=%d,timeouts=%d,cont=%d\n", profile->client_id,
-              (clients_count - banner_waits), clients_count, bad_requests, timeout_requests, cont_requests);
+      sprintf(str,
+              "imaptest_clients,id=%s "
+              "value=%d,total=%d,bad_requests=%d,timeouts=%d,cont=%d %lu\n",
+              profile->client_id, (clients_count - banner_waits), clients_count,
+              bad_requests, timeout_requests, cont_requests,ts);
       send_statistics(str);
       bad_requests = 0;
       timeout_requests = 0;
@@ -268,9 +268,9 @@ static void print_timeout(void *context ATTR_UNUSED) {
       struct imap_client *client = imap_client(c[i]);
 
       str_truncate(str, 0);
-      str_printfa(str, " - %d stalled for %u secs in ", c[i]->global_id, (unsigned)(ioloop_time - c[i]->last_io));
-      if (client != NULL)
-        print_stalled_imap_client(str, client);
+      str_printfa(str, " - %d stalled for %u secs in ", c[i]->global_id,
+                  (unsigned)(ioloop_time - c[i]->last_io));
+      if (client != NULL) print_stalled_imap_client(str, client);
 
       stalled = TRUE;
       printf("%s\n", str_c(str));
@@ -298,8 +298,7 @@ static void print_total(void) {
   print_header();
 
   for (i = 1; i < STATE_COUNT; i++) {
-    if (!STATE_IS_VISIBLE(i))
-      continue;
+    if (!STATE_IS_VISIBLE(i)) continue;
 
     total_counters[i] += counters[i];
     printf("%4d ", total_counters[i]);
@@ -310,8 +309,7 @@ static void print_total(void) {
 static void fix_probabilities(void) {
   unsigned int i;
 
-  if (conf.copy_dest == NULL)
-    states[STATE_COPY].probability = 0;
+  if (conf.copy_dest == NULL) states[STATE_COPY].probability = 0;
   if (conf.checkpoint_interval == 0)
     states[STATE_CHECKPOINT].probability = 0;
   else
@@ -321,22 +319,25 @@ static void fix_probabilities(void) {
     states[STATE_AUTHENTICATE].probability = 100;
     states[STATE_LOGIN].probability = 0;
   } else if (states[STATE_LOGIN].probability != 100) {
-    states[STATE_AUTHENTICATE].probability = 100 - states[STATE_LOGIN].probability;
+    states[STATE_AUTHENTICATE].probability =
+        100 - states[STATE_LOGIN].probability;
   } else if (states[STATE_AUTHENTICATE].probability != 0) {
-    states[STATE_LOGIN].probability = 100 - states[STATE_AUTHENTICATE].probability;
+    states[STATE_LOGIN].probability =
+        100 - states[STATE_AUTHENTICATE].probability;
   }
 
   for (i = STATE_LIST; i <= STATE_LOGOUT; i++) {
-    if (states[i].probability > 0)
-      break;
+    if (states[i].probability > 0) break;
   }
-  if (i > STATE_LOGOUT)
-    i_fatal("Invalid probabilities");
+  if (i > STATE_LOGOUT) i_fatal("Invalid probabilities");
 }
 
-bool imaptest_has_clients(void) { return clients_count > 0 || imaptest_lmtp_have_deliveries(); }
+bool imaptest_has_clients(void) {
+  return clients_count > 0 || imaptest_lmtp_have_deliveries();
+}
 
-static void sig_die(const siginfo_t *si ATTR_UNUSED, void *context ATTR_UNUSED) {
+static void sig_die(const siginfo_t *si ATTR_UNUSED,
+                    void *context ATTR_UNUSED) {
   if (!disconnect_clients) {
     /* try a nice way first by letting the clients
      disconnect themselves */
@@ -361,7 +362,8 @@ static void timeout_stop(void *context) {
     timeout_remove(&to_stop);
     to_stop = timeout_add(final_wait_secs * 1000, timeout_stop, context);
   } else {
-    i_info("Second timeout triggered while trying to stop - stopping immediately");
+    i_info(
+        "Second timeout triggered while trying to stop - stopping immediately");
     io_loop_stop(ioloop);
   }
 }
@@ -370,7 +372,8 @@ static struct state *state_find(const char *name) {
   unsigned int i;
 
   for (i = 0; i < STATE_COUNT; i++) {
-    if (strcasecmp(states[i].name, name) == 0 || strcasecmp(states[i].short_name, name) == 0)
+    if (strcasecmp(states[i].name, name) == 0 ||
+        strcasecmp(states[i].short_name, name) == 0)
       return &states[i];
   }
   return NULL;
@@ -382,8 +385,7 @@ static void clients_unref(void) {
 
   c = array_get(&clients, &count);
   for (i = 0; i < count; i++) {
-    if (c[i] != NULL)
-      client_unref(c[i], FALSE);
+    if (c[i] != NULL) client_unref(c[i], FALSE);
   }
 }
 
@@ -434,8 +436,7 @@ static void imaptest_run_tests(const char *path) {
   io_loop_run(ioloop);
 
   clients_unref();
-  if (!tests_execute_done(&exec_ctx))
-    return_value = 2;
+  if (!tests_execute_done(&exec_ctx)) return_value = 2;
 
   test_parser_deinit(&test_parser);
 }
@@ -447,8 +448,7 @@ static void conf_read_usernames(const char *path) {
 
   i_array_init(&conf.usernames, 32);
   fd = open(path, O_RDONLY);
-  if (fd == -1)
-    i_fatal("open(%s) failed: %m", path);
+  if (fd == -1) i_fatal("open(%s) failed: %m", path);
   input = i_stream_create_fd_autoclose(&fd, (size_t)-1);
   i_stream_set_return_partial_line(input, TRUE);
   while ((line = i_stream_read_next_line(input)) != NULL) {
@@ -471,7 +471,8 @@ static void print_help(void) {
       "         [box=MAILBOX] [copybox=DESTBOX] [-] [<state>[=<n%%>[,<m%%>]]]\n"
       "         [random] [no_pipelining] [no_tracking] [checkpoint=<secs>]\n"
       "\n"
-      " USER = username (and domain) template, e.g. \"u%%04d\" or \"u%%04d@d%%04d\"\n"
+      " USER = username (and domain) template, e.g. \"u%%04d\" or "
+      "\"u%%04d@d%%04d\"\n"
       " RANGE = range for templated usernames [1-%u] or domain names [1-%u]\n"
       " FILE = file of username:passwd pairs (instead of user/users/domains)\n"
       " MBOX = path to mbox from which we read mails to append.\n"
@@ -481,11 +482,14 @@ static void print_help(void) {
       " NMSG = target number of messages in the mailbox. [%u]\n"
       " SEED = seed for PRNG to make test repeatable.\n"
       "\n"
-      " -    = Sets all probabilities to 0%% except for LOGIN, LOGOUT and SELECT\n"
-      " <state> = Sets state's probability to n%% and repeated probability to m%%\n",
+      " -    = Sets all probabilities to 0%% except for LOGIN, LOGOUT and "
+      "SELECT\n"
+      " <state> = Sets state's probability to n%% and repeated probability to "
+      "m%%\n",
       USER_RAND, DOMAIN_RAND, CLIENTS_COUNT, MESSAGE_COUNT_THRESHOLD);
 }
-static void parse_possible_range(const char *value, unsigned int *start_r, unsigned int *count_r) {
+static void parse_possible_range(const char *value, unsigned int *start_r,
+                                 unsigned int *count_r) {
   const char *endp;
   unsigned int num;
 
@@ -495,8 +499,7 @@ static void parse_possible_range(const char *value, unsigned int *start_r, unsig
   *start_r = 1;
   if (*endp == '-') {
     *start_r = num;
-    if (str_to_uint(endp + 1, &num) < 0)
-      i_fatal("Illegal range: %.80s", value);
+    if (str_to_uint(endp + 1, &num) < 0) i_fatal("Illegal range: %.80s", value);
   }
   *count_r = num + 1 - *start_r;
 }
@@ -524,7 +527,8 @@ static int count_printf_ints(const char *s, const char **error_r) {
   return ints;
 }
 
-static inline bool username_format_is_valid(const char *s, const char **error_r) {
+static inline bool username_format_is_valid(const char *s,
+                                            const char **error_r) {
   /* All this does is ensure that there are at most 2, and only,
    * "%d"s or "%i"s in the format string. If you mess up the '@',
    * that's your problem. i.e. it makes our printf safe.
@@ -574,8 +578,7 @@ int main(int argc ATTR_UNUSED, char *argv[]) {
   for (argv++; *argv != NULL; argv++) {
     value = strchr(*argv, '=');
     key = value == NULL ? *argv : t_strdup_until(*argv, value);
-    if (value != NULL)
-      value++;
+    if (value != NULL) value++;
 
     if (strcmp(*argv, "-h") == 0 || strcmp(*argv, "--help") == 0) {
       print_help();
@@ -601,8 +604,7 @@ int main(int argc ATTR_UNUSED, char *argv[]) {
 
     if (strcmp(*argv, "-") == 0) {
       for (i = STATE_LOGIN + 1; i < STATE_LOGOUT; i++) {
-        if (i != STATE_SELECT)
-          states[i].probability = 0;
+        if (i != STATE_SELECT) states[i].probability = 0;
       }
       continue;
     }
@@ -617,12 +619,10 @@ int main(int argc ATTR_UNUSED, char *argv[]) {
         continue;
       }
       p = strchr(value, ',');
-      if (p != NULL)
-        value = t_strdup_until(value, p++);
+      if (p != NULL) value = t_strdup_until(value, p++);
 
       state->probability = atoi(value);
-      if (p != NULL)
-        state->probability_again = atoi(p);
+      if (p != NULL) state->probability_again = atoi(p);
       continue;
     }
 
@@ -688,12 +688,14 @@ int main(int argc ATTR_UNUSED, char *argv[]) {
 
     /* users=# */
     if (strcmp(key, "users") == 0) {
-      parse_possible_range(value, &conf.users_rand_start, &conf.users_rand_count);
+      parse_possible_range(value, &conf.users_rand_start,
+                           &conf.users_rand_count);
       continue;
     }
     /* domains=# */
     if (strcmp(key, "domains") == 0) {
-      parse_possible_range(value, &conf.domains_rand_start, &conf.domains_rand_count);
+      parse_possible_range(value, &conf.domains_rand_start,
+                           &conf.domains_rand_count);
       continue;
     }
 
@@ -763,8 +765,7 @@ int main(int argc ATTR_UNUSED, char *argv[]) {
     }
     if (strcmp(key, "output") == 0) {
       fd = creat(value, 0600);
-      if (fd == -1)
-        i_fatal("creat(%s) failed: %m", value);
+      if (fd == -1) i_fatal("creat(%s) failed: %m", value);
       results_output = o_stream_create_fd_file_autoclose(&fd, 0);
       continue;
     }
@@ -775,20 +776,19 @@ int main(int argc ATTR_UNUSED, char *argv[]) {
   if (conf.mailbox == NULL)
     conf.mailbox = testpath == NULL ? "INBOX" : "INBOX.imaptest";
 
-  if (conf.username_template == NULL)
-    i_fatal("Missing username");
+  if (conf.username_template == NULL) i_fatal("Missing username");
   if (testpath != NULL && strchr(conf.username_template, '%') != NULL) {
     printf("Don't use %% in username with tests\n");
     return 1;
   }
 
   if ((ret = net_gethostbyname(conf.host, &conf.ips, &conf.ips_count)) != 0) {
-    i_error("net_gethostbyname(%s) failed: %s", conf.host, net_gethosterror(ret));
+    i_error("net_gethostbyname(%s) failed: %s", conf.host,
+            net_gethosterror(ret));
     return 1;
   }
 
-  if (results_output != NULL)
-    print_results_header();
+  if (results_output != NULL) print_results_header();
   fix_probabilities();
   mailbox_source = imaptest_mailbox_source();
   users_init(profile, mailbox_source);
@@ -811,10 +811,8 @@ int main(int argc ATTR_UNUSED, char *argv[]) {
   }
   mailbox_source_unref(&mailbox_source);
 
-  if (to_stop != NULL)
-    timeout_remove(&to_stop);
-  if (results_output != NULL)
-    o_stream_destroy(&results_output);
+  if (to_stop != NULL) timeout_remove(&to_stop);
+  if (results_output != NULL) o_stream_destroy(&results_output);
 
   lib_signals_deinit();
   io_loop_destroy(&ioloop);
