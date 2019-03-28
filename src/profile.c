@@ -788,7 +788,7 @@ static int conf_read_usernames(const struct profile_user *user_profile,
   const char *line;
   time_t start_time;
   struct user *user;
-  unsigned int username_count = 1;
+  int idx_count = 0;
   if (user_profile->user_file == NULL || user_profile->user_count == 0) {
     return -1;
   }
@@ -802,25 +802,21 @@ static int conf_read_usernames(const struct profile_user *user_profile,
   input = i_stream_create_fd_autoclose(&fd, (size_t)-1);
   i_stream_set_return_partial_line(input, TRUE);
   while ((line = i_stream_read_next_line(input)) != NULL) {
-    if (user_profile->username_start_index > username_count) {
-      ++username_count;
-      continue;
+    if(idx_count < user_profile->username_start_index){
+        idx_count++;
+	continue;
     }
     if (*line != '\0' && *line != ':') {
       line = i_strdup(line);
       start_time =
           ioloop_time +
-          profile->rampup_time * username_count / user_profile->user_count;
+          profile->rampup_time / user_profile->user_count;
       user = user_get(line, source);
       user->profile = user_profile;
       user_init_client_profiles(user, profile);
       user_fill_timestamps(user, start_time);
 
       array_append(users, &user, 1);
-      ++username_count;
-      if (username_count >= user_profile->user_count) {
-        break;  // exit max user erreicht.
-      }
     }
   }
   i_stream_destroy(&input);
