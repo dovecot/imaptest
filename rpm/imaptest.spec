@@ -9,7 +9,7 @@
 # Foundation.  See file COPYING.
 
 %{!?lib_curl: %define lib_curl libcurl4}
-%{!?dovecot_src: %define dovecot_src /usr/local/src/core}
+%{!?dovecot_src: %define dovecot_src core}
 
 Name:		imaptest
 Summary:	Imaptest fork
@@ -45,6 +45,15 @@ Please see https://imapwiki.org/ImapTest/ for more information.
 export CFLAGS="%{optflags}"
 export CFLAGS="$CFLAGS -fpic -DPIC"
 
+git submodule update --init
+#build dovecot with static libs
+cd core
+./autogen.sh
+%configure \
+        --enable-maintainer-mode \
+        --without-shared-libs
+%{__make}
+cd ..
 ./autogen.sh
 PANDOC=FALSE %configure \
 	--enable-maintainer-mode \
