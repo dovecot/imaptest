@@ -48,6 +48,9 @@ export CFLAGS="$CFLAGS -fpic -DPIC"
 git submodule update --init
 #build dovecot with static libs
 cd core
+# apply dovecot patch
+git apply ../dovecot_patches/smtp_syntax.patch
+
 ./autogen.sh
 %configure \
         --enable-maintainer-mode \
