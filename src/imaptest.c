@@ -28,7 +28,6 @@
 #include <curl/curl.h>
 #include <string.h>
 
-
 struct settings conf;
 bool profile_running = FALSE;
 
@@ -102,6 +101,13 @@ static void print_results_header(void) {
   o_stream_send(results_output, str_data(str) + 1, str_len(str) - 1);
 }
 
+static char *get_state_name(char *state_name) {
+  if (strcmp(state_name, "LMTP") == 0 && profile->use_smtp == 1) {
+    return "SMTP";
+  }
+  return state_name;
+}
+
 static void print_results(void) {
   string_t *str = t_str_new(128);
 
@@ -116,7 +122,6 @@ static void print_results(void) {
   }
   str_append_c(str, '\n');
   o_stream_send(results_output, str_data(str) + 1, str_len(str) - 1);
-
 }
 
 static void print_timers(void) {
@@ -143,7 +148,7 @@ static void print_header(void) {
 
   for (i = 1; i < STATE_COUNT; i++) {
     if (!STATE_IS_VISIBLE(i)) continue;
-    printf("%s ", states[i].short_name);
+    printf("%s ", get_state_name(states[i].short_name));
   }
   printf("\n");
   if (profile_running) return;
@@ -198,7 +203,7 @@ static void print_timeout(void *context ATTR_UNUSED) {
   }
   int total_msg = 0;
   // default ts for influx db rest api is nano sek
-  unsigned long ts = time(NULL) *1000*1000*1000;
+  unsigned long ts = time(NULL) * 1000 * 1000 * 1000;
 
   for (i = 1; i < STATE_COUNT; i++) {
     if (!STATE_IS_VISIBLE(i)) continue;
@@ -209,8 +214,8 @@ static void print_timeout(void *context ATTR_UNUSED) {
       if (profile->client_id != NULL && counters[i] > 0) {
         sprintf(str,
                 "imaptest_msg,state=%s,id=%s value=%d,avg_time_ms=%.4f %lu\n",
-                states[i].name, profile->client_id, counters[i], mean[i],
-                ts);
+                get_state_name(states[i].name), profile->client_id, counters[i],
+                mean[i], ts);
 
         send_statistics(str);
       }
@@ -218,7 +223,6 @@ static void print_timeout(void *context ATTR_UNUSED) {
     total_msg += counters[i];
     mean[i] = 0;
     counters[i] = 0;
-
   }
 
   stalled = FALSE;
@@ -244,7 +248,7 @@ static void print_timeout(void *context ATTR_UNUSED) {
               "imaptest_clients,id=%s "
               "value=%d,total=%d,bad_requests=%d,timeouts=%d,cont=%d %lu\n",
               profile->client_id, (clients_count - banner_waits), clients_count,
-              bad_requests, timeout_requests, cont_requests,ts);
+              bad_requests, timeout_requests, cont_requests, ts);
       send_statistics(str);
       bad_requests = 0;
       timeout_requests = 0;

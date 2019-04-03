@@ -7,6 +7,7 @@
 #include "client-state.h"
 #include "profile.h"
 
+
 enum parser_state { STATE_ROOT, STATE_CLIENT, STATE_USER };
 
 struct profile_parser {
@@ -191,6 +192,13 @@ static void profile_parse_line_root(struct profile_parser *parser, char *line) {
             "Invalid number '%s'",
             key, parser->linenum, value);
       }
+    } else if (strcmp(key, "use_smtp") == 0) {
+      if (str_to_uint(value, &parser->profile->use_smtp) < 0) {
+        i_fatal(
+            "Invalid setting %s at line %u: "
+            "Invalid port number '%s'",
+            key, parser->linenum, value);
+      }
     } else if (strcmp(key, "lmtp_port") == 0) {
       if (str_to_uint(value, &parser->profile->lmtp_port) < 0 ||
           parser->profile->lmtp_port == 0 ||
@@ -297,7 +305,6 @@ static void profile_finish(struct profile_parser *parser) {
   struct profile_client *const *clientp;
   struct profile_user *const *userp;
   unsigned int percentage_count;
-
   if (parser->profile->lmtp_port == 0) i_fatal("lmtp_port setting missing");
   if (parser->profile->total_user_count == 0)
     i_fatal("total_user_count setting missing");

@@ -1,5 +1,6 @@
 /* Copyright (c) 2013-2018 ImapTest authors, see the included COPYING file */
 
+
 #include "lib.h"
 #include "ioloop.h"
 #include "str.h"
@@ -573,7 +574,7 @@ static void deliver_new_mail(struct user *user, const char *mailbox) {
 
   imaptest_lmtp_send(user->profile->profile->lmtp_port,
                      user->profile->profile->lmtp_max_parallel_count, rcpt_to,
-                     mailbox_source);
+                     mailbox_source, user->profile->profile->use_smtp);
 }
 
 static bool user_client_is_connected(struct user_client *uc) {
@@ -802,15 +803,14 @@ static int conf_read_usernames(const struct profile_user *user_profile,
   input = i_stream_create_fd_autoclose(&fd, (size_t)-1);
   i_stream_set_return_partial_line(input, TRUE);
   while ((line = i_stream_read_next_line(input)) != NULL) {
-    if(idx_count < user_profile->username_start_index){
-        idx_count++;
-	continue;
+    if (idx_count < user_profile->username_start_index) {
+      idx_count++;
+      continue;
     }
     if (*line != '\0' && *line != ':') {
       line = i_strdup(line);
       start_time =
-          ioloop_time +
-          profile->rampup_time / user_profile->user_count;
+          ioloop_time + profile->rampup_time / user_profile->user_count;
       user = user_get(line, source);
       user->profile = user_profile;
       user_init_client_profiles(user, profile);

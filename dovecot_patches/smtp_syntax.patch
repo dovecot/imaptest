@@ -1,0 +1,17 @@
+diff --git a/src/lib-smtp/smtp-syntax.c b/src/lib-smtp/smtp-syntax.c
+index 5d22445f7..525036acd 100644
+--- a/src/lib-smtp/smtp-syntax.c
++++ b/src/lib-smtp/smtp-syntax.c
+@@ -257,10 +257,11 @@ static int smtp_parse_ehlo_line(struct smtp_parser *parser,
+ 			*params_r = p_new(parser->pool, const char *, 1);
+ 		return 1;
+ 	}
++/*	this creates problems with older dovecot versions using smtp
+ 	if (*parser->cur != ' ') {
+ 		parser->error = "Unexpected character in EHLO keyword";
+ 		return -1;
+-	}
++	}*/
+ 	parser->cur++;
+ 
+ 	pbegin = parser->cur;
