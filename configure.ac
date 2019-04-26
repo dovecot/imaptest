@@ -1,4 +1,4 @@
-AC_INIT([imaptest],[1.0.0],[dovecot@dovecot.org])
+AC_INIT([imaptest],[2.0.0],[dovecot@dovecot.org])
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_MACRO_DIR([m4])
 
