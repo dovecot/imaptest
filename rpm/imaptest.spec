@@ -28,6 +28,10 @@ BuildRequires:	git
 BuildRequires:	gcc
 BuildRequires:	libtool
 BuildRequires:	pkg-config
+BuildRequires:  libtool
+BuildRequires:  automake
+BuildRequires:  autoconf
+BuildRequires:  wget
 
 %description
 
