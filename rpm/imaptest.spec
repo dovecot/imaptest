@@ -24,6 +24,7 @@ Conflicts:	otherproviders(imaptest)
 
 BuildRoot:	%{buildroot}
 BuildRequires:	%lib_curl
+BuildRequires:	git
 BuildRequires:	gcc
 BuildRequires:	libtool
 BuildRequires:	pkg-config
