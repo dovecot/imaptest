@@ -24,9 +24,25 @@ Conflicts:	otherproviders(imaptest)
 
 BuildRoot:	%{buildroot}
 BuildRequires:	%lib_curl
+BuildRequires:	git
 BuildRequires:	gcc
 BuildRequires:	libtool
 BuildRequires:	pkg-config
+BuildRequires:  libtool
+BuildRequires:  automake
+BuildRequires:  autoconf
+BuildRequires:  wget
+BuildRequires: bison flex openldap2-devel pam-devel pkgconfig tcpd-devel
+BuildRequires: libmysqlclient-devel
+BuildRequires: krb5-devel
+BuildRequires: libcap-devel
+BuildRequires: libbz2-devel
+BuildRequires: pwdutils gzip
+BuildRequires: libuuid-devel
+BuildRequires: libopenssl-devel
+BuildRequires: xz-devel
+BuildRequires: systemd
+%{?systemd_requires}
 
 %description
 
