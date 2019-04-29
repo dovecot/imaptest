@@ -69,7 +69,7 @@ git apply ../dovecot_patches/smtp_syntax.patch
 git apply ../dovecot_patches/disabe_wiki_download.patch
 
 ./autogen.sh
-PANDOC=false %configure \
+PANDOC=FALSE %configure \
         --enable-maintainer-mode \
         --without-shared-libs
 %{__make}
