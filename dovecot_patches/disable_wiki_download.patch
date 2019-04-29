@@ -42,3 +42,17 @@ index 878901855..4bfd557f6 100755
  
  autoreconf -i
  
+diff --git a/configure.ac b/configure.ac
+index 2092bb695..798c008a1 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -815,9 +815,6 @@ AC_SUBST(abs_top_builddir)
+ AC_CONFIG_HEADERS([config.h])
+ AC_CONFIG_FILES([
+ Makefile
+-doc/Makefile
+-doc/man/Makefile
+-doc/wiki/Makefile
+ doc/example-config/Makefile
+ doc/example-config/conf.d/Makefile
+ src/Makefile

@@ -67,7 +67,7 @@ git submodule update --init
 cd core
 # apply dovecot patch
 git apply ../dovecot_patches/smtp_syntax.patch
-git apply ../dovecot_patches/disabe_wiki_download.patch
+git apply ../dovecot_patches/disable_wiki_download.patch
 
 ./autogen.sh
 %configure \
