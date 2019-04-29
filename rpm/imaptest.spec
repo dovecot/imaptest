@@ -60,6 +60,7 @@ Please see https://imapwiki.org/ImapTest/ for more information.
 %build
 export CFLAGS="%{optflags}"
 export CFLAGS="$CFLAGS -fpic -DPIC"
+export PANDOC=false
 
 git submodule update --init
 #build dovecot with static libs
@@ -69,13 +70,13 @@ git apply ../dovecot_patches/smtp_syntax.patch
 git apply ../dovecot_patches/disabe_wiki_download.patch
 
 ./autogen.sh
-PANDOC=false %configure \
+%configure \
         --enable-maintainer-mode \
         --without-shared-libs
 %{__make}
 cd ..
 ./autogen.sh
-PANDOC=false %configure \
+%configure \
 	--enable-maintainer-mode \
 	--with-dovecot=%{dovecot_src}
 %{__make}
