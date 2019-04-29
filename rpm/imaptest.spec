@@ -42,6 +42,7 @@ BuildRequires: libuuid-devel
 BuildRequires: libopenssl-devel
 BuildRequires: xz-devel
 BuildRequires: systemd
+BuildRequires: pandoc
 %{?systemd_requires}
 
 %description
