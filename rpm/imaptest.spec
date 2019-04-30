@@ -65,10 +65,12 @@ export PANDOC=false
 
 git submodule update --init
 #build dovecot with static libs
+
+./rpm/coreprep.sh
+
 cd core
 # apply dovecot patch
 git apply ../dovecot_patches/smtp_syntax.patch
-git apply ../dovecot_patches/disable_wiki_download.patch
 
 ./autogen.sh
 %configure \
