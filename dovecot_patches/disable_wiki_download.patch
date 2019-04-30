@@ -1,8 +1,8 @@
 diff --git a/autogen.sh b/autogen.sh
-index 878901855..4bfd557f6 100755
+index 878901855..b35b92fa6 100755
 --- a/autogen.sh
 +++ b/autogen.sh
-@@ -14,23 +14,23 @@ for dir in $GETTEXT_DIR /usr/share/gettext /usr/local/share/gettext; do
+@@ -14,18 +14,18 @@ for dir in $GETTEXT_DIR /usr/share/gettext /usr/local/share/gettext; do
    fi
  done
  
@@ -31,27 +31,16 @@ index 878901855..4bfd557f6 100755
 +#  cd ..
 +#fi
  
--cd doc/wiki
--cp -f Makefile.am.in Makefile.am
--echo *.txt | sed 's, , \\/	,g' | tr '/' '\n' >> Makefile.am
--cd ../..
-+#cd doc/wiki
-+#cp -f Makefile.am.in Makefile.am
-+#echo *.txt | sed 's, , \\/	,g' | tr '/' '\n' >> Makefile.am
-+#cd ../..
- 
- autoreconf -i
- 
+ cd doc/wiki
+ cp -f Makefile.am.in Makefile.am
 diff --git a/configure.ac b/configure.ac
-index 2092bb695..798c008a1 100644
+index 4bb3aadaa..28fe1f1ae 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -815,9 +815,6 @@ AC_SUBST(abs_top_builddir)
- AC_CONFIG_HEADERS([config.h])
- AC_CONFIG_FILES([
+@@ -817,7 +817,6 @@ AC_CONFIG_FILES([
  Makefile
--doc/Makefile
--doc/man/Makefile
+ doc/Makefile
+ doc/man/Makefile
 -doc/wiki/Makefile
  doc/example-config/Makefile
  doc/example-config/conf.d/Makefile
