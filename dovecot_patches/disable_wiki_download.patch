@@ -1,0 +1,47 @@
+diff --git a/autogen.sh b/autogen.sh
+index 878901855..b35b92fa6 100755
+--- a/autogen.sh
++++ b/autogen.sh
+@@ -14,18 +14,18 @@ for dir in $GETTEXT_DIR /usr/share/gettext /usr/local/share/gettext; do
+   fi
+ done
+ 
+-if test ! -f doc/wiki/Authentication.txt; then
+-  cd doc
+-  wget https://www.dovecot.org/tmp/wiki2-export.tar.gz
+-  tar xzf wiki2-export.tar.gz
+-  if [ $? != 0 ]; then
+-    echo "Failed to uncompress wiki docs"
+-    exit
+-  fi
+-  mv wiki2-export/*.txt wiki/
+-  rm -rf wiki2-export wiki2-export.tar.gz
+-  cd ..
+-fi
++#if test ! -f doc/wiki/Authentication.txt; then
++#  cd doc
++#  wget https://www.dovecot.org/tmp/wiki2-export.tar.gz
++#  tar xzf wiki2-export.tar.gz
++#  if [ $? != 0 ]; then
++#    echo "Failed to uncompress wiki docs"
++#    exit
++#  fi
++#  mv wiki2-export/*.txt wiki/
++#  rm -rf wiki2-export wiki2-export.tar.gz
++#  cd ..
++#fi
+ 
+ cd doc/wiki
+ cp -f Makefile.am.in Makefile.am
+diff --git a/configure.ac b/configure.ac
+index 4bb3aadaa..28fe1f1ae 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -817,7 +817,6 @@ AC_CONFIG_FILES([
+ Makefile
+ doc/Makefile
+ doc/man/Makefile
+-doc/wiki/Makefile
+ doc/example-config/Makefile
+ doc/example-config/conf.d/Makefile
+ src/Makefile
