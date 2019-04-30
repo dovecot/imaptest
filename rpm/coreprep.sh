@@ -1,7 +1,7 @@
 #!/bin/sh
 
-cd core
-
+mkdir -p coreprep/doc/wiki
+cd coreprep
 if test ! -f doc/wiki/Authentication.txt; then
   cd doc
   wget https://www.dovecot.org/tmp/wiki2-export.tar.gz
@@ -15,18 +15,12 @@ if test ! -f doc/wiki/Authentication.txt; then
   cd ..
 fi
 
-cd doc/wiki
-cp -f Makefile.am.in Makefile.am
-echo *.txt | sed 's, , \\/	,g' | tr '/' '\n' >> Makefile.am
-cd ../..
+cd ..
 
-cd core/src/lib
-test -f $@ || wget -O UnicodeData.txt https://dovecot.org/res/UnicodeData.txt
-cd ../../..
+mkdir -p coreprep/src/lib
+test -f coreprep/src/lib/UnicodeData.txt || wget -O coreprep/src/lib/UnicodeData.txt https://dovecot.org/res/UnicodeData.txt
 
-cd core/src/lib-fts
-test -f WordBreakProperty.txt || wget -O WordBreakProperty.txt https://dovecot.org/res/WordBreakProperty.txt
-test -f PropList.txt || wget -O PropList.txt https://dovecot.org/res/PropList.txt
-
-cd ../../..
+mkdir -p coreprep/src/lib-fts
+test -f coreprep/src/lib-fts/WordBreakProperty.txt || wget -O coreprep/src/lib-fts/WordBreakProperty.txt https://dovecot.org/res/WordBreakProperty.txt
+test -f coreprep/src/lib-fts/PropList.txt || wget -O coreprep/src/lib-fts/PropList.txt https://dovecot.org/res/PropList.txt
 
