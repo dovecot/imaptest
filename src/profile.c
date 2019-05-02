@@ -2,6 +2,7 @@
 
 #include "lib.h"
 #include "ioloop.h"
+#include "istream.h"
 #include "str.h"
 #include "var-expand.h"
 #include "smtp-address.h"
@@ -616,41 +617,85 @@ user_init_client_profiles(struct user *user, struct profile *profile)
 }
 
 static void
+get_next_username(const struct profile_user *user_profile,
+		  struct istream *users_input,
+		  string_t *username, string_t *password, unsigned int i)
+{
+	char num[10];
+	struct var_expand_table tab[] = {
+		{ 'n', num, NULL },
+		{ '\0', NULL, NULL }
+	};
+	const char *line, *error;
+
+	str_truncate(username, 0);
+	str_truncate(password, 0);
+
+	if (users_input == NULL) {
+		i_snprintf(num, sizeof(num), "%u",
+			   user_profile->username_start_index + i-1);
+		if (var_expand(username, user_profile->username_format, tab,
+			       &error) < 0)
+			i_error("var_expand(%s) failed: %s",
+				user_profile->username_format, error);
+		return;
+	}
+
+	while ((line = i_stream_read_next_line(users_input)) != NULL) {
+		if (*line != '\0' && *line != ':') {
+			const char *p = strchr(line, ':');
+			if (p == NULL)
+				str_append(username, line);
+			else {
+				str_append_data(username, line, p-line);
+				str_append(password, p+1);
+			}
+			return;
+		}
+	}
+
+	if (users_input->stream_errno != 0)
+		i_fatal("Failed to read userfile %s: failed: %s",
+			user_profile->userfile, i_stream_get_error(users_input));
+	i_fatal("userfile %s ends too early - must have at least user_count=%u users",
+		user_profile->userfile, user_profile->user_count);
+}
+
+static void
 users_add_from_user_profile(const struct profile_user *user_profile,
 			    struct profile *profile, ARRAY_TYPE(user) *users,
 			    struct mailbox_source *source)
 {
-	static struct var_expand_table tab[] = {
-		{ 'n', NULL, NULL },
-		{ '\0', NULL, NULL }
-	};
-	const char *error;
 	struct user *user;
-	string_t *str = t_str_new(64);
+	struct istream *users_input;
+	string_t *username = t_str_new(64);
+	string_t *password = t_str_new(64);
 	unsigned int i;
 	time_t start_time;
-	char num[10];
 
-	tab[0].value = num;
+	if (user_profile->userfile == NULL)
+		users_input = NULL;
+	else {
+		users_input = i_stream_create_file(user_profile->userfile, (size_t)-1);
+		i_stream_set_return_partial_line(users_input, TRUE);
+	}
 
 	for (i = 1; i <= user_profile->user_count; i++) {
 		start_time = ioloop_time + profile->rampup_time *
 			i / user_profile->user_count;
 
-		str_truncate(str, 0);
-		i_snprintf(num, sizeof(num), "%u",
-			   user_profile->username_start_index + i-1);
-		if (var_expand(str, user_profile->username_format, tab,
-			       &error) < 0)
-			i_error("var_expand(%s) failed: %s",
-				user_profile->username_format,
-				error);
-		user = user_get(str_c(str), source);
+		get_next_username(user_profile, users_input,
+				  username, password, i);
+
+		user = user_get(str_c(username), source);
+		if (str_len(password) > 0)
+			user->password = p_strdup(user->pool, str_c(password));
 		user->profile = user_profile;
 		user_init_client_profiles(user, profile);
 		user_fill_timestamps(user, start_time);
 		array_append(users, &user, 1);
 	}
+	i_stream_unref(&users_input);
 }
 
 void profile_add_users(struct profile *profile, ARRAY_TYPE(user) *users,
