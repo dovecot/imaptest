@@ -65,6 +65,7 @@ const struct setting_parser_info profile_client_setting_parser_info = {
 static const struct setting_define profile_user_setting_defines[] = {
 	DEF(SET_STR, name),
 	DEF(SET_STR, username_format),
+	DEF(SET_STR, userfile),
 	DEF(SET_UINT, user_count),
 	DEF(SET_UINT, username_start_index),
 
@@ -319,8 +320,8 @@ static void profile_finish(struct profile_parser *parser)
 
 	percentage_count = 0;
 	array_foreach(&parser->users, userp) {
-		if ((*userp)->username_format == NULL)
-			i_fatal("username_format not set");
+		if ((*userp)->username_format == NULL && (*userp)->userfile == NULL)
+			i_fatal("Either username_format or userfile must be set");
 		(*userp)->user_count = parser->profile->total_user_count *
 			(*userp)->percentage / 100;
 		percentage_count += (*userp)->percentage;

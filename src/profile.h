@@ -28,6 +28,7 @@ struct profile_user {
 	struct profile *profile;
 	const char *name;
 	const char *username_format;
+	const char *userfile; /* overrides username_format */
 	unsigned int percentage, user_count, username_start_index;
 
 	/* This is kind of tricky. we have connections for: a) desktop clients
