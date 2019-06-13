@@ -1189,7 +1189,7 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		};
 		static const char *header_fields[] = {
 			"From", "To", "Cc", "Subject", "References",
-			"In-Reply-To", "Message-ID", "Delivered-To"
+			"In-Reply-To", "Message-ID",
 		};
 		count = I_MIN(msgs, 100);
 		if (!imap_client_get_random_seq_range(client, &seq_range, count,
