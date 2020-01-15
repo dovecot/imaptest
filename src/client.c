@@ -142,6 +142,9 @@ static void client_wait_connect(struct client *client)
 		return;
 	}
 
+	/* remove before ssl handshake */
+	io_remove(&client->io);
+
 	if (conf.ssl) {
 		if (ssl_ctx == NULL) {
 			if (ssl_iostream_context_init_client(&conf.ssl_set, &ssl_ctx, &error) < 0)
@@ -160,7 +163,6 @@ static void client_wait_connect(struct client *client)
 			client->rawlog_fd = o_stream_get_fd(client->output);
 	}
 
-	io_remove(&client->io);
 	client->io = io_add_istream(client->input, client_input, client);
 	client->v.connected(client);
 }
