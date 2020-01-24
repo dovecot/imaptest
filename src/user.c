@@ -5,6 +5,7 @@
 #include "hash.h"
 #include "ioloop.h"
 #include "str.h"
+#include "time-util.h"
 #include "settings.h"
 #include "profile.h"
 #include "imap-client.h"

@@ -5,6 +5,7 @@
 #include "str.h"
 #include "istream.h"
 #include "ostream.h"
+#include "time-util.h"
 #include "imap-parser.h"
 #include "mailbox.h"
 #include "imap-client.h"
@@ -200,7 +201,7 @@ command_send_binary(struct imap_client *client, const char *cmdline,
 	iov[2].iov_base = "\r\n";
 	iov[2].iov_len = 2;
 	o_stream_nsendv(client->client.output, iov, 3);
-	gettimeofday(&cmd->tv_start, NULL);
+	i_gettimeofday(&cmd->tv_start);
 
 	array_append(&client->commands, &cmd, 1);
 	client->last_cmd = cmd;

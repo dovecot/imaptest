@@ -6,6 +6,7 @@
 #include "str.h"
 #include "istream.h"
 #include "ostream.h"
+#include "time-util.h"
 
 #include "settings.h"
 #include "mailbox.h"
@@ -46,7 +47,7 @@ static void pop3_command_send(struct pop3_client *client, const char *cmdline,
 	cmd->cmdline = i_strconcat(cmdline, "\r\n", NULL);
 	cmd->state = client->client.state;
 	cmd->callback = callback;
-	gettimeofday(&cmd->tv_start, NULL);
+	i_gettimeofday(&cmd->tv_start);
 
 	o_stream_nsend_str(client->client.output, cmd->cmdline);
 	array_append(&client->commands, &cmd, 1);

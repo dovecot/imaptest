@@ -4,6 +4,7 @@
 #include "llist.h"
 #include "ioloop.h"
 #include "istream.h"
+#include "time-util.h"
 #include "smtp-address.h"
 #include "smtp-client.h"
 #include "smtp-client-connection.h"
@@ -135,7 +136,7 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 	d->to = timeout_add(LMTP_DELIVERY_TIMEOUT_MSECS,
 			    imaptest_lmtp_timeout, d);
 	d->rcpt_to = smtp_address_clone(default_pool, rcpt_to);
-	gettimeofday(&d->tv_start, NULL);
+	i_gettimeofday(&d->tv_start);
 
 
 	ip = &conf.ips[conf.ip_idx];

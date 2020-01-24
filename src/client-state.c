@@ -74,7 +74,7 @@ void client_state_add_to_timer(enum client_state state,
 	struct timeval tv_end;
 	int diff;
 
-	gettimeofday(&tv_end, NULL);
+	i_gettimeofday(&tv_end);
 	diff = timeval_diff_msecs(&tv_end, tv_start);
 	if (diff < 0)
 		diff = 0;
