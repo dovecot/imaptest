@@ -513,7 +513,8 @@ again:
 	parent->first_child = node;
 
 	probability /= 2;
-	return search_command_build(ctx, parent, probability);
+	(void)search_command_build(ctx, parent, probability);
+	return TRUE;
 }
 
 static bool str_need_escaping(const char *str)
