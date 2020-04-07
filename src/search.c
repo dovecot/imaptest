@@ -344,8 +344,10 @@ again:
 	case SEARCH_OR:
 		if (parent->type == SEARCH_OR && node->type == SEARCH_OR)
 			goto again;
-		probability -= I_MAX(probability/30, 1);
-		if (!search_command_build(ctx, node, probability))
+		i_assert(probability > 0);
+		unsigned int child_probability =
+			probability - I_MAX(probability/30, 1);
+		if (!search_command_build(ctx, node, child_probability))
 			goto again;
 		if (node->first_child->next_sibling == NULL) {
 			/* just a single child - replace the sub node by it */
