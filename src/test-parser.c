@@ -527,16 +527,17 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 {
 	struct test_command_group *group = parser->cur_cmd_group;
 	struct test_command *cmd, newcmd;
-	const char *line2, *p, *error;
+	const char *line2, *p, *env, *error;
 	unsigned int tag, connection_idx;
 	void *cmdmem;
 	enum test_existence existence;
 
-	if (str_begins(line, "!ifenv ") || str_begins(line, "!ifnenv ")) {
+	if (str_begins(line, "!ifenv ", &env) ||
+	    str_begins(line, "!ifnenv ", &env)) {
 		struct ifenv *ifenv;
-		bool have_env = getenv(line+7) == NULL;
+		bool have_env = getenv(env) == NULL;
 
-		if (str_begins(line, "!ifnenv "))
+		if (str_begins_with(line, "!ifnenv "))
 			have_env = !have_env;
 
 		ifenv = array_append_space(&parser->ifenv_stack);
