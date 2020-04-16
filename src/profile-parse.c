@@ -27,18 +27,18 @@ struct profile_parser {
 
 #undef DEF
 #define DEF(type, name) \
-	{ type, #name, offsetof(struct profile_client, name), NULL }
+	SETTING_DEFINE_STRUCT_##type(#name, name, struct profile_client)
 
 static const struct setting_define profile_client_setting_defines[] = {
-	DEF(SET_STR, name),
-	DEF(SET_ENUM, protocol),
-	DEF(SET_UINT, connection_max_count),
-	DEF(SET_BOOL, pop3_keep_mails),
-	DEF(SET_BOOL, imap_idle),
-	DEF(SET_STR, imap_fetch_immediate),
-	DEF(SET_STR, imap_fetch_manual),
-	DEF(SET_TIME, imap_status_interval),
-	DEF(SET_TIME, login_interval),
+	DEF(STR, name),
+	DEF(ENUM, protocol),
+	DEF(UINT, connection_max_count),
+	DEF(BOOL, pop3_keep_mails),
+	DEF(BOOL, imap_idle),
+	DEF(STR, imap_fetch_immediate),
+	DEF(STR, imap_fetch_manual),
+	DEF(TIME, imap_status_interval),
+	DEF(TIME, login_interval),
 
 	SETTING_DEFINE_LIST_END
 };
@@ -60,29 +60,29 @@ const struct setting_parser_info profile_client_setting_parser_info = {
 
 #undef DEF
 #define DEF(type, name) \
-	{ type, #name, offsetof(struct profile_user, name), NULL }
+	SETTING_DEFINE_STRUCT_##type(#name, name, struct profile_user)
 
 static const struct setting_define profile_user_setting_defines[] = {
-	DEF(SET_STR, name),
-	DEF(SET_STR, username_format),
-	DEF(SET_STR, userfile),
-	DEF(SET_UINT, user_count),
-	DEF(SET_UINT, username_start_index),
+	DEF(STR, name),
+	DEF(STR, username_format),
+	DEF(STR, userfile),
+	DEF(UINT, user_count),
+	DEF(UINT, username_start_index),
 
-	DEF(SET_TIME, mail_session_length),
-	DEF(SET_TIME, mail_inbox_delivery_interval),
-	DEF(SET_TIME, mail_spam_delivery_interval),
-	DEF(SET_TIME, mail_send_interval),
+	DEF(TIME, mail_session_length),
+	DEF(TIME, mail_inbox_delivery_interval),
+	DEF(TIME, mail_spam_delivery_interval),
+	DEF(TIME, mail_send_interval),
 
-	DEF(SET_UINT, mail_inbox_reply_percentage),
-	DEF(SET_UINT, mail_inbox_delete_percentage),
-	DEF(SET_UINT, mail_inbox_move_percentage),
-	DEF(SET_UINT, mail_inbox_move_filter_percentage),
+	DEF(UINT, mail_inbox_reply_percentage),
+	DEF(UINT, mail_inbox_delete_percentage),
+	DEF(UINT, mail_inbox_move_percentage),
+	DEF(UINT, mail_inbox_move_filter_percentage),
 
-	DEF(SET_TIME, mail_action_delay),
-	DEF(SET_TIME, mail_action_repeat_delay),
-	DEF(SET_TIME, mail_write_duration),
-	DEF(SET_SIZE, mail_write_size),
+	DEF(TIME, mail_action_delay),
+	DEF(TIME, mail_action_repeat_delay),
+	DEF(TIME, mail_write_duration),
+	DEF(SIZE, mail_write_size),
 
 	SETTING_DEFINE_LIST_END
 };
