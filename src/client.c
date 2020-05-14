@@ -241,7 +241,7 @@ int client_init(struct client *client, unsigned int idx,
 
 	client->fd = fd;
 	client->rawlog_fd = -1;
-	client->input = i_stream_create_fd(fd, 1024*64);
+	client->input = i_stream_create_fd(fd, (size_t)-1);
 	client->output = o_stream_create_fd(fd, (size_t)-1);
 	i_stream_set_name(client->input, t_strdup_printf("client %u", idx));
 	o_stream_set_name(client->output, t_strdup_printf("client %u", idx));
