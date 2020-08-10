@@ -655,7 +655,7 @@ static int user_timestamp_handle(struct user *user, enum user_timestamp ts,
       deliver_new_mail(user, "INBOX");
       return 1;
     case USER_TIMESTAMP_SPAM_DELIVERY:
-      deliver_new_mail(user, "INBOX.Spam");
+      deliver_new_mail(user, "Spam");
       return 1;
     case USER_TIMESTAMP_WRITE_MAIL:
       if (!user_connected) return 0;
