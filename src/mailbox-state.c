@@ -457,8 +457,8 @@ static void fetch_parse_body1(struct imap_client *client, const struct imap_arg 
 	len = strlen(body);
 
 	if (len > 0) {
-		start = i_rand() % len;
-		len = i_rand() % (len - start) + 1;
+		start = i_rand_limit(len);
+		len = i_rand_limit(len - start) + 1;
 		if (len > 20)
 			len = 20;
 		/* make sure there are no non-ascii characters, since we don't

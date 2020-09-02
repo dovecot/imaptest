@@ -60,12 +60,12 @@ unsigned long long timers[STATE_COUNT];
 
 bool do_rand(enum client_state state)
 {
-	return (i_rand() % 100) < states[state].probability;
+	return (i_rand_limit(100)) < states[state].probability;
 }
 
 bool do_rand_again(enum client_state state)
 {
-	return (i_rand() % 100) < states[state].probability_again;
+	return (i_rand_limit(100)) < states[state].probability_again;
 }
 
 void client_state_add_to_timer(enum client_state state,
@@ -148,7 +148,7 @@ static enum client_state client_get_next_state(enum client_state state)
 			/* if we're not in selected state, we'll randomly do
 			   LIST, SELECT, APPEND or LOGOUT */
 			state = STATE_LIST +
-				(i_rand() % (STATE_LOGOUT - STATE_LIST + 1));
+				(i_rand_limit(STATE_LOGOUT - STATE_LIST + 1));
 		}
 
 		if (do_rand(state))
@@ -327,7 +327,7 @@ int imap_client_plan_send_more_commands(struct client *_client)
 
 	if (!_client->delayed && do_rand(STATE_DELAY)) {
 		counters[STATE_DELAY]++;
-		client_delay(&client->client, i_rand() % DELAY_MSECS);
+		client_delay(&client->client, i_rand_limit(DELAY_MSECS));
 	}
 	return 0;
 }
@@ -451,11 +451,11 @@ int imap_client_append_random(struct imap_client *client)
 	const char *flags = NULL, *datetime = NULL;
 	struct command *cmd;
 
-	if ((i_rand() % 2) == 0) {
+	if ((i_rand_limit(2)) == 0) {
 		flags = mailbox_view_get_random_flags(client->view,
 						      client->client.idx);
 	}
-	if ((i_rand() % 2) == 0)
+	if ((i_rand_limit(2)) == 0)
 		datetime = "";
 	return imap_client_append_full(client, NULL, flags, datetime,
 				       state_callback, &cmd);
@@ -1001,7 +1001,7 @@ bool imap_client_get_random_seq_range(struct imap_client *client,
 		flag_type == CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT;
 	msgs = array_count(&client->view->uidmap);
 	for (i = tries = 0; i < count && tries < count*3; tries++) {
-		seq = i_rand() % msgs + 1;
+		seq = i_rand_limit(msgs) + 1;
 		metadata = array_idx_get_space(&client->view->messages,
 						seq - 1);
 		owner = metadata->ms == NULL ? 0 :
@@ -1133,35 +1133,44 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		command_send(client, str, state_callback);
 		break;
 	case STATE_MCREATE:
-		if (i_rand() % 2 != 0)
+		if (i_rand_limit(2) != 0)
 			str = t_strdup_printf("CREATE \"test%c%d\"", 
-					      IMAP_HIERARCHY_SEP, i_rand() % 20);
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20));
 		else
 			str = t_strdup_printf("CREATE \"test%c%d%c%d\"", 
-					      IMAP_HIERARCHY_SEP, i_rand() % 20,
-					      IMAP_HIERARCHY_SEP, i_rand() % 20);
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20),
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20));
 		command_send(client, str, state_callback);
 		break;
 	case STATE_MSUBS: {
-		const char *cmd = (i_rand() % 2 != 0 ? "SUBSCRIBE" : "UNSUBSCRIBE");
-		if (i_rand() % 2 != 0)
+		const char *cmd = (i_rand_limit(2) != 0 ? "SUBSCRIBE" : "UNSUBSCRIBE");
+		if (i_rand_limit(2) != 0)
 			str = t_strdup_printf("%s \"test%c%d\"", cmd,
-					      IMAP_HIERARCHY_SEP, i_rand() % 20);
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20));
 		else
 			str = t_strdup_printf("%s \"test%c%d%c%d\"", cmd,
-					      IMAP_HIERARCHY_SEP, i_rand() % 20,
-					      IMAP_HIERARCHY_SEP, i_rand() % 20);
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20),
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20));
 		command_send(client, str, state_callback);
 		break;
 	}
 	case STATE_MDELETE:
-		if (i_rand() % 2 != 0)
+		if (i_rand_limit(2) != 0)
 			str = t_strdup_printf("DELETE \"test%c%d\"", 
-					      IMAP_HIERARCHY_SEP, i_rand() % 20);
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20));
 		else
 			str = t_strdup_printf("DELETE \"test%c%d%c%d\"", 
-					      IMAP_HIERARCHY_SEP, i_rand() % 20,
-					      IMAP_HIERARCHY_SEP, i_rand() % 20);
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20),
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20));
 		command_send(client, str, state_callback);
 		break;
 	case STATE_SELECT:
@@ -1207,15 +1216,14 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 			str_append(cmd, "UID ");
 		if (conf.checkpoint_interval > 0)
 			str_append(cmd, "FLAGS ");
-		for (i = (i_rand() % 4) + 1; i > 0; i--) {
-			if ((i_rand() % 4) != 0) {
-				str_append(cmd, fields[i_rand() %
-						       N_ELEMENTS(fields)]);
+		for (i = (i_rand_limit(4)) + 1; i > 0; i--) {
+			if ((i_rand_limit(4)) != 0) {
+				str_append(cmd,
+					   fields[i_rand_limit(N_ELEMENTS(fields))]);
 			} else {
 				str_append(cmd, "BODY.PEEK[HEADER.FIELDS (");
-				for (j = (i_rand() % 4) + 1; j > 0; j--) {
-					int idx = i_rand() %
-						N_ELEMENTS(header_fields);
+				for (j = (i_rand_limit(4)) + 1; j > 0; j--) {
+					int idx = i_rand_limit(N_ELEMENTS(header_fields));
 					str_append(cmd, header_fields[idx]);
 					if (j != 1)
 						str_append_c(cmd, ' ');
@@ -1239,7 +1247,7 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		   case of problems */
 		str = t_strdup_printf("FETCH %lu (UID %s)",
 				      (random() % msgs) + 1,
-				      fields[i_rand()%N_ELEMENTS(fields)]);
+				      fields[i_rand_limit(N_ELEMENTS(fields))]);
 		command_send(client, str, state_callback);
 		break;
 	}
@@ -1252,20 +1260,20 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		};
 		cmd = t_str_new(512);
 		str_append(cmd, "SORT (");
-		i = i_rand() % N_ELEMENTS(fields);
-		j = i_rand() % N_ELEMENTS(fields);
+		i = i_rand_limit(N_ELEMENTS(fields));
+		j = i_rand_limit(N_ELEMENTS(fields));
 
-		if (i_rand() % 3 == 0)
+		if (i_rand_limit(3) == 0)
 			str_append(cmd, "REVERSE ");
 		str_append(cmd, fields[i]);
-		if (i_rand() % 3 == 0 && i != j) {
+		if (i_rand_limit(3) == 0 && i != j) {
 			str_append_c(cmd, ' ');
-			if (i_rand() % 3 == 0)
+			if (i_rand_limit(3) == 0)
 				str_append(cmd, "REVERSE ");
 			str_append(cmd, fields[j]);
 		}
 		str_append(cmd, ") US-ASCII ");
-		switch (i_rand() % 3) {
+		switch (i_rand_limit(3)) {
 		case 0:
 			str_append(cmd, "ALL");
 			break;
@@ -1273,8 +1281,8 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 			str_append(cmd, "FLAGGED");
 			break;
 		case 2:
-			str_printfa(cmd, "%u:%u", (i_rand() % msgs) + 1,
-				    (i_rand() % msgs) + 1);
+			str_printfa(cmd, "%u:%u", (i_rand_limit(msgs)) + 1,
+				    (i_rand_limit(msgs)) + 1);
 			break;
 		}
 		command_send(client, str_c(cmd), state_callback);
@@ -1286,16 +1294,16 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 	case STATE_COPY:
 		i_assert(conf.copy_dest != NULL);
 
-		seq1 = (i_rand() % msgs) + 1;
-		seq2 = (i_rand() % (msgs - seq1 + 1));
+		seq1 = (i_rand_limit(msgs)) + 1;
+		seq2 = (i_rand_limit(msgs - seq1 + 1));
 		seq2 = seq1 + I_MIN(seq2, 5);
 		str = t_strdup_printf("COPY %u:%u %s",
 				      seq1, seq2, conf.copy_dest);
 		command_send(client, str, state_callback);
 		break;
 	case STATE_STORE:
-		count = i_rand() % (msgs < 10 ? msgs : I_MIN(msgs/5, 50));
-		flag_type = conf.checkpoint_interval == 0 && i_rand() % 2 == 0 ?
+		count = i_rand_limit(msgs < 10 ? msgs : I_MIN(msgs / 5, 50));
+		flag_type = conf.checkpoint_interval == 0 && i_rand_limit(2) == 0 ?
 			CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT :
 			CLIENT_RANDOM_FLAG_TYPE_STORE;
 		if (!imap_client_get_random_seq_range(client, &seq_range, count,
@@ -1306,7 +1314,7 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		str_append(cmd, "STORE ");
 		seq_range_to_imap_range(&seq_range, cmd);
 		str_append_c(cmd, ' ');
-		switch (i_rand() % 3) {
+		switch (i_rand_limit(3)) {
 		case 0:
 			str_append_c(cmd, '+');
 			break;
@@ -1348,13 +1356,13 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 			count += msgs - conf.message_count_threshold;
 
 		/* Now delete less than that bound */
-		count = i_rand() % count;
+		count = i_rand_limit(count);
 		if (count > 1000) /* avoid "command line too long" errors */
 			count = 1000;
-		if (count == 0 && i_rand() % 10 > 0) /* only rarely do nothing */
+		if (count == 0 && i_rand_limit(10) > 0) /* only rarely do nothing */
 			break;
 
-		flag_type = conf.checkpoint_interval == 0 && i_rand() % 2 == 0 ?
+		flag_type = conf.checkpoint_interval == 0 && i_rand_limit(2) == 0 ?
 			CLIENT_RANDOM_FLAG_TYPE_STORE_SILENT :
 			CLIENT_RANDOM_FLAG_TYPE_STORE;
 

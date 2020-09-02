@@ -318,7 +318,7 @@ void imap_client_log_mailbox_view(struct imap_client *client)
 void imap_client_mailbox_close(struct imap_client *client)
 {
 	if (client->client.login_state == LSTATE_SELECTED && conf.qresync) {
-		if (i_rand() % 3 == 0) {
+		if (i_rand_limit(3) == 0) {
 			if (mailbox_view_save_offline_cache(client->view))
 				imap_client_log_mailbox_view(client);
 		}

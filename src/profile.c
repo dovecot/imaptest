@@ -20,7 +20,7 @@
 
 #define RANDU (i_rand_limit(RAND_MAX) / (double)RAND_MAX)
 #define RANDN2(mu, sigma) \
-	(mu + (i_rand()%2 != 0 ? -1.0 : 1.0) * sigma * pow(-log(0.99999*RANDU), 0.5))
+	(mu + (i_rand_limit(2) != 0 ? -1.0 : 1.0) * sigma * pow(-log(0.99999*RANDU), 0.5))
 #define weighted_rand(n) \
 	(int)RANDN2(n, n/2)
 
@@ -532,7 +532,7 @@ static void user_fill_timestamps(struct user *user, time_t start_time)
 	for (ts = 0; ts < USER_TIMESTAMP_COUNT; ts++) {
 		interval = user_get_timeout_interval(user, ts);
 		user->timestamps[ts] = interval == 0 ? (time_t)-1 :
-			(time_t)(start_time + i_rand() % interval);
+			(time_t)(start_time + i_rand_limit(interval));
 		user_set_min_timestamp(user, user->timestamps[ts]);
 	}
 	user->timestamps[USER_TIMESTAMP_LOGIN] = start_time;
@@ -610,7 +610,7 @@ user_init_client_profiles(struct user *user, struct profile *profile)
 		     array_count(&profile->clients));
 	while (array_count(&user->clients) == 0) {
 		array_foreach(&profile->clients, clientp) {
-			if ((unsigned int)i_rand() % 100 < (*clientp)->percentage)
+			if (i_rand_limit(100) < (*clientp)->percentage)
 				user_add_client_profile(user, *clientp);
 		}
 	}

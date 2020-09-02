@@ -334,7 +334,7 @@ static int pop3_client_send_more_commands(struct client *_client)
 
 	if (!_client->delayed && do_rand(STATE_DELAY)) {
 		counters[STATE_DELAY]++;
-		client_delay(&client->client, i_rand() % DELAY_MSECS);
+		client_delay(&client->client, i_rand_limit(DELAY_MSECS));
 	}
 	return 0;
 }

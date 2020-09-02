@@ -64,7 +64,7 @@ static struct user *user_get_random_from_conf(struct mailbox_source *source)
 	unsigned int i;
 
 	if (array_is_created(&conf.usernames)) {
-		i = i_rand() % array_count(&conf.usernames);
+		i = i_rand_limit(array_count(&conf.usernames));
 		userp = array_idx(&conf.usernames, i);
 		p = strchr(*userp, ':');
 		if (p == NULL) {
@@ -119,7 +119,7 @@ bool user_get_random(struct mailbox_source *source, struct user **user_r)
 	}
 
 	u = array_get(&users, &count);
-	start_idx = i_rand() % count;
+	start_idx = i_rand_limit(count);
 	for (i = 0; i < count; i++) {
 		unsigned int idx = (i + start_idx) % count;
 		if (user_can_connect_clients(u[idx])) {
@@ -152,7 +152,7 @@ static void user_update_active_client(struct user *user)
 	unsigned int i, j, count;
 
 	clients = array_get(&user->clients, &count);
-	j = i_rand() % count;
+	j = i_rand_limit(count);
 	for (i = 0; i < count; i++) {
 		uc = clients[(i+j)%count];
 		if (array_count(&uc->clients) > 0) {

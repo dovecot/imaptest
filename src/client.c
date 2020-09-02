@@ -364,7 +364,7 @@ unsigned int clients_get_random_idx(void)
 	/* first try randomly */
 	c = array_get(&clients, &count);
 	for (i = 0; i < 100; i++) {
-		idx = i_rand() % count;
+		idx = i_rand_limit(count);
 		if (c[idx] != NULL)
 			return idx;
 	}
