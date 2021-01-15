@@ -556,10 +556,13 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 
 		name = t_str_ucase(name);
 		listargs = NULL;
-		if (imap_arg_get_nstring(&args[i+1], &value)) {
-			if (value == NULL)
-				continue;
-		} else if (imap_arg_get_literal_size(&args[i+1], &value_size))
+		if (args[i+1].type == IMAP_ARG_NIL) {
+			/* NIL values aren't helpful */
+			continue;
+		}
+		if (imap_arg_get_astring(&args[i+1], &value))
+			;
+		else if (imap_arg_get_literal_size(&args[i+1], &value_size))
 			value = dec2str(value_size);
 		else if (imap_arg_get_list(&args[i+1], &listargs))
 			value = imap_args_to_str(listargs);
