@@ -1171,6 +1171,7 @@ static int test_send_lstate_commands(struct client *_client)
 				return 0;
 			} else if (!test_have_all_capabilities(client)) {
 				test_skip(ctx);
+				test_execute_finish(ctx);
 				return 0;
 			}
 			mask = t_strconcat(client->storage->name, "*", NULL);
