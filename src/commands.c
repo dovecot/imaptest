@@ -121,6 +121,13 @@ command_get_cmdline(struct imap_client *client, const char **_cmdline,
 	*_cmdline_len = str_len(str);
 }
 
+static void command_delay_timeout(struct imap_client *client)
+{
+	imap_client_input_error(client,
+				"Timeout while waiting for server response");
+	client_disconnect(&client->client);
+}
+
 struct command *command_send(struct imap_client *client, const char *cmdline,
 			     command_callback_t *callback)
 {
@@ -203,6 +210,10 @@ command_send_binary(struct imap_client *client, const char *cmdline,
 	o_stream_nsendv(client->client.output, iov, 3);
 	i_gettimeofday(&cmd->tv_start);
 
+	if (client->delay_timeout_ms > 0)
+		cmd->delay_to = timeout_add(client->delay_timeout_ms,
+					    command_delay_timeout, client);
+
 	array_append(&client->commands, &cmd, 1);
 	client->last_cmd = cmd;
 	return cmd;
@@ -231,6 +242,7 @@ void command_free(struct command *cmd)
 {
 	if (array_is_created(&cmd->seq_range))
 		array_free(&cmd->seq_range);
+	timeout_remove(&cmd->delay_to);
 	i_free(cmd->cmdline);
 	i_free(cmd);
 }

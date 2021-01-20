@@ -26,6 +26,7 @@ struct command {
 
 	command_callback_t *callback;
 	struct timeval tv_start;
+	struct timeout *delay_to;
 
 	bool expect_bad:1;
 };

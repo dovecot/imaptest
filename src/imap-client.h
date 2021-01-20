@@ -74,6 +74,8 @@ struct imap_client {
 
 	int (*handle_untagged)(struct imap_client *, const struct imap_arg *);
 
+	unsigned int delay_timeout_ms;
+
 	bool seen_banner:1;
 	bool append_unfinished:1;
 	bool try_create_mailbox:1;

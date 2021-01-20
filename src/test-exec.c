@@ -23,6 +23,7 @@
 #include <ctype.h>
 
 #define IS_VAR_CHAR(c) (i_isalnum(c) || (c) == '_')
+#define TEST_EXEC_DELAY_TIMEOUT_SECS 30
 
 struct tests_execute_context {
 	const ARRAY_TYPE(test) *tests;
@@ -1320,6 +1321,8 @@ static int test_execute(const struct test *test,
 		ctx->clients[i]->client.v.send_more_commands =
 			test_send_lstate_commands;
 		ctx->clients[i]->test_exec_ctx = ctx;
+		ctx->clients[i]->delay_timeout_ms =
+			TEST_EXEC_DELAY_TIMEOUT_SECS * 1000;
 
 		key = i == 0 ? "user" : p_strdup_printf(pool, "user%u", i+1);
 		value = p_strdup(pool, ctx->clients[i]->client.user->username);
