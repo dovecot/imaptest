@@ -1453,6 +1453,10 @@ void test_execute_cancel_by_client(struct imap_client *client)
 		    !test_execute_is_cur_group_with_bye(ctx))
 			test_fail(ctx, "Unexpected disconnection");
 		test_execute_finish(ctx);
+		if (ctx->test->required_capabilities == NULL)
+			ctx->exec_ctx->base_tests++;
+		else
+			ctx->exec_ctx->ext_tests++;
 		i_assert(ctx->disconnects_waiting > 0);
 	}
 	client->test_exec_ctx = NULL;
