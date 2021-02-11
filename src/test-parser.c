@@ -816,13 +816,13 @@ static bool test_parse_file(struct test_parser *parser, struct test *test,
 
 static bool parser_has_logout(struct test *test)
 {
-	struct test_command_group *const *groupp;
+	struct test_command_group *group;
 	const struct test_command *cmd;
 
-	array_foreach(&test->cmd_groups, groupp) {
-		array_foreach(&(*groupp)->commands, cmd) {
+	array_foreach_elem(&test->cmd_groups, group) {
+		array_foreach(&group->commands, cmd) {
 			if (strcasecmp(cmd->command, "logout") == 0 ||
-			    (*groupp)->have_untagged_bye)
+			    group->have_untagged_bye)
 				return TRUE;
 		}
 	}
@@ -919,7 +919,7 @@ test_parser_read_test(struct test_parser *parser, const char *path)
 
 static int test_parser_scan_dir(struct test_parser *parser, const char *path)
 {
-	const char *filepath, *const *test_path;
+	const char *filepath, *test_path;
 	DIR *dir;
 	struct dirent *d;
 	unsigned int len;
@@ -951,9 +951,9 @@ static int test_parser_scan_dir(struct test_parser *parser, const char *path)
 
 	array_sort(&test_paths, i_strcmp_p);
 
-	array_foreach(&test_paths, test_path) {
+	array_foreach_elem(&test_paths, test_path) {
 		T_BEGIN {
-			ret = test_parser_read_test(parser, *test_path);
+			ret = test_parser_read_test(parser, test_path);
 		} T_END;
 		if (ret < 0)
 			break;

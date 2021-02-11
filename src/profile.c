@@ -177,12 +177,12 @@ int imap_client_profile_handle_untagged(struct imap_client *client,
 
 static struct imap_client *user_find_any_imap_client(struct user_client *uc)
 {
-	struct client *const *clientp;
+	struct client *client;
 	struct imap_client *last_client = NULL;
 
 	/* try to find an idling client */
-	array_foreach(&uc->clients, clientp) {
-		struct imap_client *last_client = imap_client(*clientp);
+	array_foreach_elem(&uc->clients, client) {
+		struct imap_client *last_client = imap_client(client);
 		if (last_client != NULL && last_client->client.idling)
 			return last_client;
 	}
@@ -405,13 +405,13 @@ static void deliver_new_mail(struct user *user, const char *mailbox)
 
 static bool user_client_is_connected(struct user_client *uc)
 {
-	struct client *const *clientp;
+	struct client *client;
 
 	if (uc == NULL || array_count(&uc->clients) == 0)
 		return FALSE;
 
-	array_foreach(&uc->clients, clientp) {
-		if ((*clientp)->state == STATE_LOGOUT)
+	array_foreach_elem(&uc->clients, client) {
+		if (client->state == STATE_LOGOUT)
 			return FALSE;
 	}
 	return TRUE;
@@ -419,29 +419,29 @@ static bool user_client_is_connected(struct user_client *uc)
 
 static void user_set_next_mailbox_action(struct user *user)
 {
-	struct user_mailbox_cache *const *mailboxp;
+	struct user_mailbox_cache *mailbox;
 
-	array_foreach(&user->active_client->mailboxes, mailboxp) {
-		if ((*mailboxp)->next_action_timestamp <= ioloop_time &&
-		    (*mailboxp)->next_action_timestamp != (time_t)-1) {
-			(*mailboxp)->next_action_timestamp =
-				user_mailbox_action(user, *mailboxp) ?
+	array_foreach_elem(&user->active_client->mailboxes, mailbox) {
+		if (mailbox->next_action_timestamp <= ioloop_time &&
+		    mailbox->next_action_timestamp != (time_t)-1) {
+			mailbox->next_action_timestamp =
+				user_mailbox_action(user, mailbox) ?
 				(ioloop_time + weighted_rand(user->profile->mail_action_repeat_delay)) :
 				(time_t)-1;
 		}
-		user_set_min_timestamp(user, (*mailboxp)->next_action_timestamp);
+		user_set_min_timestamp(user, mailbox->next_action_timestamp);
 	}
 }
 
 static void user_logout(struct user_client *uc)
 {
-	struct client *const *clientp;
+	struct client *client;
 
-	array_foreach(&uc->clients, clientp) {
-		if ((*clientp)->login_state == LSTATE_NONAUTH)
-			client_disconnect(*clientp);
+	array_foreach_elem(&uc->clients, client) {
+		if (client->login_state == LSTATE_NONAUTH)
+			client_disconnect(client);
 		else
-			client_logout(*clientp);
+			client_logout(client);
 	}
 }
 
@@ -542,16 +542,16 @@ static void user_fill_timestamps(struct user *user, time_t start_time)
 static void users_timeout(void *context ATTR_UNUSED)
 {
 	const ARRAY_TYPE(user) *users = users_get_sort_by_min_timestamp();
-	struct user *const *userp;
+	struct user *user;
 
 	timeout_remove(&to_users);
-	array_foreach(users, userp) {
-		if (ioloop_time < (*userp)->next_min_timestamp &&
+	array_foreach_elem(users, user) {
+		if (ioloop_time < user->next_min_timestamp &&
 		    !disconnect_clients) {
 			/* wait for the next user's event */
 			break;
 		}
-		user_run_actions(*userp);
+		user_run_actions(user);
 	}
 	/* make sure a timeout is always set */
 	if (to_users == NULL)
@@ -604,14 +604,14 @@ user_add_client_profile(struct user *user, struct profile_client *profile)
 static void
 user_init_client_profiles(struct user *user, struct profile *profile)
 {
-	struct profile_client *const *clientp;
+	struct profile_client *client;
 
 	p_array_init(&user->clients, user->pool,
 		     array_count(&profile->clients));
 	while (array_count(&user->clients) == 0) {
-		array_foreach(&profile->clients, clientp) {
-			if (i_rand_limit(100) < (*clientp)->percentage)
-				user_add_client_profile(user, *clientp);
+		array_foreach_elem(&profile->clients, client) {
+			if (i_rand_limit(100) < client->percentage)
+				user_add_client_profile(user, client);
 		}
 	}
 }
@@ -701,11 +701,11 @@ users_add_from_user_profile(const struct profile_user *user_profile,
 void profile_add_users(struct profile *profile, ARRAY_TYPE(user) *users,
 		       struct mailbox_source *source)
 {
-	struct profile_user *const *userp;
+	struct profile_user *user;
 
 	i_array_init(users, 128);
-	array_foreach(&profile->users, userp)
-		users_add_from_user_profile(*userp, profile, users, source);
+	array_foreach_elem(&profile->users, user)
+		users_add_from_user_profile(user, profile, users, source);
 }
 
 void profile_deinit(void)

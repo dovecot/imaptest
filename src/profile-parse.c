@@ -299,8 +299,8 @@ profile_parse_line_section(struct profile_parser *parser, char *line)
 
 static void profile_finish(struct profile_parser *parser)
 {
-	struct profile_client *const *clientp;
-	struct profile_user *const *userp;
+	struct profile_client *client;
+	struct profile_user *user;
 	unsigned int percentage_count;
 
 	if (parser->profile->lmtp_port == 0)
@@ -313,18 +313,18 @@ static void profile_finish(struct profile_parser *parser)
 		i_fatal("No user {} sections defined");
 
 	percentage_count = 0;
-	array_foreach(&parser->clients, clientp)
-		percentage_count += (*clientp)->percentage;
+	array_foreach_elem(&parser->clients, client)
+		percentage_count += client->percentage;
 	if (percentage_count < 100)
 		i_fatal("client { count } total must be at least 100%% (now is %u%%)", percentage_count);
 
 	percentage_count = 0;
-	array_foreach(&parser->users, userp) {
-		if ((*userp)->username_format == NULL && (*userp)->userfile == NULL)
+	array_foreach_elem(&parser->users, user) {
+		if (user->username_format == NULL && user->userfile == NULL)
 			i_fatal("Either username_format or userfile must be set");
-		(*userp)->user_count = parser->profile->total_user_count *
-			(*userp)->percentage / 100;
-		percentage_count += (*userp)->percentage;
+		user->user_count = parser->profile->total_user_count *
+			user->percentage / 100;
+		percentage_count += user->percentage;
 	}
 	if (percentage_count != 100)
 		i_fatal("user { count } total doesn't equal 100%% (but %u%%)", percentage_count);

@@ -238,10 +238,10 @@ time_t user_get_next_login_time(struct user *user)
 struct imap_client *
 user_find_client_by_mailbox(struct user_client *uc, const char *mailbox)
 {
-	struct client *const *clientp;
+	struct client *_client;
 
-	array_foreach(&uc->clients, clientp) {
-		struct imap_client *client = imap_client(*clientp);
+	array_foreach_elem(&uc->clients, _client) {
+		struct imap_client *client = imap_client(_client);
 		if (client != NULL &&
 		    client->client.login_state != LSTATE_NONAUTH &&
 		    strcmp(client->storage->name, mailbox) == 0)
@@ -279,11 +279,11 @@ const char *user_get_new_mailbox(struct client *client)
 struct user_mailbox_cache *
 user_get_mailbox_cache(struct user_client *uc, const char *name)
 {
-	struct user_mailbox_cache *const *mailboxp, *mailbox;
+	struct user_mailbox_cache *mailbox;
 
-	array_foreach(&uc->mailboxes, mailboxp) {
-		if (strcmp((*mailboxp)->mailbox_name, name) == 0)
-			return *mailboxp;
+	array_foreach_elem(&uc->mailboxes, mailbox) {
+		if (strcmp(mailbox->mailbox_name, name) == 0)
+			return mailbox;
 	}
 	mailbox = p_new(uc->user->pool, struct user_mailbox_cache, 1);
 	mailbox->mailbox_name = p_strdup(uc->user->pool, name);

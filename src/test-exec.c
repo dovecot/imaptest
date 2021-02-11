@@ -736,10 +736,9 @@ test_group_check_missing_untagged(struct test_exec_context *ctx,
 static void test_group_output(struct test_exec_context *ctx,
 			      struct test_command_group *group)
 {
-	const char *const *strp;
+	const char *str;
 
-	array_foreach(&group->output, strp) T_BEGIN {
-		const char *str = *strp;
+	array_foreach_elem(&group->output, str) T_BEGIN {
 		unsigned int str_len = strlen(str);
 
 		test_expand_all(ctx, &str, &str_len, FALSE);
