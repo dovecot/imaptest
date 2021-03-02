@@ -310,7 +310,9 @@ static void sig_die(const siginfo_t *si ATTR_UNUSED, void *context ATTR_UNUSED)
 
 static void timeout_stop(void *context)
 {
-	if (!disconnect_clients) {
+	if (!imaptest_has_clients())
+		io_loop_stop(ioloop);
+	else if (!disconnect_clients) {
 		disconnect_clients = TRUE;
 		timeout_remove(&to_stop);
 		to_stop = timeout_add(final_wait_secs * 1000,
