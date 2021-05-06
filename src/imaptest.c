@@ -755,24 +755,20 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			continue;
 		}
 
-		printf("Unknown arg: %s\n", *argv);
-		return 1;
+		i_fatal("Unknown arg: %s", *argv);
 	}
 	if (conf.mailbox == NULL)
 		conf.mailbox = testpath == NULL ? "INBOX" : "imaptest";
 
 	if (conf.username_template == NULL)
 		i_fatal("Missing username");
-	if (testpath != NULL && strchr(conf.username_template, '%') != NULL) {
-		printf("Don't use %% in username with tests\n");
-		return 1;
-	}
+	if (testpath != NULL && strchr(conf.username_template, '%') != NULL)
+		i_fatal("Don't use %% in username with tests");
 
 	if ((ret = net_gethostbyname(conf.host, &conf.ips,
 				     &conf.ips_count)) != 0) {
-		i_error("net_gethostbyname(%s) failed: %s",
+		i_fatal("net_gethostbyname(%s) failed: %s",
 			conf.host, net_gethosterror(ret));
-		return 1;
 	}
 
 	if (results_output != NULL)
