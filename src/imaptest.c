@@ -771,6 +771,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			conf.host, net_gethosterror(ret));
 	}
 
+	lib_set_clean_exit(TRUE);
 	if (results_output != NULL)
 		print_results_header();
 	fix_probabilities();
