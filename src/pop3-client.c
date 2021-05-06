@@ -28,7 +28,7 @@ int pop3_client_input_error(struct pop3_client *client, const char *fmt, ...)
 
 	client_disconnect(&client->client);
 	if (conf.error_quit)
-		exit(2);
+		lib_exit(2);
 	return -1;
 }
 
@@ -355,7 +355,7 @@ static void pop3_client_free(struct client *_client)
 	unsigned int i, count;
 
 	if (conf.disconnect_quit && _client->login_state != LSTATE_NONAUTH)
-		exit(1);
+		lib_exit(1);
 	cmds = array_get(&client->commands, &count);
 
 	if (uc != NULL && client->uidls_matched) {

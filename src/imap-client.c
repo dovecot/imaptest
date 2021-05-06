@@ -37,7 +37,7 @@ int imap_client_input_error(struct imap_client *client, const char *fmt, ...)
 
 	client_disconnect(&client->client);
 	if (conf.error_quit)
-		exit(2);
+		lib_exit(2);
 	return -1;
 }
 
@@ -66,7 +66,7 @@ int imap_client_state_error(struct imap_client *client, const char *fmt, ...)
 	va_end(va);
 
 	if (conf.error_quit)
-		exit(2);
+		lib_exit(2);
 	return -1;
 }
 
@@ -652,7 +652,7 @@ static void imap_client_free(struct client *_client)
 	bool checkpoint;
 
 	if (conf.disconnect_quit && _client->login_state != LSTATE_NONAUTH)
-		exit(1);
+		lib_exit(1);
 	cmds = array_get(&client->commands, &count);
 	checkpoint = client->checkpointing != NULL && count > 0;
 

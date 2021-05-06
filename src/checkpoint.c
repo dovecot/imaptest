@@ -373,7 +373,7 @@ void checkpoint_neg(struct mailbox_storage *storage)
 	if (!ctx.errors)
 		counters[STATE_CHECKPOINT] += check_count;
 	if (conf.error_quit && (ctx.errors || storage->dont_track_recent))
-		exit(2);
+		lib_exit(2);
 
 	/* checkpointing is done - continue normal commands */
 	for (i = 0; i < count; i++) {
