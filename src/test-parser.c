@@ -861,7 +861,7 @@ test_parser_read_test(struct test_parser *parser, const char *path)
 	test = p_new(parser->pool, struct test, 1);
 	test->startup_state = TEST_STARTUP_STATE_SELECTED;
 	test->connection_count = 1;
-	test->message_count = UINT_MAX;
+	test->message_count = 0;
 	test->ignore_extra_untagged = TRUE;
 	p_array_init(&test->cmd_groups, parser->pool, 32);
 	p_array_init(&test->connections, parser->pool, 4);
