@@ -1,3 +1,4 @@
+messages: all
 
 ok fetch 1 (body.peek[])
 * 1 fetch (body[] {{{

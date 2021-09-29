@@ -1,4 +1,5 @@
 capabilities: ESEARCH CONDSTORE
+messages: 4
 
 # ENABLE is valid only in authenticated state. we could do enable+select
 # manually here also, but lets just make sure that switching it on via

@@ -1,4 +1,5 @@
 capabilities: BINARY
+messages: all
 
 # This is the fetch-body-mime test, except with body[] changed to binary[].
 # The idea is to verify that binary[] works correctly when it doesn't actually

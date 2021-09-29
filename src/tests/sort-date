@@ -1,4 +1,5 @@
 capabilities: SORT
+messages: all
 
 ok sort (date) us-ascii all
 * sort 1 3 7 5 2 4 6

@@ -1,3 +1,4 @@
+messages: all
 
 # header and body fetches
 ok fetch 1 rfc822.header

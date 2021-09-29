@@ -1,4 +1,5 @@
 capabilities: CONTEXT=SEARCH
+messages: 5
 
 ok store 1,2 +flags \seen
 

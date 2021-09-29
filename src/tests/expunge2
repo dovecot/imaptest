@@ -1,4 +1,5 @@
 connections: 2
+messages: 6
 
 1 ok fetch 2,4 uid
 * 2 fetch (uid $uid2)

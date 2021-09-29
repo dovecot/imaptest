@@ -1,4 +1,5 @@
 capabilities: CONTEXT=SEARCH
+messages: 6
 
 ok store 1 +flags \deleted
 ok expunge

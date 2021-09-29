@@ -1,4 +1,5 @@
 capabilities: CONTEXT=SORT
+messages: all
 
 ok sort return (partial 1:1) (arrival) us-ascii all
 * esearch (tag $tag) partial (1:1 1)

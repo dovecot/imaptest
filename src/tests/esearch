@@ -1,4 +1,5 @@
 capabilities: ESEARCH
+messages: all
 
 ok store 4 +flags \deleted
 ok expunge

@@ -1,4 +1,5 @@
 capabilities: SORT=DISPLAY
+messages: all
 
 ok sort (displayto) us-ascii all
 * sort 6 2 3 8 4 1 5 7

@@ -1,4 +1,5 @@
 capabilities: ESORT
+messages: 5
 
 ok sort return (min) (arrival) us-ascii 1:5
 * esearch (tag $tag) min 1

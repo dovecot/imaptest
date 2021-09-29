@@ -1,3 +1,4 @@
+messages: all
 
 # date, subject, from, sender, reply-to, to, cc, bcc, in-reply-to, message-id
 ok fetch 1:* envelope

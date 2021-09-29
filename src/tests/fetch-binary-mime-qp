@@ -1,4 +1,5 @@
 capabilities: BINARY
+messages: all
 
 ok fetch 1 (binary.size[1])
 * 1 fetch (binary.size[1] 65)
