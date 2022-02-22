@@ -14,6 +14,7 @@ AC_CONFIG_AUX_DIR([build-aux])
 
 AC_CONFIG_HEADERS([imaptest-config.h])
 AM_INIT_AUTOMAKE
+AM_SILENT_RULES([yes])/
 
 AM_MAINTAINER_MODE
 
