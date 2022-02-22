@@ -32,6 +32,7 @@ AC_SUBST(BINARY_LDFLAGS)
 AC_CONFIG_FILES([
 Makefile
 src/Makefile
+build-aux/run-test.sh
 stamp.h])
 
 AC_OUTPUT
