@@ -19,6 +19,7 @@ ltconfig
 ltmain.sh
 run-test.sh
 stamp-h*
+/version
 stamp.h
 version.h
 .exrc
