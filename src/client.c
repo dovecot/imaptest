@@ -151,6 +151,7 @@ static void client_wait_connect(struct client *client)
 				i_fatal("Failed to initialize SSL context: %s", error);
 		}
 		if (io_stream_create_ssl_client(ssl_ctx, conf.host, &conf.ssl_set,
+						NULL,
 						&client->input, &client->output,
 						&client->ssl_iostream, &error) < 0)
 			i_fatal("Couldn't create SSL iostream: %s", error);
