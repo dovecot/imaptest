@@ -27,8 +27,11 @@ t_nagfree_strdup_printf(char const* format, ...)
 	va_list args;
 	const char *ret;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
 	va_start(args, format);
 	ret = t_strdup_vprintf(format, args);
+#pragma clang diagnostic pop
 	va_end(args);
 
 	return ret;
