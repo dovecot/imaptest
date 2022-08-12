@@ -23,15 +23,25 @@ static struct profile *users_profile;
 static inline const char *
 t_nagfree_strdup_printf(char const* format, ...)
 {
-	/* @UNSAFE: format string from tainted source. Shuts up -Werror=format-nonliteral */
 	va_list args;
 	const char *ret;
 
+	/* Different compilers need different ways to be explicitly told to
+	   ignore this following usage of a non-literal format string. */
+#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
 	va_start(args, format);
 	ret = t_strdup_vprintf(format, args);
+#if defined(__clang__)
 #pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 	va_end(args);
 
 	return ret;
@@ -81,7 +91,6 @@ static struct user *user_get_random_from_conf(struct mailbox_source *source)
 	} else {
 		prev_user = random() % conf.users_rand_count + conf.users_rand_start;
 		prev_domain = random() % conf.domains_rand_count + conf.domains_rand_start;
-		/* @UNSAFE: format string from tainted source. Shuts up -Werror=format-nonliteral */
 		username = t_nagfree_strdup_printf(conf.username_template,
 						   prev_user, prev_domain);
 		user = user_get(username, source);
