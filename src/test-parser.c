@@ -5,7 +5,7 @@
 #include "istream.h"
 #include "imap-parser.h"
 #include "settings.h"
-#include "settings-parser.h"
+#include "str-parse.h"
 #include "test-parser.h"
 
 #include <stdlib.h>
@@ -582,7 +582,7 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 	if (group != NULL) {
 		/* continuing the command */
 		if (strncmp(line, "!sleep ", 7) == 0) {
-			if (settings_get_time_msecs(line+7, &group->sleep_msecs, &error) < 0) {
+			if (str_parse_get_interval_msecs(line+7, &group->sleep_msecs, &error) < 0) {
 				*error_r = t_strdup_printf("Invalid !sleep value %s: %s", line+7, error);
 				return FALSE;
 			}

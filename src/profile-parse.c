@@ -4,6 +4,7 @@
 #include "array.h"
 #include "istream.h"
 #include "settings-parser.h"
+#include "str-parse.h"
 #include "client-state.h"
 #include "profile.h"
 
@@ -224,7 +225,7 @@ static void profile_parse_line_root(struct profile_parser *parser, char *line)
 					key, parser->linenum);
 			}
 		} else if (strcmp(key, "rampup_time") == 0) {
-			if (settings_get_time(value, &parser->profile->rampup_time, &error) < 0) {
+			if (str_parse_get_interval(value, &parser->profile->rampup_time, &error) < 0) {
 				i_fatal("Invalid setting %s at line %u: %s",
 					key, parser->linenum, error);
 			}
