@@ -174,7 +174,7 @@ static void parser_close(struct profile_parser *parser)
 		array_append(&parser->users, &user, 1);
 		break;
 	}
-	settings_parser_deinit(&parser->cur_parser);
+	settings_parser_unref(&parser->cur_parser);
 	parser->state = STATE_ROOT;
 	parser->cur_count = 0;
 }
