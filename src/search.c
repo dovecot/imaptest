@@ -42,7 +42,7 @@ enum search_arg_type {
 	SEARCH_TYPE_COUNT
 };
 
-static const char *imap_cmd_names[SEARCH_TYPE_COUNT] = {
+static const char *imap_cmd_names[] = {
 	"",
 	"",
 	"",
@@ -58,6 +58,7 @@ static const char *imap_cmd_names[SEARCH_TYPE_COUNT] = {
 	"TEXT",
 	"BODY"
 };
+static_assert_array_size(imap_cmd_names, SEARCH_TYPE_COUNT);
 
 struct search_node {
 	enum search_arg_type type;

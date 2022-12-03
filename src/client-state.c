@@ -23,7 +23,7 @@
 
 #include <stdlib.h>
 
-struct state states[STATE_COUNT] = {
+struct state states[] = {
 	{ "BANNER",	  "Bann", LSTATE_NONAUTH,  0,   0,  0 },
 	{ "AUTHENTICATE", "Auth", LSTATE_NONAUTH,  0,   0,  FLAG_STATECHANGE | FLAG_STATECHANGE_AUTH },
 	{ "LOGIN",	  "Logi", LSTATE_NONAUTH,  100, 0,  FLAG_STATECHANGE | FLAG_STATECHANGE_AUTH },
@@ -53,6 +53,7 @@ struct state states[STATE_COUNT] = {
 	{ "CHECKPOINT!",  "ChkP", LSTATE_NONAUTH,  0,   0,  0 },
 	{ "LMTP",         "LMTP", LSTATE_NONAUTH,  0,   0,  0 }
 };
+static_assert_array_size(states, STATE_COUNT);
 
 unsigned int counters[STATE_COUNT], total_counters[STATE_COUNT];
 unsigned int timer_counts[STATE_COUNT];
