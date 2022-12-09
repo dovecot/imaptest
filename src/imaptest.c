@@ -10,6 +10,7 @@
 #include "ostream.h"
 #include "home-expand.h"
 #include "smtp-address.h"
+#include "dsasl-client.h"
 
 #include "settings.h"
 #include "mailbox.h"
@@ -433,7 +434,7 @@ static void print_help(void)
 {
 	printf(
 "imaptest [user=USER] [users=RANGE] [domains=RANGE] [userfile=FILE]\n"
-"         [master=USER] [pass=PASSWORD] [seed=SEED]\n"
+"         [master=USER] [pass=PASSWORD] [mech=MECH] [seed=SEED]\n"
 "         [host=HOST] [port=PORT] [mbox=MBOX] [clients=CC] [msgs=NMSG]\n"
 "         [box=MAILBOX] [copybox=DESTBOX] [-] [<state>[=<n%%>[,<m%%>]]]\n"
 "         [random] [no_pipelining] [no_tracking] [checkpoint=<secs>]\n"
@@ -541,6 +542,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	conf.users_rand_count = USER_RAND;
 	conf.domains_rand_start = 1;
 	conf.domains_rand_count = DOMAIN_RAND;
+	conf.mech = "LOGIN";
 	to_stop = NULL;
 
 	for (argv++; *argv != NULL; argv++) {
@@ -640,6 +642,12 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		/* pass=password */
 		if (strcmp(key, "pass") == 0) {
 			conf.password = value;
+			continue;
+		}
+
+		/* mech=auth mech */
+		if (strcmp(key, "mech") == 0) {
+			conf.mech = value;
 			continue;
 		}
 
@@ -781,6 +789,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	users_init(profile, mailbox_source);
 	mailboxes_init();
 	clients_init();
+	dsasl_clients_init();
 
 	i_array_init(&clients, CLIENTS_COUNT);
 	if (testpath == NULL)
@@ -808,6 +817,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		o_stream_destroy(&results_output);
 	}
 
+	dsasl_clients_deinit();
 	lib_signals_deinit();
 	io_loop_destroy(&ioloop);
 	lib_deinit();

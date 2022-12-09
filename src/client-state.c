@@ -18,6 +18,7 @@
 #include "checkpoint.h"
 #include "commands.h"
 #include "search.h"
+#include "dsasl-client.h"
 #include "imap-client.h"
 #include "client-state.h"
 
@@ -84,18 +85,23 @@ void client_state_add_to_timer(enum client_state state,
 	timer_counts[state]++;
 }
 
-static void auth_plain_callback(struct imap_client *client, struct command *cmd,
-				const struct imap_arg *args,
-				enum command_reply reply)
+static void auth_sasl_callback(struct imap_client *client, struct command *cmd,
+			       const struct imap_arg *args,
+			       enum command_reply reply)
 {
 	struct client *_client = &client->client;
-	buffer_t *str, *buf;
+	const unsigned char *out;
+	size_t outlen;
+	const char *error;
+	buffer_t *str;
 
 	if (reply == REPLY_OK) {
+		dsasl_client_free(&client->sasl_client);
 		state_callback(client, cmd, args, reply);
 		return;
 	}
 	if (reply != REPLY_CONT) {
+		dsasl_client_free(&client->sasl_client);
 		imap_client_state_error(client, "AUTHENTICATE failed");
 		client_disconnect(_client);
 		return;
@@ -103,23 +109,25 @@ static void auth_plain_callback(struct imap_client *client, struct command *cmd,
 
 	counters[cmd->state]++;
 
-	buf = t_str_new(512);
-	if (conf.master_user != NULL) {
-		str_append(buf, _client->user->username);
-		str_append_c(buf, '\0');
-		str_append(buf, conf.master_user);
-	} else {
-		str_append_c(buf, '\0');
-		str_append(buf, _client->user->username);
+	const char *input_b64 = imap_args_to_str(args);
+	/* decode */
+	buffer_t *input = t_base64_decode(0, input_b64, strlen(input_b64));
+
+	if (dsasl_client_input(client->sasl_client, input->data, input->used, &error) < 0 ||
+	    dsasl_client_output(client->sasl_client, &out, &outlen, &error) < 0) {
+		dsasl_client_free(&client->sasl_client);
+		imap_client_state_error(client, "AUTHENTICATE failed: %s", error);
+		client_disconnect(_client);
+		return;
 	}
-	str_append_c(buf, '\0');
-	str_append(buf, _client->user->password);
 
-	str = t_str_new(512);
-	base64_encode(buf->data, buf->used, str);
-	str_append(str, "\r\n");
+	str = t_base64_encode(0, SIZE_MAX, out, outlen);
+	const struct const_iovec vec[] = {
+		{ .iov_base = str->data, .iov_len = str->used },
+		{ .iov_base = "\r\n", .iov_len = 2 },
+	};
 
-	o_stream_nsend_str(_client->output, str_c(str));
+	o_stream_nsendv(_client->output, vec, 2);
 }
 
 static enum client_state client_eat_first_plan(struct imap_client *client)
@@ -221,8 +229,10 @@ static enum client_state client_update_plan(struct imap_client *client)
 		case LSTATE_NONAUTH:
 			/* we begin with LOGIN/AUTHENTICATE commands */
 			i_assert(client->plan_size == 0);
-			state = do_rand(STATE_AUTHENTICATE) ?
-				STATE_AUTHENTICATE : STATE_LOGIN;
+			if (strcmp(conf.mech, "LOGIN") == 0)
+				state = STATE_LOGIN;
+			else
+				state = STATE_AUTHENTICATE;
 			break;
 		case LSTATE_AUTH:
 		case LSTATE_SELECTED:
@@ -1087,6 +1097,37 @@ static void client_select_qresync(struct imap_client *client)
 	command_send(client, str_c(cmd), state_callback);
 }
 
+static int start_sasl_login(struct imap_client *client)
+{
+	struct dsasl_client_settings set = {
+		.authid = client->client.user->username,
+		.password = client->client.user->password,
+	};
+	const char *error;
+	const struct dsasl_client_mech *mech = dsasl_client_mech_find(conf.mech);
+	if (mech == NULL) {
+		imap_client_state_error(client, "AUTHENTICATE failed: %s mech not supported", conf.mech);
+		client_disconnect(&client->client);
+		return 0;
+	}
+	/* get IR */
+	const unsigned char *out;
+	size_t outlen;
+	client->sasl_client = dsasl_client_new(mech, &set);
+	if (dsasl_client_output(client->sasl_client, &out, &outlen, &error) < 0) {
+		dsasl_client_free(&client->sasl_client);
+		imap_client_state_error(client, "AUTHENTICATE failed: %s", error);
+		client_disconnect(&client->client);
+		return 0;
+	}
+	buffer_t *ir = t_base64_encode(0, SIZE_MAX, out, outlen);
+	const char *cmd = t_strdup_printf("AUTHENTICATE %s", dsasl_client_mech_get_name(mech));
+	if (ir->used > 0)
+		cmd = t_strconcat(cmd, " ", str_c(ir), NULL);
+	command_send(client, cmd, auth_sasl_callback);
+	return 0;
+}
+
 int imap_client_plan_send_next_cmd(struct imap_client *client)
 {
 	struct client *_client = &client->client;
@@ -1115,7 +1156,7 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 	client->client.state = state;
 	switch (state) {
 	case STATE_AUTHENTICATE:
-		command_send(client, "AUTHENTICATE plain", auth_plain_callback);
+		start_sasl_login(client);
 		break;
 	case STATE_LOGIN:
 		o_stream_cork(_client->output);

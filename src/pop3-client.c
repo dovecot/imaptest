@@ -7,11 +7,13 @@
 #include "istream.h"
 #include "ostream.h"
 #include "time-util.h"
+#include "dsasl-client.h"
 
 #include "settings.h"
 #include "mailbox.h"
 #include "profile.h"
 #include "pop3-client.h"
+#include "commands.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -137,40 +139,44 @@ pop3_client_authenticated(struct pop3_client *client, struct pop3_command *cmd)
 	client->client.login_state = LSTATE_AUTH;
 }
 
-static int
-auth_plain_callback(struct pop3_client *client, struct pop3_command *cmd,
-		    const char *line)
+static int auth_sasl_callback(struct pop3_client *client, struct pop3_command *cmd,
+			      const char *line)
 {
 	struct client *_client = &client->client;
-	buffer_t *str, *buf;
+	const unsigned char *out;
+	size_t outlen;
+	const char *error;
+	buffer_t *str;
 
-	if (line[0] != '+') {
-		pop3_client_input_error(client, "Invalid reply to AUTH");
-		return -1;
-	}
-	if (client->auth_reply_sent) {
+	if (str_begins_with(line, "+OK")) {
 		pop3_client_authenticated(client, cmd);
 		return 1;
 	}
 
-	buf = t_str_new(512);
-	if (conf.master_user != NULL) {
-		str_append(buf, _client->user->username);
-		str_append_c(buf, '\0');
-		str_append(buf, conf.master_user);
-	} else {
-		str_append_c(buf, '\0');
-		str_append(buf, _client->user->username);
+	if (!str_begins_with(line, "+ ")) {
+		pop3_client_input_error(client, "Authentication failed: %s", line + 2);
+		return -1;
 	}
-	str_append_c(buf, '\0');
-	str_append(buf, _client->user->password);
 
-	str = t_str_new(512);
-	base64_encode(buf->data, buf->used, str);
-	str_append(str, "\r\n");
+	counters[cmd->state]++;
 
-	o_stream_nsend_str(_client->output, str_c(str));
-	client->auth_reply_sent = TRUE;
+	/* decode */
+	buffer_t *input = t_base64_decode(0, line + 2, strlen(line) - 2);
+
+	if (dsasl_client_input(client->sasl_client, input->data, input->used, &error) < 0 ||
+	    dsasl_client_output(client->sasl_client, &out, &outlen, &error) < 0) {
+		dsasl_client_free(&client->sasl_client);
+		pop3_client_input_error(client, "AUTHENTICATE failed: %s", error);
+		return -1;
+	}
+
+	str = t_base64_encode(0, SIZE_MAX, out, outlen);
+	const struct const_iovec vec[] = {
+		{ .iov_base = str->data, .iov_len = str->used },
+		{ .iov_base = "\r\n", .iov_len = 2 },
+	};
+
+	o_stream_nsendv(_client->output, vec, 2);
 	return 0;
 }
 
@@ -202,14 +208,35 @@ static int user_callback(struct pop3_client *client,
 	return 1;
 }
 
+static void start_sasl_login(struct pop3_client *client)
+{
+	struct dsasl_client_settings set = {
+		.authid = client->client.user->username,
+		.password = client->client.user->password,
+	};
+	const struct dsasl_client_mech *mech = dsasl_client_mech_find(conf.mech);
+	if (mech == NULL) {
+		pop3_client_input_error(client, "AUTHENTICATE failed: %s mech not supported", conf.mech);
+		return;
+	}
+	client->sasl_client = dsasl_client_new(mech, &set);
+	const char *cmd = t_strdup_printf("AUTH %s", dsasl_client_mech_get_name(mech));
+	pop3_command_send(client,cmd, auth_sasl_callback);
+}
+
 static void pop3_client_login(struct pop3_client *client)
 {
 	const char *cmd;
 
-	client->client.state = do_rand(STATE_AUTHENTICATE) ?
-		STATE_AUTHENTICATE : STATE_LOGIN;
+	if (strcmp(conf.mech, "LOGIN") == 0) {
+		client->client.state = do_rand(STATE_AUTHENTICATE) ?
+			STATE_AUTHENTICATE : STATE_LOGIN;
+	} else {
+		/* honor mech if it's not LOGIN */
+		client->client.state = STATE_AUTHENTICATE;
+	}
 	if (client->client.state == STATE_AUTHENTICATE) {
-		pop3_command_send(client, "AUTH plain", auth_plain_callback);
+		start_sasl_login(client);
 	} else {
 		cmd = t_strdup_printf("USER %s", client->client.user->username);
 		pop3_command_send(client, cmd, user_callback);

@@ -38,6 +38,7 @@ struct settings {
 	const char *username_template, *username2_template;
 	const char *host, *master_user, *password;
 	const char *mailbox, *copy_dest, *mbox_path;
+	const char *mech;
 	unsigned int port;
 
 	ARRAY_TYPE(const_string) usernames;

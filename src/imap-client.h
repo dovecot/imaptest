@@ -33,10 +33,13 @@ struct mailbox_list_entry {
 	bool found;
 };
 
+struct dsasl_client;
+
 struct imap_client {
 	struct client client;
 
 	struct imap_parser *parser;
+	struct dsasl_client *sasl_client;
 	enum imap_capability capabilities;
 	char **capabilities_list;
 
