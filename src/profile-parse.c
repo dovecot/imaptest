@@ -50,13 +50,12 @@ const struct profile_client profile_client_default_settings = {
 };
 
 const struct setting_parser_info profile_client_setting_parser_info = {
+	.name = "profile_client",
+
 	.defines = profile_client_setting_defines,
 	.defaults = &profile_client_default_settings,
 
-	.type_offset = offsetof(struct profile_client, name),
 	.struct_size = sizeof(struct profile_client),
-
-	.parent_offset = (size_t)-1
 };
 
 #undef DEF
@@ -93,13 +92,12 @@ const struct profile_user profile_user_default_settings = {
 };
 
 const struct setting_parser_info profile_user_setting_parser_info = {
+	.name = "profile_user",
+
 	.defines = profile_user_setting_defines,
 	.defaults = &profile_user_default_settings,
 
-	.type_offset = offsetof(struct profile_user, name),
 	.struct_size = sizeof(struct profile_user),
-
-	.parent_offset = (size_t)-1
 };
 
 #define IS_WHITE(c) ((c) == ' ' || (c) == '\t')
@@ -163,12 +161,12 @@ static void parser_close(struct profile_parser *parser)
 	case STATE_ROOT:
 		i_unreached();
 	case STATE_CLIENT:
-		client = settings_parser_get(parser->cur_parser);
+		client = settings_parser_get_set(parser->cur_parser);
 		client->percentage = parser->cur_count;
 		array_append(&parser->clients, &client, 1);
 		break;
 	case STATE_USER:
-		user = settings_parser_get(parser->cur_parser);
+		user = settings_parser_get_set(parser->cur_parser);
 		user->profile = parser->profile;
 		user->percentage = parser->cur_count;
 		array_append(&parser->users, &user, 1);
@@ -195,7 +193,7 @@ static void parser_add_user(struct profile_parser *parser)
 		&profile_user_setting_parser_info, 0);
 
 	/* set default */
-	user = settings_parser_get(parser->cur_parser);
+	user = settings_parser_get_set(parser->cur_parser);
 	user->username_start_index = 1;
 }
 
