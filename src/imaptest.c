@@ -257,6 +257,8 @@ static void fix_probabilities(void)
 {
 	unsigned int i;
 
+	if (states[STATE_IDLE].probability > 0)
+		i_fatal("idle isn't currently supported with stress testing");
 	if (conf.copy_dest == NULL)
 		states[STATE_COPY].probability = 0;
 	if (conf.checkpoint_interval == 0)
