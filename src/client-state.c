@@ -45,7 +45,7 @@ struct state states[] = {
 	{ "EXPUNGE",	  "Expu", LSTATE_SELECTED, 100, 0,  FLAG_EXPUNGES },
 	{ "APPEND",	  "Appe", LSTATE_AUTH,     100, 5,  FLAG_EXPUNGES },
 	{ "NOOP",	  "Noop", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
-	{ "IDLE",	  "Noop", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES | FLAG_STATECHANGE },
+	{ "IDLE",	  "Idle", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "CHECK",	  "Chec", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "LOGOUT",	  "Logo", LSTATE_NONAUTH,  100, 0,  FLAG_STATECHANGE | FLAG_STATECHANGE_NONAUTH },
 	{ "DISCONNECT",	  "Disc", LSTATE_NONAUTH,  0,   0,  0 },
