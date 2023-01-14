@@ -300,7 +300,10 @@ headers_parse(struct imap_client *client, struct istream *input,
 			/* first header */
 			new_value = hdr->full_value_len == 0 ? NULL :
 				t_malloc_no0(hdr->full_value_len);
-			memcpy(new_value, hdr->full_value, hdr->full_value_len);
+			if (hdr->full_value_len > 0) {
+				memcpy(new_value, hdr->full_value,
+				       hdr->full_value_len);
+			}
 			headers[i].value = new_value;
 			headers[i].value_len = hdr->full_value_len;
 			headers[i].missing = FALSE;

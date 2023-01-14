@@ -183,8 +183,10 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 			ctx->messages[i].keyword_bitmask =
 				dest_keywords_size == 0 ? NULL :
 				i_malloc(dest_keywords_size);
-			memcpy(ctx->messages[i].keyword_bitmask,
-			       keywords_remapped, dest_keywords_size);
+			if (dest_keywords_size > 0) {
+				memcpy(ctx->messages[i].keyword_bitmask,
+				       keywords_remapped, dest_keywords_size);
+			}
 			continue;
 		}
 
