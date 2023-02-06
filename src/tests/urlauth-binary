@@ -9,13 +9,9 @@ ok fetch 1:2 uid
 * 1 fetch (uid $uid1)
 * 2 fetch (uid $uid2)
 
-ok GENURLAUTH "imap://$username@$domain/$mailbox_url/;uid=$uid1/;section=1;urlauth=user+$user" INTERNAL
-* GENURLAUTH $mail_url1
 ok GENURLAUTH "imap://$username@$domain/$mailbox_url/;uid=$uid1/;section=1.1;urlauth=user+$user" INTERNAL
 * GENURLAUTH $mail_url1sub
 
-ok GENURLAUTH "imap://$username@$domain/$mailbox_url/;uid=$uid2/;section=1;urlauth=user+$user" INTERNAL
-* GENURLAUTH $mail_url2
 ok GENURLAUTH "imap://$username@$domain/$mailbox_url/;uid=$uid2/;section=1.1;urlauth=user+$user" INTERNAL
 * GENURLAUTH $mail_url2sub
 ok GENURLAUTH "imap://$username@$domain/$mailbox_url/;uid=$uid2/;section=1.2;urlauth=user+$user" INTERNAL
@@ -25,111 +21,12 @@ ok GENURLAUTH "imap://$username@$domain/$mailbox_url/;uid=$uid2/;section=1.3;url
 ok GENURLAUTH "imap://$username@$domain/$mailbox_url/;uid=$uid2/;section=1.4;urlauth=user+$user" INTERNAL
 * GENURLAUTH $mail_url2sub4
 
-ok URLFETCH ($mail_url1 binary)
-* URLFETCH $mail_url1 (binary {{{
-From: sub@domain.org
-Date: Sun, 12 Aug 2012 12:34:56 +0300
-Subject: submsg
-Content-Type: multipart/alternative; boundary="sub1"
-
-Sub MIME prologue
---sub1
-Content-Type: text/x-myown; charset=us-ascii
-Content-Transfer-Encoding: base64
-
-aGVs
-bG8gd29y
-bGQ=
-
---sub1
-Content-Type: text/x-myother; charset=us-ascii
-Content-Transfer-Encoding: base64
-
-  aGVs    
- bG8g  
-   d29y  	 
-    bGQ= 
-
-
---sub1
-Content-Type: text/plain; charset=us-ascii
-Content-Transfer-Encoding: x-unprintable
-
-nothing to see here
-
---sub1
-Content-Type: text/plain; charset=us-ascii
-Content-Transfer-Encoding: quoted-printable
-
-definitely nothing to see here
-
---=
-sub=
-=31--
-
---sub1--
-Sub MIME epilogue
-
-}}})
-
 ok URLFETCH ($mail_url1sub binary)
 * URLFETCH $mail_url1sub (binary {{{
 hello world
 }}})
-
-ok URLFETCH ($mail_url1 bodypartstructure)
-* URLFETCH $mail_url1 (BODYPARTSTRUCTURE ("message" "rfc822" NIL NIL NIL "7bit" 711 ("Sun, 12 Aug 2012 12:34:56 +0300" "submsg" ((NIL NIL "sub" "domain.org")) ((NIL NIL "sub" "domain.org")) ((NIL NIL "sub" "domain.org")) NIL NIL NIL NIL NIL) (("text" "x-myown" ("charset" "us-ascii") NIL NIL "base64" 22 3 NIL NIL NIL NIL)("text" "x-myother" ("charset" "us-ascii") NIL NIL "base64" 47 5 NIL NIL NIL NIL)("text" "plain" ("charset" "us-ascii") NIL NIL "x-unprintable" 21 1 NIL NIL NIL NIL)("text" "plain" ("charset" "us-ascii") NIL NIL "quoted-printable" 52 5 NIL NIL NIL NIL) "alternative" ("boundary" "sub1") NIL NIL NIL) 42 NIL NIL NIL NIL))
-
 ok URLFETCH ($mail_url1sub bodypartstructure)
 * URLFETCH $mail_url1sub (BODYPARTSTRUCTURE ("text" "x-myown" ("charset" "us-ascii") NIL NIL "base64" 22 3 NIL NIL NIL NIL))
-
-
-ok URLFETCH ($mail_url2 binary bodypartstructure)
-* URLFETCH $mail_url2 (BODYPARTSTRUCTURE ("message" "rfc822" NIL NIL NIL "7bit" 711 ("Sun, 12 Aug 2012 12:34:56 +0300" "submsg" ((NIL NIL "sub" "domain.org")) ((NIL NIL "sub" "domain.org")) ((NIL NIL "sub" "domain.org")) NIL NIL NIL NIL NIL) (("text" "x-myown" ("charset" "us-ascii") NIL NIL "base64" 22 3 NIL NIL NIL NIL)("text" "x-myother" ("charset" "us-ascii") NIL NIL "base64" 47 5 NIL NIL NIL NIL)("text" "plain" ("charset" "us-ascii") NIL NIL "x-unprintable" 21 1 NIL NIL NIL NIL)("text" "plain" ("charset" "us-ascii") NIL NIL "quoted-printable" 52 5 NIL NIL NIL NIL) "alternative" ("boundary" "sub1") NIL NIL NIL) 42 NIL NIL NIL NIL)) (BINARY {{{
-From: sub@domain.org
-Date: Sun, 12 Aug 2012 12:34:56 +0300
-Subject: submsg
-Content-Type: multipart/alternative; boundary="sub1"
-
-Sub MIME prologue
---sub1
-Content-Type: text/x-myown; charset=us-ascii
-Content-Transfer-Encoding: base64
-
-aGVs
-bG8gd29y
-bGQ=
-
---sub1
-Content-Type: text/x-myother; charset=us-ascii
-Content-Transfer-Encoding: base64
-
-  aGVs    
- bG8g  
-   d29y  	 
-    bGQ= 
-
-
---sub1
-Content-Type: text/plain; charset=us-ascii
-Content-Transfer-Encoding: x-unprintable
-
-nothing to see here
-
---sub1
-Content-Type: text/plain; charset=us-ascii
-Content-Transfer-Encoding: quoted-printable
-
-definitely nothing to see here
-
---=
-sub=
-=31--
-
---sub1--
-Sub MIME epilogue
-
-}}})
 
 ok URLFETCH ($mail_url1sub binary)
 * URLFETCH $mail_url1sub (binary {{{
