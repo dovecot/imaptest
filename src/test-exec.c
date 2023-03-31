@@ -1127,7 +1127,10 @@ static int test_send_lstate_commands(struct client *_client)
 		   done in init_callback to make sure that all commands have
 		   been finished before starting the test. */
 		if (ctx->test->startup_state != TEST_STARTUP_STATE_SELECTED) {
-			if (--ctx->clients_waiting == 0)
+			if (ctx->test->startup_state == TEST_STARTUP_STATE_NONAUTH &&
+			    !test_have_all_capabilities(client))
+				test_skip(ctx);
+			else if (--ctx->clients_waiting == 0)
 				test_send_first_command(ctx);
 			else if (client == ctx->clients[0])
 				wakeup_clients(ctx);
