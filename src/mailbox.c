@@ -786,7 +786,7 @@ mailbox_global_parse_envelope(struct mailbox_source *source,
 	msg->subject_utf8_tcase = NULL;
 	if (!imap_envelope_parse(msg->envelope,
 		pool_datastack_create(), &env, &error)) {
-		i_error("Error parsing IMAP envelope: %s", error);
+		i_error("Error parsing IMAP envelope: %s (%s)", error, msg->envelope);
 		return FALSE;
 	}
 	subject = env->subject;
