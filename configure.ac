@@ -1,3 +1,4 @@
+AC_PREREQ([2.69])
 m4_define([imaptest_VERSION],
     m4_esyscmd_s([build-aux/git-version-gen]))))
 
@@ -6,8 +7,6 @@ m4_define([imaptest_ABI_VERSION],
 
 m4_define([imaptest_TAR_VERSION],
     m4_esyscmd_s([build-aux/git-tarname-version-gen]))))
-
-AC_PREREQ([2.69])
 
 AC_INIT([imaptest], [m4_defn([imaptest_VERSION])], [dovecot@dovecot.org], [m4_defn([imaptest_TAR_VERSION])])
 AC_CONFIG_SRCDIR([src])
