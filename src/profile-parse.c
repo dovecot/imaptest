@@ -199,7 +199,7 @@ static void parser_add_user(struct profile_parser *parser)
 
 static void profile_parse_line_root(struct profile_parser *parser, char *line)
 {
-	const char *key, *value, *nameline, *error;
+	const char *key, *value, *error;
 
 	if (try_parse_keyvalue(line, &key, &value)) {
 		if (strcmp(key, "total_user_count") == 0) {
@@ -243,8 +243,7 @@ static void profile_parse_line_root(struct profile_parser *parser, char *line)
 		i_fatal("Unknown section at line %u: %s", parser->linenum, key);
 
 	if (value[0] != '\0') {
-		nameline = t_strdup_printf("name=%s", value);
-		if (settings_parse_line(parser->cur_parser, nameline) != 1)
+		if (settings_parse_keyvalue(parser->cur_parser, "name", value) != 1)
 			i_unreached();
 	}
 }
@@ -274,7 +273,7 @@ static void parse_count(struct profile_parser *parser, const char *value,
 static void
 profile_parse_line_section(struct profile_parser *parser, char *line)
 {
-	const char *key, *value, *newline;
+	const char *key, *value;
 	int ret;
 
 	if (strcmp(line, "}") == 0) {
@@ -285,10 +284,9 @@ profile_parse_line_section(struct profile_parser *parser, char *line)
 	if (!try_parse_keyvalue(line, &key, &value))
 		i_fatal("Invalid data at line %u: %s", parser->linenum, line);
 
-	newline = t_strdup_printf("%s=%s", key, value);
 	if (strcmp(key, "count") == 0)
 		parse_count(parser, value, &parser->cur_count);
-	else if ((ret = settings_parse_line(parser->cur_parser, newline)) < 0) {
+	else if ((ret = settings_parse_keyvalue(parser->cur_parser, key, value)) < 0) {
 		i_fatal("Invalid value for setting '%s' at line %u: %s",
 			key, parser->linenum, value);
 	} else if (ret == 0) {
