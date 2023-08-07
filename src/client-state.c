@@ -31,6 +31,7 @@ struct state states[] = {
 	{ "LIST",	  "List", LSTATE_AUTH,     50,  0,  FLAG_EXPUNGES },
 	{ "MCREATE",	  "MCre", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "MDELETE",	  "MDel", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
+	{ "MRENAME",	  "MRen", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "MSUBS",	  "MSub", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "STATUS",	  "Stat", LSTATE_AUTH,     50,  0,  FLAG_EXPUNGES },
 	{ "SELECT",	  "Sele", LSTATE_AUTH,     100, 0,  FLAG_STATECHANGE | FLAG_STATECHANGE_SELECTED },
@@ -815,6 +816,7 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
 		case STATE_COPY:
 		case STATE_MCREATE:
 		case STATE_MDELETE:
+		case STATE_MRENAME:
 		case STATE_MSUBS:
 			break;
 		case STATE_FETCH:
@@ -1209,6 +1211,25 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 					      i_rand_limit(20));
 		else
 			str = t_strdup_printf("DELETE \"test%c%d%c%d\"", 
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20),
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20));
+		command_send(client, str, state_callback);
+		break;
+	case STATE_MRENAME:
+		if (i_rand_limit(2) != 0)
+			str = t_strdup_printf("RENAME \"test%c%d\" \"test%c%d\"",
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20),
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20));
+		else
+			str = t_strdup_printf("RENAME \"test%c%d%c%d\" \"test%c%d%c%d\"",
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20),
+					      IMAP_HIERARCHY_SEP,
+					      i_rand_limit(20),
 					      IMAP_HIERARCHY_SEP,
 					      i_rand_limit(20),
 					      IMAP_HIERARCHY_SEP,
