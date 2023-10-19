@@ -53,3 +53,7 @@ Makefile.in
 
 src/imaptest
 src/rawlog.*
+
+docs/.vitepress/cache
+docs/.vitepress/dist
+node_modules/
