@@ -1,0 +1,80 @@
+name: Build static version of imaptest
+
+on:
+  pull_request:
+  push:
+    paths:
+      - 'src/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout imaptest
+        uses: actions/checkout@v4
+        with:
+          path: imaptest
+      - name: Checkout dovecot
+        uses: actions/checkout@v4
+        with:
+          repository: dovecot/core
+          path: core
+      - name: Install gettext (missing from GH Actions image)
+        run: |
+          sudo apt install -y gettext
+      - name: Build dovecot libraries
+        working-directory: ${{ github.workspace }}/core
+        run: |
+          ./autogen.sh
+          ./configure --without-shared-libs
+          make
+      - name: Build imaptest
+        working-directory: ${{ github.workspace }}/imaptest
+        run: |
+          ./autogen.sh
+          ./configure --with-dovecot=../core --enable-static
+          make
+      - name: Upload Artifact
+        if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: imaptest
+          path: imaptest/src/imaptest
+  publish:
+    needs: build
+    if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
+    name: Publish
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: imaptest
+          path: ./
+      - name: Make imaptest executable
+        run: |
+          chmod +x imaptest
+      - name: TAR/GZ imaptest
+        run: |
+          tar czfv imaptest.tgz imaptest
+      - name: Generate SHA256 checksum
+        run: |
+          sha256sum imaptest.tgz > SHA256SUMS.txt
+      - name: List files
+        run: ls -rl
+      - name: Update latest Release
+        uses: andelf/nightly-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: latest
+          name: 'ImapTest Latest Release'
+          draft: false
+          body: |
+            This is a static binary of imaptest (built on Ubuntu 22.04).
+            This should work on any modern Linux machine using libc.
+          files: |
+            ./SHA256SUMS.txt
+            ./imaptest.tgz
