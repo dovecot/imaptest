@@ -63,6 +63,12 @@ By default LOGIN command is used. If you want to try "AUTHENTICATE PLAIN":
 imaptest auth=100
 ```
 
+If you want to use "AUTHENTICATE SCRAM-SHA-1"
+
+```
+imaptest mech=scram-sha-1
+```
+
 ### Scripted Test
 
 Run [scripted tests](/scripted_test) from a given directory:

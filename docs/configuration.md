@@ -26,6 +26,14 @@ Path to mbox file where to append messages from.
 
 See [below](#append-mbox) for how this is used.
 
+### `mech`
+
+ * Default: login
+
+Authentication mechanism to use. This supports anything Dovecot's SASL library does,
+for example plain, digest-md5 or scram-sha-1. The pass parameter must match what
+the mechanism expects.
+
 ### `pass`
 
 * Default: \<none\>
