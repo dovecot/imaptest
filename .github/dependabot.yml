@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # Checks for dependency updates for documentation (VitePress)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
