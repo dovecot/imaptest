@@ -6,6 +6,7 @@
 
 /* host / port where to connect to */
 #define HOST "127.0.0.1"
+#define PORT 0
 /* Username. You can give either a single user, or a number of users in which
    case the username gets randomized at each connection. */
 //#define USERNAME_TEMPLATE "u%04d@d%04d.domain.org"
