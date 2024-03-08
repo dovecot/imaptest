@@ -273,7 +273,8 @@ const char *user_get_new_mailbox(struct client *client)
 		};
 		const char *error;
 		string_t *str = t_str_new(32);
-		if (var_expand(str, conf.mailbox, exp_table, &error) != 1) {
+		if (var_expand_with_table(str, conf.mailbox,
+					  exp_table, &error) != 1) {
 			i_fatal("Mailbox format invalid: %s", error);
 		}
 		return str_c(str);

@@ -634,8 +634,8 @@ get_next_username(const struct profile_user *user_profile,
 	if (users_input == NULL) {
 		i_snprintf(num, sizeof(num), "%u",
 			   user_profile->username_start_index + i-1);
-		if (var_expand(username, user_profile->username_format, tab,
-			       &error) < 0)
+		if (var_expand_with_table(username, user_profile->username_format,
+					  tab, &error) < 0)
 			i_error("var_expand(%s) failed: %s",
 				user_profile->username_format, error);
 		return;
