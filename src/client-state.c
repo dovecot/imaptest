@@ -74,13 +74,13 @@ void client_state_add_to_timer(enum client_state state,
 			       const struct timeval *tv_start)
 {
 	struct timeval tv_end;
-	int diff;
+	long long diff;
 
 	i_gettimeofday(&tv_end);
 	diff = timeval_diff_msecs(&tv_end, tv_start);
 	if (diff < 0)
 		diff = 0;
-	i_assert((unsigned int)diff < ULLONG_MAX - timers[state]);
+	i_assert((unsigned long long)diff < ULLONG_MAX - timers[state]);
 	timers[state] += diff;
 	timer_counts[state]++;
 }
