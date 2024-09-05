@@ -11,6 +11,9 @@
 #include "home-expand.h"
 #include "smtp-address.h"
 #include "dsasl-client.h"
+#ifdef STATIC_OPENSSL
+#  include "iostream-openssl.h"
+#endif
 
 #include "settings.h"
 #include "mailbox.h"
@@ -791,6 +794,9 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	mailboxes_init();
 	clients_init();
 	dsasl_clients_init();
+#ifdef STATIC_OPENSSL
+	ssl_iostream_openssl_init();
+#endif
 
 	i_array_init(&clients, CLIENTS_COUNT);
 	if (testpath == NULL)
@@ -818,6 +824,9 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		o_stream_destroy(&results_output);
 	}
 
+#ifdef STATIC_OPENSSL
+	ssl_iostream_openssl_deinit();
+#endif
 	dsasl_clients_deinit();
 	lib_signals_deinit();
 	io_loop_destroy(&ioloop);
