@@ -28,13 +28,13 @@ jobs:
         working-directory: ${{ github.workspace }}/core
         run: |
           ./autogen.sh
-          ./configure --without-shared-libs
+          ./configure --without-shared-libs --enable-static --disable-shared
           make
       - name: Build imaptest
         working-directory: ${{ github.workspace }}/imaptest
         run: |
           ./autogen.sh
-          ./configure --with-dovecot=../core --enable-static
+          ./configure --with-dovecot=../core --enable-static --disable-shared
           make
       - name: Upload Artifact
         if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
