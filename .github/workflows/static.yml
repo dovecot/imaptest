@@ -34,7 +34,7 @@ jobs:
         working-directory: ${{ github.workspace }}/imaptest
         run: |
           ./autogen.sh
-          ./configure --with-dovecot=../core --enable-static --disable-shared
+          ./configure --with-dovecot=../core --enable-static --disable-shared LDFLAGS='--static -llzma'
           make
       - name: Upload Artifact
         if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
