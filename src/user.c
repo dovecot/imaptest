@@ -267,14 +267,15 @@ const char *user_get_new_mailbox(struct client *client)
 	struct user_client *uc = client->user_client;
 
 	if (uc == NULL) {
-		struct var_expand_table exp_table[] = {
-			{ 'i', dec2str(client->idx), NULL },
-			{ '\0', NULL, NULL }
+		const struct var_expand_params params = {
+		       .table = (const struct var_expand_table[]) {
+				{ .key = "client_idx", .value = dec2str(client->idx) },
+				VAR_EXPAND_TABLE_END
+			},
 		};
 		const char *error;
 		string_t *str = t_str_new(32);
-		if (var_expand_with_table(str, conf.mailbox,
-					  exp_table, &error) != 1) {
+		if (var_expand(str, conf.mailbox, &params, &error) < 0) {
 			i_fatal("Mailbox format invalid: %s", error);
 		}
 		return str_c(str);

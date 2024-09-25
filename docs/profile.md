@@ -198,7 +198,7 @@ Username template format.
 `%n` expands to the user index number. See [`username_start_index`](#username-start-index). Padding can be defined by specifying `<padding character><padding length>` after the '%'.
 
 ::: info
-Example: `username_format = test_%03n@example.com` means that the calculated
+Example: `username_format = test_%{username_idx | lfill(3, '0')}@example.com` means that the calculated
 index will be padded to 3 numbers (with 0's). If `total_user_count = 500`,
 the generated users would be `test_001@example.com` to `test_500@example.com`.
 :::
@@ -313,7 +313,7 @@ total_user_count = 500
 rampup_time = 5s
   
 user aggressive {
-  username_format = testuser_%03n@example.com
+  username_format = testuser_%{username_idx | lfill(3, '0')}@example.com
   username_start_index = 501
   count = 10%
   
@@ -333,7 +333,7 @@ user aggressive {
 }
   
 user normal {
-  username_format = testuser_%03n@example.com
+  username_format = testuser_%{username_idx | lfill(3, '0')}@example.com
   username_start_index = 501
   count = 90%
   

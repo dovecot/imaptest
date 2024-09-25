@@ -622,9 +622,11 @@ get_next_username(const struct profile_user *user_profile,
 		  string_t *username, string_t *password, unsigned int i)
 {
 	char num[10];
-	struct var_expand_table tab[] = {
-		{ 'n', num, NULL },
-		{ '\0', NULL, NULL }
+	const struct var_expand_params params = {
+		.table = (const struct var_expand_table[]) {
+			{ .key = "username_idx", .value = num, },
+			VAR_EXPAND_TABLE_END
+		},
 	};
 	const char *line, *error;
 
@@ -634,8 +636,8 @@ get_next_username(const struct profile_user *user_profile,
 	if (users_input == NULL) {
 		i_snprintf(num, sizeof(num), "%u",
 			   user_profile->username_start_index + i-1);
-		if (var_expand_with_table(username, user_profile->username_format,
-					  tab, &error) < 0)
+		if (var_expand(username, user_profile->username_format,
+			       &params, &error) < 0)
 			i_error("var_expand(%s) failed: %s",
 				user_profile->username_format, error);
 		return;
