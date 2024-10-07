@@ -20,14 +20,22 @@ AC_PROG_CPP
 LT_INIT
 
 DC_DOVECOT
+
+AS_IF([test "$DOVECOT_INSTALLED" = 'no'], [
+	LIBDOVECOT=$abs_dovecotdir/src/lib-dovecot/libdovecot.la
+	LIBDOVECOT_SSL=$abs_dovecotdir/src/lib-ssl-iostream/libssl_iostream_openssl.la
+], [
+	LIBDOVECOT=$dovecot_pkglibdir/libdovecot.la
+	LIBDOVECOT_SSL=$dovecot_pkglibdir/libssl_iostream_openssl.la
+])
+AC_SUBST([LIBDOVECOT_SSL])
+
 CFLAGS="$CFLAGS $EXTRA_CFLAGS"
 LIBS="$DOVECOT_LIBS"
 BINARY_CFLAGS="$PIE_CFLAGS"
 BINARY_LDFLAGS="$PIE_LDFLAGS $RELRO_LDFLAGS"
 AC_SUBST(BINARY_CFLAGS)
 AC_SUBST(BINARY_LDFLAGS)
-
-AM_CONDITIONAL(STATIC_OPENSSL, test "$enable_shared" != "yes")
 
 AS_IF([test "$AR_FLAGS" = "cru"], [AR_FLAGS="cr"], [])
 AC_SUBST([AR_FLAGS])
