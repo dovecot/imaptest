@@ -1,4 +1,4 @@
-name: Build static version of imaptest
+name: Publish latest imaptest
 
 on:
   pull_request:
@@ -8,9 +8,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build
-    runs-on: ubuntu-22.04
+  build_ubuntu:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-22.04, ubuntu-20.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout imaptest
         uses: actions/checkout@v4
@@ -28,42 +30,116 @@ jobs:
         working-directory: ${{ github.workspace }}/core
         run: |
           ./autogen.sh
-          ./configure --without-shared-libs --enable-static --disable-shared
-          make
+          ./configure
+          make -j8
       - name: Build imaptest
         working-directory: ${{ github.workspace }}/imaptest
         run: |
           ./autogen.sh
-          ./configure --with-dovecot=../core --enable-static --disable-shared LDFLAGS='--static -llzma'
-          make
+          ./configure --with-dovecot=../core
+          make -j8
+      - name: Strip imaptest
+        run: |
+          strip --strip-all imaptest/src/imaptest
+      - name: Rename artifact
+        run: |
+          mv imaptest/src/imaptest imaptest-x86_64-${{ matrix.os }}
       - name: Upload Artifact
-        if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: imaptest
-          path: imaptest/src/imaptest
-  publish:
-    needs: build
+          name: build-x86_64-${{ matrix.os }}
+          path: imaptest-x86_64-${{ matrix.os }}
+  build_rhel:
     if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
-    name: Publish
-    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - os: rhel8
+            container: registry.access.redhat.com/ubi8/ubi
+            stream: https://vault.centos.org/8-stream
+          - os: rhel9
+            container: registry.access.redhat.com/ubi9/ubi
+            stream: https://mirror.stream.centos.org/9-stream/
+    runs-on: ubuntu-latest
+    container:
+        image: ${{ matrix.container }}
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v3
+      - name: Checkout imaptest
+        uses: actions/checkout@v4
         with:
-          name: imaptest
-          path: ./
-      - name: Make imaptest executable
+          path: imaptest
+      - name: Checkout dovecot
+        uses: actions/checkout@v4
+        with:
+          repository: dovecot/core
+          path: core
+      - name: Install build dependencies
         run: |
-          chmod +x imaptest
-      - name: TAR/GZ imaptest
+          dnf makecache
+          dnf install -y gcc gcc-c++ make automake autoconf libtool pkgconf-pkg-config gettext zlib-devel openssl-devel autoconf-archive diffutils file wget git
+      - name: Add repositories
         run: |
-          tar czfv imaptest.tgz imaptest
-      - name: Generate SHA256 checksum
+          cat <<EOF > /etc/yum.repos.d/stream.repo
+          [${{ matrix.os }}-stream_baseos]
+          name = ${{ matrix.os }} - stream baseos
+          baseurl = ${{ matrix.stream }}/BaseOS/x86_64/os
+          gpgcheck = 0
+          enabled = 1
+          [${{ matrix.so }}-stream_appstream]
+          name = ${{ matrix.os }} - stream appstream
+          baseurl = ${{ matrix.stream }}/AppStream/x86_64/os
+          gpgcheck = 0
+          enabled = 1
+          EOF
+      - name: Install more build dependencies
         run: |
-          sha256sum imaptest.tgz > SHA256SUMS.txt
+          dnf makecache
+          dnf install -y gettext-devel bison flex
+      - name: Force-enable pic
+        run: |
+          sed -s -i -e 's/LT_INIT/LT_INIT([pic-only])/' core/configure.ac
+      - name: Build dovecot libraries
+        working-directory: ${{ github.workspace }}/core
+        run: |
+          env VERSION=0.0.0 ./autogen.sh
+          ./configure
+          make -j8
+      - name: Build imaptest
+        working-directory: ${{ github.workspace }}/imaptest
+        run: |
+          env VERSION=0.0.0 ./autogen.sh
+          ./configure --with-dovecot=../core
+          make -j8
+      - name: Strip imaptest
+        run: |
+          strip --strip-all imaptest/src/imaptest
+      - name: Rename artifact
+        run: |
+          mv imaptest/src/imaptest imaptest-x86_64-${{ matrix.os }}
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-x86_64-${{ matrix.os }}
+          path: imaptest-x86_64-${{ matrix.os }}
+  publish:
+    if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
+    needs:
+      - build_ubuntu
+      - build_rhel
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download items
+        uses: actions/download-artifact@v4
+        with:
+          path: build
+          merge-multiple: true
       - name: List files
-        run: ls -rl
+        run: |
+          find
+      - name: Generate SHA256SUMS.txt
+        working-directory: build
+        run: |
+          sha256sum imaptest-* > SHA256SUMS.txt
       - name: Update latest Release
         uses: andelf/nightly-release@v1
         env:
@@ -73,8 +149,8 @@ jobs:
           name: 'ImapTest Latest Release'
           draft: false
           body: |
-            This is a static binary of imaptest (built on Ubuntu 22.04).
-            This should work on any modern Linux machine using libc.
+            ImapTest semi-static builds. These work on most machines with matching
+            libc. These usually work with Debian as well.
           files: |
-            ./SHA256SUMS.txt
-            ./imaptest.tgz
+            build/imaptest-*
+            build/SHA256SUMS.txt
