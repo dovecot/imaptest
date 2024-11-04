@@ -6,7 +6,6 @@ export default defineConfig({
   title: "IMAP Server Tester",
   lang: 'en-US',
   description: "Documentation for the IMAP Server Tester",
-  srcExclude: [ '/DOCS.md' ],
 
   sitemap: {
     hostname: 'https://dovecot.github.io/imaptest/',
