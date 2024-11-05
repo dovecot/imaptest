@@ -11,8 +11,18 @@ jobs:
   build_ubuntu:
     strategy:
       matrix:
-        os: [ubuntu-24.04, ubuntu-22.04, ubuntu-20.04]
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: ubuntu-24.04
+            image: ubuntu-24.04
+          - os: ubuntu-22.04
+            image: ubuntu-22.04
+          - os: ubuntu-20.04
+            image: ubuntu-20.04
+          - os: debian-11
+            image: ubuntu-20.04
+          - os: debian-12
+            image: ubuntu-22.04
+    runs-on: ${{ matrix.image }}
     steps:
       - name: Checkout imaptest
         uses: actions/checkout@v4
