@@ -8,7 +8,50 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_ubuntu:
+  build_ubuntu_arm:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04-arm
+            version: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout imaptest
+        uses: actions/checkout@v4
+        with:
+          path: imaptest
+      - name: Checkout dovecot
+        uses: actions/checkout@v4
+        with:
+          repository: dovecot/core
+          path: core
+      - name: Install gettext (missing from GH Actions image)
+        run: |
+          sudo apt install -y gettext
+      - name: Build dovecot libraries
+        working-directory: ${{ github.workspace }}/core
+        run: |
+          ./autogen.sh
+          ./configure
+          make -j8
+      - name: Build imaptest
+        working-directory: ${{ github.workspace }}/imaptest
+        run: |
+          ./autogen.sh
+          ./configure --with-dovecot=../core
+          make -j8
+      - name: Strip imaptest
+        run: |
+          strip --strip-all imaptest/src/imaptest
+      - name: Rename artifact
+        run: |
+          mv imaptest/src/imaptest imaptest-arm64-${{ matrix.version }}
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-arm64-${{ matrix.version }}
+          path: imaptest-arm64-${{ matrix.version }}
+ build_ubuntu:
     strategy:
       matrix:
         include:
