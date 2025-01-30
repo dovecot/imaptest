@@ -51,7 +51,7 @@ jobs:
         with:
           name: build-arm64-${{ matrix.version }}
           path: imaptest-arm64-${{ matrix.version }}
- build_ubuntu:
+  build_ubuntu:
     strategy:
       matrix:
         include:
