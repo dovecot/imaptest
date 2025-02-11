@@ -823,8 +823,8 @@ static bool imap_arg_is_bad(const struct imap_arg *arg)
 }
 
 static bool
-append_has_body(struct test_exec_context *ctx, const char *str_args,
-		unsigned int str_args_len)
+append_has_body(struct test_exec_context *ctx, bool replace,
+		const char *str_args, unsigned int str_args_len)
 {
 	ARRAY_TYPE(imap_arg_list) *arg_list;
 	const struct imap_arg *args;
@@ -839,6 +839,10 @@ append_has_body(struct test_exec_context *ctx, const char *str_args,
 	if (args->type == IMAP_ARG_EOL)
 		return FALSE;
 
+	if (replace)
+		args++;
+	if (args->type == IMAP_ARG_EOL)
+		return FALSE;
 	if (args[1].type == IMAP_ARG_LIST)
 		args++;
 	if (args[1].type == IMAP_ARG_STRING)
@@ -867,10 +871,20 @@ static void test_send_next_command(struct test_exec_context *ctx,
 		(void)imap_client_append_full(client, NULL, NULL, NULL,
 					      test_cmd_callback, &cmd);
 	} else if (str_begins_icase(cmdline, "append ", &args) &&
-		   !append_has_body(ctx, args, strlen(args))) {
+		   !append_has_body(ctx, FALSE, args, strlen(args))) {
 		client->client.state = STATE_APPEND;
 		(void)imap_client_append(client, args, FALSE,
 					 test_cmd_callback, &cmd);
+	} else if (str_begins_icase(cmdline, "replace ", &args) &&
+		   !append_has_body(ctx, TRUE, args, strlen(args))) {
+		client->client.state = STATE_APPEND;
+		(void)imap_client_replace(client, FALSE, args,
+					  test_cmd_callback, &cmd);
+	} else if (str_begins_icase(cmdline, "uid replace ", &args) &&
+		   !append_has_body(ctx, TRUE, args, strlen(args))) {
+		client->client.state = STATE_APPEND;
+		(void)imap_client_replace(client, TRUE, args,
+					  test_cmd_callback, &cmd);
 	} else {
 		if (test_cmd->linenum == 0 ||
 		    strcasecmp(cmdline, "logout") == 0 ||

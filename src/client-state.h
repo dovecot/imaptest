@@ -91,6 +91,8 @@ void client_state_add_to_timer(enum client_state state,
 
 int imap_client_append(struct imap_client *client, const char *args, bool add_datetime,
 		       command_callback_t *callback, struct command **cmd_r);
+int imap_client_replace(struct imap_client *client, bool uid, const char *args,
+			command_callback_t *callback, struct command **cmd_r);
 int imap_client_append_full(struct imap_client *client, const char *mailbox,
 			    const char *flags, const char *datetime,
 			    command_callback_t *callback, struct command **cmd_r);
