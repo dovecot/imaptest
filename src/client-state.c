@@ -386,10 +386,11 @@ int imap_client_append_continue(struct imap_client *client)
 	return 0;
 }
 
-int imap_client_append(struct imap_client *client, const char *args, bool add_datetime,
-		       command_callback_t *callback, struct command **cmd_r)
+static int
+imap_client_append_common(struct imap_client *client, string_t *cmd,
+			  const char *args, bool add_datetime,
+			  command_callback_t *callback, struct command **cmd_r)
 {
-	string_t *cmd;
 	time_t t;
 	uoff_t vsize;
 	int tz;
@@ -401,12 +402,6 @@ int imap_client_append(struct imap_client *client, const char *args, bool add_da
 		mailbox_source_get_next(client->storage->source,
 					&vsize, &t, &tz);
 
-	cmd = t_str_new(128);
-	if (client->append_unfinished) {
-		/* MULTIAPPEND contination */
-	} else {
-		str_append(cmd, "APPEND ");
-	}
 	str_append(cmd, args);
 	if (add_datetime)
 		str_printfa(cmd, " \"%s\"", imap_to_datetime_tz(t, tz));
@@ -433,6 +428,36 @@ int imap_client_append(struct imap_client *client, const char *args, bool add_da
 
 	client->append_can_send = TRUE;
 	return imap_client_append_continue(client);
+}
+
+int imap_client_append(struct imap_client *client, const char *args,
+		       bool add_datetime, command_callback_t *callback,
+		       struct command **cmd_r)
+{
+	string_t *cmd = t_str_new(128);
+
+	if (client->append_unfinished) {
+		/* MULTIAPPEND contination */
+	} else {
+		str_append(cmd, "APPEND ");
+	}
+
+	return imap_client_append_common(client, cmd, args, add_datetime,
+					 callback, cmd_r);
+}
+
+int imap_client_replace(struct imap_client *client, bool uid, const char *args,
+			command_callback_t *callback, struct command **cmd_r)
+{
+	string_t *cmd = t_str_new(128);
+
+	i_assert(!client->append_unfinished);
+	if (uid)
+		str_append(cmd, "UID ");
+	str_append(cmd, "REPLACE ");
+
+	return imap_client_append_common(client, cmd, args, FALSE,
+					 callback, cmd_r);
 }
 
 int imap_client_append_full(struct imap_client *client, const char *mailbox,
