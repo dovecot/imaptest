@@ -856,7 +856,7 @@ static void test_send_next_command(struct test_exec_context *ctx,
 				   struct test_command *test_cmd)
 {
 	struct command *cmd = NULL;
-	const char *cmdline;
+	const char *cmdline, *args;
 	unsigned int cmdline_len;
 
 	cmdline = test_cmd->command;
@@ -866,10 +866,10 @@ static void test_send_next_command(struct test_exec_context *ctx,
 		client->client.state = STATE_APPEND;
 		(void)imap_client_append_full(client, NULL, NULL, NULL,
 					      test_cmd_callback, &cmd);
-	} else if (strncasecmp(cmdline, "append ", 7) == 0 &&
-		   !append_has_body(ctx, cmdline+7, cmdline_len-7)) {
+	} else if (str_begins_icase(cmdline, "append ", &args) &&
+		   !append_has_body(ctx, args, strlen(args))) {
 		client->client.state = STATE_APPEND;
-		(void)imap_client_append(client, cmdline + 7, FALSE,
+		(void)imap_client_append(client, args, FALSE,
 					 test_cmd_callback, &cmd);
 	} else {
 		if (test_cmd->linenum == 0 ||
