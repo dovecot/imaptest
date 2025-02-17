@@ -871,17 +871,17 @@ static void test_send_next_command(struct test_exec_context *ctx,
 		(void)imap_client_append_full(client, NULL, NULL, NULL,
 					      test_cmd_callback, &cmd);
 	} else if (str_begins_icase(cmdline, "append ", &args) &&
-		   !append_has_body(ctx, FALSE, args, strlen(args))) {
+		   !append_has_body(ctx, FALSE, args, cmdline_len - 7)) {
 		client->client.state = STATE_APPEND;
 		(void)imap_client_append(client, args, FALSE,
 					 test_cmd_callback, &cmd);
 	} else if (str_begins_icase(cmdline, "replace ", &args) &&
-		   !append_has_body(ctx, TRUE, args, strlen(args))) {
+		   !append_has_body(ctx, TRUE, args, cmdline_len - 8)) {
 		client->client.state = STATE_APPEND;
 		(void)imap_client_replace(client, FALSE, args,
 					  test_cmd_callback, &cmd);
 	} else if (str_begins_icase(cmdline, "uid replace ", &args) &&
-		   !append_has_body(ctx, TRUE, args, strlen(args))) {
+		   !append_has_body(ctx, TRUE, args, cmdline_len - 12)) {
 		client->client.state = STATE_APPEND;
 		(void)imap_client_replace(client, TRUE, args,
 					  test_cmd_callback, &cmd);
