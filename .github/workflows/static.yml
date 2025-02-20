@@ -9,6 +9,7 @@ on:
 
 jobs:
   build_ubuntu_arm:
+    if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
     strategy:
       matrix:
         include:
