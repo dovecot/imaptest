@@ -26,7 +26,7 @@ AS_IF([test "$DOVECOT_INSTALLED" = 'no'], [
 	LIBDOVECOT_SSL=$abs_dovecotdir/src/lib-ssl-iostream/libssl_iostream_openssl.la
 ], [
 	LIBDOVECOT=$dovecot_pkglibdir/libdovecot.la
-	LIBDOVECOT_SSL=$dovecot_pkglibdir/libssl_iostream_openssl.la
+	LIBDOVECOT_SSL=$dovecot_moduledir/libssl_iostream_openssl.la
 ])
 AC_SUBST([LIBDOVECOT_SSL])
 
