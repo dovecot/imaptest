@@ -272,6 +272,7 @@ const char *user_get_new_mailbox(struct client *client)
 				{ .key = "client_idx", .value = dec2str(client->idx) },
 				VAR_EXPAND_TABLE_END
 			},
+			.providers = NULL,
 		};
 		const char *error;
 		string_t *str = t_str_new(32);
