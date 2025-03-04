@@ -627,6 +627,7 @@ get_next_username(const struct profile_user *user_profile,
 			{ .key = "username_idx", .value = num, },
 			VAR_EXPAND_TABLE_END
 		},
+		.providers = NULL,
 	};
 	const char *line, *error;
 
