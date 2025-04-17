@@ -54,7 +54,8 @@ struct settings {
 	unsigned int domains_rand_start, domains_rand_count;
 
 	bool random_states, no_pipelining, disconnect_quit;
-	bool no_tracking, rawlog, error_quit, own_msgs, own_flags, qresync;
+	bool no_tracking, rawlog, error_quit, own_msgs, own_flags, qresync,
+	     imap4rev2;
 
 	struct ip_addr *ips;
 	unsigned int ip_idx, ips_count;
