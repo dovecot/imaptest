@@ -441,6 +441,7 @@ static void print_help(void)
 "         [host=HOST] [port=PORT] [mbox=MBOX] [clients=CC] [msgs=NMSG]\n"
 "         [box=MAILBOX] [copybox=DESTBOX] [-] [<state>[=<n%%>[,<m%%>]]]\n"
 "         [random] [no_pipelining] [no_tracking] [checkpoint=<secs>]\n"
+"         [imap4rev2]\n"
 "\n"
 " USER = username (and domain) template, e.g. \"u%%04d\" or \"u%%04d@d%%04d\"\n"
 " RANGE = range for templated usernames [1-%u] or domain names [1-%u]\n"
@@ -640,6 +641,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		}
 		if (strcmp(*argv, "qresync") == 0) {
 			conf.qresync = TRUE;
+			continue;
+		}
+		if (strcmp(*argv, "imap4rev2") == 0) {
+			conf.imap4rev2 = TRUE;
 			continue;
 		}
 
