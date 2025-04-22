@@ -11,6 +11,7 @@ enum imap_capability {
 	CAP_CONDSTORE		= 0x04,
 	CAP_QRESYNC		= 0x08,
 	CAP_UIDPLUS		= 0x10,
+	CAP_IMAP4REV2		= 0x20,
 };
 
 struct imap_capability_name {
@@ -24,6 +25,7 @@ static const struct imap_capability_name cap_names[] = {
 	{ "CONDSTORE", CAP_CONDSTORE },
 	{ "QRESYNC", CAP_QRESYNC },
 	{ "UIDPLUS", CAP_UIDPLUS },
+	{ "IMAP4REV2", CAP_IMAP4REV2 },
 
 	{ NULL, 0 }
 };
@@ -87,6 +89,7 @@ struct imap_client {
 	bool idle_done_sent:1;
 	bool preauth:1;
 	bool uid_fetch_performed:1;
+	bool imap4rev2_enabled:1;
 };
 
 static inline struct imap_client *imap_client(struct client *client)
