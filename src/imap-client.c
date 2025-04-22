@@ -401,6 +401,8 @@ int imap_client_handle_untagged(struct imap_client *client,
 			if (view->recent_count ==
 			    array_count(&view->uidmap))
 				view->storage->seen_all_recent = TRUE;
+			if (conf.imap4rev2)
+				imap_client_input_error(client, "Unexpected RECENT");
 		} else if (!conf.no_tracking && strcmp(str, "FETCH") == 0)
 			mailbox_state_handle_fetch(client, num, args);
 	} else if (strcmp(str, "BYE") == 0) {
@@ -412,7 +414,7 @@ int imap_client_handle_untagged(struct imap_client *client,
 		client->seen_bye = TRUE;
 		client->client.login_state = LSTATE_NONAUTH;
 	} else if (strcmp(str, "FLAGS") == 0) {
-		if (mailbox_state_set_flags(view, args) < 0)
+		if (mailbox_state_set_flags(view, args, client->imap4rev2_enabled) < 0)
 			imap_client_input_error(client, "Broken FLAGS");
 	} else if (strcmp(str, "CAPABILITY") == 0)
 		imap_client_capability_parse(client, imap_args_to_str(args));
