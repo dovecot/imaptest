@@ -1193,6 +1193,8 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		command_send(client, str, state_callback);
 		if (conf.qresync)
 			command_send(client, "ENABLE QRESYNC", state_callback);
+		if (conf.imap4rev2)
+			command_send(client, "ENABLE IMAP4REV2", state_callback);
 		o_stream_uncork(_client->output);
 		break;
 	case STATE_LIST:

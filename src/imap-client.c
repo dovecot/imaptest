@@ -168,6 +168,8 @@ imap_client_enabled(struct imap_client *client, const struct imap_arg *args)
 	for (; imap_arg_get_atom(args, &str); args++) {
 		if (strcasecmp(str, "QRESYNC") == 0)
 			client->qresync_enabled = TRUE;
+		if (strcasecmp(str, "IMAP4REV2") == 0)
+			client->imap4rev2_enabled = TRUE;
 	}
 }
 
