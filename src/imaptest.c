@@ -645,6 +645,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 		}
 		if (strcmp(*argv, "imap4rev2") == 0) {
 			conf.imap4rev2 = TRUE;
+			/* If imap4rev2 is enabled, also enable qresync */
+			conf.qresync = TRUE;
 			continue;
 		}
 
