@@ -524,7 +524,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 {
 	struct state *state;
 	struct profile *profile = NULL;
-	const char *error, *key, *value, *testpath = NULL;
+	const char *error, *key, *value, *hostip = NULL, *testpath = NULL;
 	unsigned int i;
 	int ret, fd;
 
@@ -747,6 +747,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			conf.host = value;
 			continue;
 		}
+		if (strcmp(key, "hostip") == 0) {
+			hostip = value;
+			continue;
+		}
 		if (strcmp(key, "port") == 0) {
 			conf.port = atoi(value);
 			continue;
@@ -779,10 +783,12 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	if (testpath != NULL && strchr(conf.username_template, '%') != NULL)
 		i_fatal("Don't use %% in username with tests");
 
-	if ((ret = net_gethostbyname(conf.host, &conf.ips,
+	if (hostip == NULL)
+		hostip = conf.host;
+	if ((ret = net_gethostbyname(hostip, &conf.ips,
 				     &conf.ips_count)) != 0) {
 		i_fatal("net_gethostbyname(%s) failed: %s",
-			conf.host, net_gethosterror(ret));
+			hostip, net_gethosterror(ret));
 	}
 
 	lib_set_clean_exit(TRUE);
