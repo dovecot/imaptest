@@ -745,7 +745,7 @@ void imap_client_handle_resp_text_code(struct imap_client *client,
 			imap_client_mailbox_close(client);
 		}
 	} else if (strcmp(key, "PERMANENTFLAGS") == 0) {
-		if (mailbox_state_set_permanent_flags(view, args + 1) < 0)
+		if (mailbox_state_set_permanent_flags(view, args + 1, client->imap4rev2_enabled) < 0)
 			imap_client_input_error(client, "Broken PERMANENTFLAGS");
 	} else if (strcmp(key, "UIDNEXT") == 0) {
 		if (view->select_uidnext == 0)
@@ -1193,6 +1193,8 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		command_send(client, str, state_callback);
 		if (conf.qresync)
 			command_send(client, "ENABLE QRESYNC", state_callback);
+		if (conf.imap4rev2)
+			command_send(client, "ENABLE IMAP4REV2", state_callback);
 		o_stream_uncork(_client->output);
 		break;
 	case STATE_LIST:
@@ -1488,8 +1490,9 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 			return -1;
 		break;
 	case STATE_STATUS:
-		str = t_strdup_printf("STATUS \"%s\" (MESSAGES UNSEEN RECENT)",
-				      client->storage->name);
+		str = t_strdup_printf("STATUS \"%s\" (MESSAGES UNSEEN%s)",
+				      client->storage->name,
+				      client->imap4rev2_enabled ? "" : " RECENT");
 		command_send(client, str, state_callback);
 		break;
 	case STATE_NOOP:

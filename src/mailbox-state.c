@@ -162,6 +162,10 @@ message_metadata_set_flags(struct imap_client *client, const struct imap_arg *ar
 		if (*atom == '\\') {
 			/* system flag */
 			flag = mail_flag_parse(atom + 1);
+			if (client->imap4rev2_enabled &&
+			    (flag & MAIL_RECENT) != 0)
+				flag = 0;
+
 			if (flag != 0)
 				flags |= flag;
 			else {
@@ -708,13 +712,15 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 }
 
 int mailbox_state_set_flags(struct mailbox_view *view,
-			    const struct imap_arg *args)
+			    const struct imap_arg *args,
+			    bool imap4rev2_enabled)
 {
 	const struct mailbox_keyword *keywords;
 	struct mailbox_keyword *kw;
 	unsigned int idx, i, count;
 	const char *atom;
 	bool errors = FALSE;
+	enum mail_flags flag;
 
 	if (!imap_arg_get_list(args, &args))
 		return -1;
@@ -726,8 +732,13 @@ int mailbox_state_set_flags(struct mailbox_view *view,
 
 		if (*atom == '\\') {
 			/* system flag */
-			if (mail_flag_parse(atom + 1) == 0)
+			if ((flag = mail_flag_parse(atom + 1)) == 0)
 				return -1;
+			if ((flag & MAIL_RECENT) != 0 && imap4rev2_enabled) {
+				i_error("Mailbox FLAGS response contains "
+					"\\Recent flag, while IMAP4REV2 is enabled");
+				return -1;
+			}
 		} else if (!mailbox_view_keyword_find(view, atom, &idx))
 			mailbox_view_keyword_add(view, atom);
 		else {
@@ -755,12 +766,14 @@ int mailbox_state_set_flags(struct mailbox_view *view,
 }
 
 int mailbox_state_set_permanent_flags(struct mailbox_view *view,
-				      const struct imap_arg *args)
+				      const struct imap_arg *args,
+				      bool imap4rev2_enabled)
 {
 	struct mailbox_keyword *keywords, *kw;
 	unsigned int idx, i, count;
 	const char *atom;
 	bool errors = FALSE;
+	enum mail_flags flags = 0;
 
 	if (!imap_arg_get_list(args, &args))
 		return -1;
@@ -777,8 +790,15 @@ int mailbox_state_set_permanent_flags(struct mailbox_view *view,
 		if (*atom == '\\') {
 			if (strcmp(atom, "\\*") == 0)
 				view->keywords_can_create_more = TRUE;
-			else if (mail_flag_parse(atom + 1) == 0)
+			else if ((flags = mail_flag_parse(atom + 1)) == 0)
 				return -1;
+			if ((flags & MAIL_RECENT) != 0 && imap4rev2_enabled) {
+				i_error("Mailbox PERMANENTFLAGS response contains "
+					"\\Recent flag, while IMAP4REV2 is enabled");
+				return -1;
+			}
+
+
 		} else if (!mailbox_view_keyword_find(view, atom, &idx)) {
 			i_error("Keyword in PERMANENTFLAGS not introduced "
 				"with FLAGS: %s", atom);
