@@ -497,6 +497,14 @@ test_imap_match_args(struct test_exec_context *ctx,
 				/* "$" skips over a list */
 				break;
 			}
+			if (strcmp(imap_arg_as_astring(match), "$]") == 0) {
+				/* "$]" skips until ']'. For example
+				   * OK [CAPABILITY $] Capabilities. */
+				while (imap_arg_get_atom(args, &astr) &&
+				       strchr(astr, ']') == NULL)
+					args++;
+				break;
+			}
 			if (!imap_arg_get_astring(args, &astr))
 				return ret;
 			mstr = test_expand_input(ctx, imap_arg_as_astring(match),
