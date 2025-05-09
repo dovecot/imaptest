@@ -91,6 +91,8 @@ struct test {
 	/* If FALSE, fail if server sends any untagged replies not included
 	   explicitly in the test script. */
 	bool ignore_extra_untagged:1;
+	/* TRUE if this command checks for the initial banner */
+	bool have_banner_check:1;
 };
 ARRAY_DEFINE_TYPE(test, struct test *);
 

@@ -84,6 +84,8 @@ static void test_execute_free(struct test_exec_context *ctx);
 static void test_execute_finish(struct test_exec_context *ctx);
 static void test_send_next_command_group(struct test_exec_context *ctx);
 static int test_send_lstate_commands(struct client *client);
+static void test_group_finished(struct test_exec_context *ctx,
+				struct test_command_group *group);
 
 static unsigned int
 test_imap_match_args(struct test_exec_context *ctx,
@@ -597,9 +599,14 @@ test_handle_untagged_match(struct imap_client *client, const struct imap_arg *ar
 		}
 	}
 
-	cmd = array_idx(&(*groupp)->commands, 0);
-	tag = cmd->cur_cmd_tag == 0 ? NULL :
-		t_strdup_printf("%u.%u", client->client.global_id, cmd->cur_cmd_tag);
+	if (array_count(&(*groupp)->commands) == 0) {
+		/* banner check */
+		tag = NULL;
+	} else {
+		cmd = array_idx(&(*groupp)->commands, 0);
+		tag = cmd->cur_cmd_tag == 0 ? NULL :
+			t_strdup_printf("%u.%u", client->client.global_id, cmd->cur_cmd_tag);
+	}
 	array_clear(&ctx->added_variables);
 	found = buffer_get_space_unsafe(ctx->cur_received_untagged, 0, count);
 	if (count > 0)
@@ -661,8 +668,16 @@ test_handle_untagged(struct imap_client *client, const struct imap_arg *args)
 	if (imap_client_handle_untagged(client, args) < 0)
 		return -1;
 
-	if (ctx->init_finished)
+	if (!client->seen_banner && ctx->test->have_banner_check) {
+		/* banner check */
 		test_handle_untagged_match(client, args);
+		struct test_command_group *group =
+			array_idx_elem(&ctx->test->cmd_groups,
+				       ctx->cur_group_idx);
+		test_group_finished(ctx, group);
+	} else if (ctx->init_finished)
+		test_handle_untagged_match(client, args);
+
 
 	if (imap_arg_get_atom(&args[0], &str) &&
 	    imap_arg_atom_equals(&args[1], "EXPUNGE")) {
@@ -769,7 +784,8 @@ static void test_group_finished(struct test_exec_context *ctx,
 		ctx->exec_ctx->base_tests++;
 	else
 		ctx->exec_ctx->ext_tests++;
-	test_send_next_command_group(ctx);
+	if (ctx->init_finished)
+		test_send_next_command_group(ctx);
 }
 
 static void test_cmd_callback(struct imap_client *client,
@@ -1133,8 +1149,6 @@ static int test_send_lstate_commands(struct client *_client)
 
 	i_assert(ctx->clients_waiting > 0);
 
-	if (ctx->failed)
-		return -1;
 	if (ctx->startup_state == ctx->test->startup_state &&
 	    (client->client.login_state != LSTATE_NONAUTH ||
 	     ctx->test->startup_state == TEST_STARTUP_STATE_NONAUTH)) {
