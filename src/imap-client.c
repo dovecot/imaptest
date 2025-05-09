@@ -439,6 +439,36 @@ int imap_client_handle_untagged(struct imap_client *client,
 }
 
 static int
+imap_client_input_banner(struct imap_client *client,
+			 const struct imap_arg *args)
+{
+	const char *reply, *str;
+
+	client->seen_banner = TRUE;
+
+	if (!imap_arg_get_atom(args, &reply))
+		return imap_client_input_error(client, "Invalid untagged input");
+	if (strcasecmp(reply, "PREAUTH") == 0) {
+		client->preauth = TRUE;
+		client->client.login_state = LSTATE_AUTH;
+	} else if (strcasecmp(reply, "OK") != 0) {
+		return imap_client_input_error(client, "Malformed banner");
+	}
+
+	if (!imap_arg_get_atom(args + 1, &str))
+		return imap_client_input_error(client, "Invalid untagged input");
+
+	if (strcasecmp(str, "[CAPABILITY") != 0)
+		command_send(client, "CAPABILITY", state_callback);
+	else {
+		imap_client_capability_parse(client,
+			t_strcut(imap_args_to_str(args + 2), ']'));
+		(void)client_send_more_commands(&client->client);
+	}
+	return 0;
+}
+
+static int
 imap_client_input_args(struct imap_client *client, const struct imap_arg *args)
 {
 	const char *p, *tag, *tag_status;
@@ -463,6 +493,8 @@ imap_client_input_args(struct imap_client *client, const struct imap_arg *args)
 			return imap_client_input_error(client,
 						       "Invalid untagged input");
 		}
+		if (!client->seen_banner)
+			return imap_client_input_banner(client, args);
 		return 0;
 	}
 
@@ -526,35 +558,11 @@ static void imap_client_input(struct client *_client)
 {
 	struct imap_client *client = (struct imap_client *)_client;
 	const struct imap_arg *imap_args;
-	const char *line, *p;
 	uoff_t literal_size;
 	const unsigned char *data;
 	size_t size;
 	enum imap_parser_error fatal;
 	int ret;
-
-	if (!client->seen_banner) {
-		/* we haven't received the banner yet */
-		line = i_stream_next_line(_client->input);
-		if (line == NULL)
-			return;
-		client->seen_banner = TRUE;
-
-		if (strncasecmp(line, "* PREAUTH ", 10) == 0) {
-			client->preauth = TRUE;
-			_client->login_state = LSTATE_AUTH;
-		} else if (strncasecmp(line, "* OK ", 5) != 0) {
-			imap_client_input_error(client,
-				"Malformed banner \"%s\"", line);
-		}
-		p = strstr(line, "[CAPABILITY ");
-		if (p == NULL)
-			command_send(client, "CAPABILITY", state_callback);
-		else {
-			imap_client_capability_parse(client, t_strcut(p + 12, ']'));
-			(void)client_send_more_commands(_client);
-		}
-	}
 
 	while (imap_client_skip_literal(client)) {
 		ret = imap_parser_read_args(client->parser, 0,
