@@ -667,6 +667,13 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 			return FALSE;
 		}
 	}
+	if (array_count(&group->commands) == 0 &&
+	    test_is_untagged(line, &existence)) {
+		test->have_banner_check = TRUE;
+		return test_parse_command_untagged(parser, line + 2,
+						   linelen-2, existence,
+						   error_r);
+	}
 	if (cmd->reply == NULL)
 		group->replies_pending++;
 	i_assert(line[linelen] == '\0');
