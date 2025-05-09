@@ -755,6 +755,17 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			conf.port = atoi(value);
 			continue;
 		}
+		if (strcmp(key, "ssl_ca_file") == 0) {
+			const char *output, *error;
+			if (settings_parse_read_file(value, value,
+						     pool_datastack_create(),
+						     NULL, &output, &error) < 0)
+				i_fatal("Can't read ssl_ca_file %s: %s", value, error);
+			settings_file_get(output, pool_datastack_create(),
+					  &conf.ssl_set.ca);
+			conf.ssl_set.skip_crl_check = TRUE;
+			continue;
+		}
 		if (strcmp(key, "output") == 0) {
 			fd = creat(value, 0600);
 			if (fd == -1)
