@@ -129,6 +129,13 @@ If set, don't send multiple commands at once to server.
 
 If set, enable QRESYNC IMAP extension.
 
+### `imap4rev2`
+
+* Default: no (`boolean` setting)
+
+If set, enable the use of IMAP4rev2.
+
+
 ### `random_msg_size`
 
 * Default: `0`
