@@ -799,7 +799,8 @@ void imap_client_handle_tagged_reply(struct imap_client *client, struct command 
 			client->client.login_state = LSTATE_SELECTED;
 		if (client->qresync_select_cache != NULL) {
 			/* SELECT with QRESYNC finished */
-			if (reply == REPLY_OK) {
+			if (reply == REPLY_OK &&
+			    client->qresync_pending_exists > 0) {
 				imap_client_exists(client,
 						   client->qresync_pending_exists);
 				client->qresync_pending_exists = 0;

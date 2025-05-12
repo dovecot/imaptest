@@ -497,6 +497,17 @@ void mailbox_state_handle_fetch(struct imap_client *client, unsigned int seq,
 	unsigned int i, list_count;
 	bool uid_changed = FALSE;
 
+	if (seq > array_count(&view->uidmap)) {
+		i_assert(client->qresync_pending_exists > 0);
+		/* uidmap contains the restored offline cache, which hasn't yet
+		   fully processed the EXISTS reply. However, we're now seeing
+		   flag updates for a message not visible in the offline cache
+		   yet. At this point all the VANISHED (EARLIER) response must
+		   have been sent, so we can fully process the EXISTS. */
+		imap_client_exists(client, client->qresync_pending_exists);
+		client->qresync_pending_exists = 0;
+	}
+
 	uidp = array_idx_modifiable(&view->uidmap, seq-1);
 
 	if (!imap_arg_get_list_full(args, &args, &list_count)) {
