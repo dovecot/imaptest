@@ -126,7 +126,7 @@ jobs:
       - name: Install build dependencies
         run: |
           dnf makecache
-          dnf install -y gcc gcc-c++ make automake autoconf libtool pkgconf-pkg-config gettext zlib-devel openssl-devel autoconf-archive diffutils file wget git perl-version
+          dnf install -y gcc gcc-c++ make automake autoconf libtool pkgconf-pkg-config gettext zlib-devel openssl-devel autoconf-archive diffutils file wget git perl-version python3
       - name: Add repositories
         run: |
           cat <<EOF > /etc/yum.repos.d/stream.repo
