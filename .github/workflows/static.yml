@@ -9,7 +9,6 @@ on:
 
 jobs:
   build_ubuntu_arm:
-    if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
     strategy:
       matrix:
         include:
@@ -100,7 +99,6 @@ jobs:
           name: build-x86_64-${{ matrix.os }}
           path: imaptest-x86_64-${{ matrix.os }}
   build_rhel:
-    if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
     strategy:
       matrix:
         include:
