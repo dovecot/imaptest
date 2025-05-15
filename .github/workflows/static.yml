@@ -108,7 +108,7 @@ jobs:
           - os: rhel8
             container: registry.access.redhat.com/ubi8/ubi
             stream: https://vault.centos.org/8-stream
-            aliases: '["debian-11","ubuntu20.04"]'
+            aliases: '["debian-11","ubuntu-20.04"]'
           - os: rhel9
             container: registry.access.redhat.com/ubi9/ubi
             stream: https://mirror.stream.centos.org/9-stream/
