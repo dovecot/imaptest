@@ -108,6 +108,9 @@ jobs:
           - os: rhel9
             container: registry.access.redhat.com/ubi9/ubi
             stream: https://mirror.stream.centos.org/9-stream/
+          - os: rhel10
+            container: registry.access.redhat.com/ubi10/ubi
+            stream: https://mirror.stream.centos.org/10-stream/
     runs-on: ubuntu-latest
     container:
         image: ${{ matrix.container }}
