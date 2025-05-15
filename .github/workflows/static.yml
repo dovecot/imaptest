@@ -175,6 +175,7 @@ jobs:
   publish:
     if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
     needs:
+      - build_ubuntu_arm
       - build_ubuntu
       - build_rhel
     runs-on: ubuntu-latest
