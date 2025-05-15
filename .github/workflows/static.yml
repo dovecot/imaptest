@@ -95,7 +95,7 @@ jobs:
       - name: Rename artifact
         run: |
           for n in ${{ join(fromJSON(matrix.aliases), ' ') }}; do cp imaptest/src/imaptest "imaptest-$(uname -m)-$n"; done
-          mv imaptest/src/imaptest imaptest-$(uname -m)-${{ matrix.version }}
+          mv imaptest/src/imaptest imaptest-$(uname -m)-${{ matrix.os }}
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
