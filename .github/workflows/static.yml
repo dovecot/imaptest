@@ -14,6 +14,7 @@ jobs:
         include:
           - os: ubuntu-24.04-arm
             version: ubuntu-24.04
+            aliases: '["debian-13"]'
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout imaptest
@@ -45,22 +46,23 @@ jobs:
           strip --strip-all imaptest/src/imaptest
       - name: Rename artifact
         run: |
-          mv imaptest/src/imaptest imaptest-arm64-${{ matrix.version }}
+          for n in ${{ join(fromJSON(matrix.aliases), ' ') }}; do cp imaptest/src/imaptest "imaptest-$(uname -m)-$n"; done
+          mv imaptest/src/imaptest imaptest-$(uname -m)-${{ matrix.version }}
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build-arm64-${{ matrix.version }}
-          path: imaptest-arm64-${{ matrix.version }}
+          name: build-aarch64-${{ matrix.version }}
+          path: imaptest-aarch64-*
   build_ubuntu:
     strategy:
       matrix:
         include:
           - os: ubuntu-24.04
             image: ubuntu-24.04
+            aliases: '["debian-13"]'
           - os: ubuntu-22.04
             image: ubuntu-22.04
-          - os: debian-12
-            image: ubuntu-22.04
+            aliases: '["debian-12"]'
     runs-on: ${{ matrix.image }}
     steps:
       - name: Checkout imaptest
@@ -92,12 +94,13 @@ jobs:
           strip --strip-all imaptest/src/imaptest
       - name: Rename artifact
         run: |
-          mv imaptest/src/imaptest imaptest-x86_64-${{ matrix.os }}
+          for n in ${{ join(fromJSON(matrix.aliases), ' ') }}; do cp imaptest/src/imaptest "imaptest-$(uname -m)-$n"; done
+          mv imaptest/src/imaptest imaptest-$(uname -m)-${{ matrix.version }}
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: build-x86_64-${{ matrix.os }}
-          path: imaptest-x86_64-${{ matrix.os }}
+          path: imaptest-x86_64-*
   build_rhel:
     strategy:
       matrix:
@@ -105,12 +108,15 @@ jobs:
           - os: rhel8
             container: registry.access.redhat.com/ubi8/ubi
             stream: https://vault.centos.org/8-stream
+            aliases: '["debian-11","ubuntu20.04"]'
           - os: rhel9
             container: registry.access.redhat.com/ubi9/ubi
             stream: https://mirror.stream.centos.org/9-stream/
+            aliases:  '[]'
           - os: rhel10
             container: registry.access.redhat.com/ubi10/ubi
             stream: https://mirror.stream.centos.org/10-stream/
+            aliases:  '[]'
     runs-on: ubuntu-latest
     container:
         image: ${{ matrix.container }}
@@ -166,12 +172,13 @@ jobs:
           strip --strip-all imaptest/src/imaptest
       - name: Rename artifact
         run: |
-          mv imaptest/src/imaptest imaptest-x86_64-${{ matrix.os }}
+          for n in ${{ join(fromJSON(matrix.aliases), ' ') }}; do cp imaptest/src/imaptest "imaptest-$(uname -m)-$n"; done
+          mv imaptest/src/imaptest imaptest-$(uname -m)-${{ matrix.os }}
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: build-x86_64-${{ matrix.os }}
-          path: imaptest-x86_64-${{ matrix.os }}
+          path: imaptest-x86_64-*
   publish:
     if: ${{ github.repository == 'dovecot/imaptest' && github.ref == 'refs/heads/main' }}
     needs:
