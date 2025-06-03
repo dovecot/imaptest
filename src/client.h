@@ -33,8 +33,9 @@ struct client {
         unsigned int cur;
 
 	int fd, rawlog_fd;
-	struct istream *input;
-	struct ostream *output;
+	/* [pre_]_rawlog_[in|out]put is not referenced */
+	struct istream *input, *pre_rawlog_input, *rawlog_input;
+	struct ostream *output, *pre_rawlog_output, *rawlog_output;
 	struct ssl_iostream *ssl_iostream;
 	struct io *io;
 	struct timeout *to;
@@ -62,6 +63,9 @@ int client_init(struct client *client, unsigned int idx,
 bool client_unref(struct client *client, bool reconnect);
 void client_logout(struct client *client);
 void client_disconnect(struct client *client);
+
+void client_rawlog_init(struct client *client);
+void client_rawlog_deinit(struct client *client);
 
 void client_input_stop(struct client *client);
 void client_input_continue(struct client *client);

@@ -130,6 +130,37 @@ static int client_output(struct client *client)
         return ret;
 }
 
+void client_rawlog_init(struct client *client)
+{
+	if (!conf.rawlog)
+		return;
+
+	client->pre_rawlog_input = client->input;
+	client->pre_rawlog_output = client->output;
+
+	if (iostream_rawlog_create_path(
+			t_strdup_printf("rawlog.%u", client->global_id),
+			&client->input, &client->output) != 0)
+		client->rawlog_fd = o_stream_get_fd(client->output);
+	client->rawlog_input = client->input;
+	client->rawlog_output = client->output;
+}
+
+void client_rawlog_deinit(struct client *client)
+{
+	if (client->rawlog_input == NULL)
+		return;
+
+	i_assert(client->rawlog_input == client->input);
+	i_assert(client->rawlog_output == client->output);
+	i_stream_ref(client->pre_rawlog_input);
+	o_stream_ref(client->pre_rawlog_output);
+	i_stream_destroy(&client->rawlog_input);
+	o_stream_destroy(&client->rawlog_output);
+	client->input = client->pre_rawlog_input;
+	client->output = client->pre_rawlog_output;
+}
+
 static void client_wait_connect(struct client *client)
 {
 	const char *error;
@@ -156,12 +187,7 @@ static void client_wait_connect(struct client *client)
 			i_fatal("Couldn't create SSL iostream: %s", error);
 		(void)ssl_iostream_handshake(client->ssl_iostream);
 	}
-	if (conf.rawlog) {
-		if (iostream_rawlog_create_path(
-				t_strdup_printf("rawlog.%u", client->global_id),
-				&client->input, &client->output) != 0)
-			client->rawlog_fd = o_stream_get_fd(client->output);
-	}
+	client_rawlog_init(client);
 
 	client->io = io_add_istream(client->input, client_input, client);
 	client->v.connected(client);
