@@ -45,7 +45,7 @@ noinst_HEADERS = \
 
 imaptest_CFLAGS = $(AM_CPPFLAGS) $(BINARY_CFLAGS)
 imaptest_LDADD = $(LIBDOVECOT) \
-		 $(LIBDOVECOT_SSL) \
+		 $(LIBDOVECOT_OPENSSL) \
 		 -lm $(BINARY_LDFLAGS)
 imaptest_LDFLAGS += -static-libtool-libs
 

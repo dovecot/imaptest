@@ -23,12 +23,12 @@ DC_DOVECOT
 
 AS_IF([test "$DOVECOT_INSTALLED" = 'no'], [
 	LIBDOVECOT=$abs_dovecotdir/src/lib-dovecot/libdovecot.la
-	LIBDOVECOT_SSL=$abs_dovecotdir/src/lib-ssl-iostream/libssl_iostream_openssl.la
+	LIBDOVECOT_OPENSSL=$abs_dovecotdir/src/lib-ssl-iostream/libssl_iostream_openssl.la
 ], [
 	LIBDOVECOT=$dovecot_pkglibdir/libdovecot.so
-	LIBDOVECOT_SSL=$dovecot_moduledir/libssl_iostream_openssl.so
+	LIBDOVECOT_OPENSSL=$dovecot_moduledir/libssl_iostream_openssl.so
 ])
-AC_SUBST([LIBDOVECOT_SSL])
+AC_SUBST([LIBDOVECOT_OPENSSL])
 
 CFLAGS="$CFLAGS $EXTRA_CFLAGS"
 LIBS="$DOVECOT_LIBS"
