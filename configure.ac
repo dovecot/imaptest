@@ -25,10 +25,6 @@ AS_IF([test "$DOVECOT_INSTALLED" = 'no'], [
 	LIBDOVECOT=$abs_dovecotdir/src/lib-dovecot/libdovecot.la
 	LIBDOVECOT_COMPRESS=$abs_dovecotdir/src/lib-compression/libcompression.la
 	LIBDOVECOT_OPENSSL=$abs_dovecotdir/src/lib-ssl-iostream/libssl_iostream_openssl.la
-], [
-	LIBDOVECOT=$dovecot_pkglibdir/libdovecot.so
-	LIBDOVECOT_COMPRESS=$dovecot_pkglibdir/libdovecot-compression.so
-	LIBDOVECOT_OPENSSL=$dovecot_moduledir/libssl_iostream_openssl.so
 ])
 AC_SUBST([LIBDOVECOT_COMPRESS])
 AC_SUBST([LIBDOVECOT_OPENSSL])
