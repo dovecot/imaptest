@@ -766,7 +766,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			const char *output, *error;
 			if (settings_parse_read_file(value, value,
 						     pool_datastack_create(),
-						     NULL, &output, &error) < 0)
+						     NULL, "", &output, &error) < 0)
 				i_fatal("Can't read ssl_ca_file %s: %s", value, error);
 			settings_file_get(output, pool_datastack_create(),
 					  &conf.ssl_set.ca);
