@@ -498,6 +498,7 @@ int count_printf_ints(const char *s, const char **error_r)
 		ints++;
 		perc++;
 	}
+	i_assert(ints >= 0);
 	return ints;
 }
 
