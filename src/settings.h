@@ -67,4 +67,6 @@ struct settings {
 extern struct settings conf;
 extern bool profile_running;
 
+void error_quit(void);
+
 #endif
