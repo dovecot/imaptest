@@ -29,8 +29,7 @@ int pop3_client_input_error(struct pop3_client *client, const char *fmt, ...)
 	va_end(va);
 
 	client_disconnect(&client->client);
-	if (conf.error_quit)
-		lib_exit(2);
+	error_quit();
 	return -1;
 }
 

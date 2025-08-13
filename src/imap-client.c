@@ -38,8 +38,8 @@ int imap_client_input_error(struct imap_client *client, const char *fmt, ...)
 	va_end(va);
 
 	client_disconnect(&client->client);
-	if (conf.error_quit)
-		lib_exit(2);
+
+	error_quit();
 	return -1;
 }
 
@@ -67,8 +67,7 @@ int imap_client_state_error(struct imap_client *client, const char *fmt, ...)
 		imap_args_to_str(client->cur_args));
 	va_end(va);
 
-	if (conf.error_quit)
-		lib_exit(2);
+	error_quit();
 	return -1;
 }
 

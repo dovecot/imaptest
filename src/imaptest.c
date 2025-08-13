@@ -44,6 +44,13 @@ static unsigned int final_wait_secs;
 #define STATE_IS_VISIBLE(state) \
 	(states[i].probability != 0)
 
+void error_quit(void)
+{
+	if (!conf.error_quit)
+		return;
+	i_fatal_status(2, "Exiting due to error_quit parameter");
+}
+
 static void print_results_header(void)
 {
 	string_t *str = t_str_new(128);

@@ -771,8 +771,8 @@ int mailbox_state_set_flags(struct mailbox_view *view,
 		}
 	}
 
-	if (errors && conf.error_quit)
-		lib_exit(2);
+	if (errors)
+		error_quit();
 	return 0;
 }
 
@@ -836,7 +836,7 @@ int mailbox_state_set_permanent_flags(struct mailbox_view *view,
 			errors = TRUE;
 		}
 	}
-	if (errors && conf.error_quit)
-		lib_exit(2);
+	if (errors)
+		error_quit();
 	return 0;
 }
