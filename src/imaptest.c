@@ -809,7 +809,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			hostip, net_gethosterror(ret));
 	}
 
-	lib_set_clean_exit(TRUE);
+	lib_set_clean_exit(FALSE);
 	if (results_output != NULL)
 		print_results_header();
 	fix_probabilities();
