@@ -20,6 +20,6 @@ the source repository.
 **Download link: https://github.com/dovecot/imaptest/releases/tag/latest**
 
 ::: info
-ImapTest can also be compiled from source. See [Installation](/installation)
+ImapTest can also be compiled from source. See [build](/build)
 for details.
 :::

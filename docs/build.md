@@ -2,7 +2,7 @@
 layout: doc
 ---
 
-# ImapTest Installation
+# ImapTest Build
 
 ## Compiling
 
