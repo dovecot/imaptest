@@ -32,7 +32,7 @@ export default defineConfig({
         text: 'Installation',
         items: [
           { text: 'Download', link: '/download' },
-          { text: 'Installation', link: '/installation' },
+          { text: 'Build', link: '/build' },
         ]
       },
       {
