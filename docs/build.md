@@ -4,6 +4,11 @@ layout: doc
 
 # ImapTest Build
 
+::: info
+ImapTest is also available in static binaries. See [download](/download)
+for details.
+:::
+
 ## Compiling
 
 ### Dovecot CE
