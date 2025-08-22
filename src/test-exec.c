@@ -60,6 +60,9 @@ struct test_exec_context {
 	unsigned int clients_waiting, disconnects_waiting;
 	unsigned int appends_left;
 
+	uint32_t highest_seen_modseq_idx;
+	uint64_t highest_seen_modseq_value;
+
 	ARRAY_TYPE(const_string) delete_mailboxes, unsubscribe_mailboxes;
 	unsigned int delete_refcount;
 
@@ -262,6 +265,44 @@ test_expand_all(struct test_exec_context *ctx, const char **_line,
 	*_line_len = str_len(value);
 }
 
+static void
+get_new_var_modseq(struct test_exec_context *ctx, uint32_t modseq_idx,
+		   const char **value_modseq_str)
+{
+	uint64_t value_modseq;
+
+	if (str_to_uint64(*value_modseq_str, &value_modseq) < 0) {
+		*value_modseq_str = "$modseq-not-number";
+		return;
+	}
+	/* For example if we have previously had $modseq3, and now $modseq5:
+
+	   highest_seen_modseq_idx = 3
+	   highest_seen_modseq_value = 10
+	   modseq_idx = 5
+
+	   Then value_modseq is expected to be at least (10 + (5-3)).
+	*/
+	if (ctx->highest_seen_modseq_idx > modseq_idx) {
+		/* This is a test configuration error */
+		i_error("Modseqs defined in wrong order: "
+			"$modseq%u followed by $modseq%u",
+			ctx->highest_seen_modseq_idx, modseq_idx);
+		*value_modseq_str = "$modseq-order-mismatch";
+		return;
+	}
+	uint64_t value_modseq_at_least = ctx->highest_seen_modseq_value +
+		(modseq_idx - ctx->highest_seen_modseq_idx);
+	if (value_modseq < value_modseq_at_least) {
+		*value_modseq_str = p_strdup_printf(ctx->pool,
+			"$modseq-at-least-%"PRIu64, value_modseq_at_least);
+		value_modseq = value_modseq_at_least;
+	}
+
+	ctx->highest_seen_modseq_idx = modseq_idx;
+	ctx->highest_seen_modseq_value = value_modseq;
+}
+
 static const char *
 test_expand_input(struct test_exec_context *ctx, const char *str,
 		  const char *input)
@@ -314,9 +355,23 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 				       *p != '\0')
 					p++;
 
+				const char *suffix;
+				uint32_t modseq_idx;
 				if (var_name[0] == '\0') {
 					/* "$" just ignores the value */
 					value = t_strdup_until(input, p);
+				} else if (str_begins(var_name, "modseq", &suffix) &&
+					   str_to_uint32(suffix, &modseq_idx) == 0) {
+					/* $modseqN must be relative
+					   to previously seen modseqs. Don't
+					   revert this variable in case of a
+					   mismatch, so error string shows the
+					   modseq mismatch details. */
+					key = p_strdup(ctx->pool, var_name);
+					value2 = p_strdup_until(ctx->pool, input, p);
+					get_new_var_modseq(ctx, modseq_idx, &value2);
+					hash_table_insert(ctx->variables, key, value2);
+					value = value2;
 				} else {
 					key = p_strdup(ctx->pool, var_name);
 					value2 = p_strdup_until(ctx->pool, input, p);
