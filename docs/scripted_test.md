@@ -127,6 +127,24 @@ Using `$n`, where `n` is a number, maps to sequences at the beginning of a comma
 * $3 fetch (uid 3 (flags ()))
 ```
 
+### Modseq Variables
+
+Modseq tracking can be done using `$modseqN` variables. They are expected
+to be listed in an increasing order. Each new value must be at least as
+high as the gap between the index numbers. For example with `$modseq2` and
+`$modseq5` the following modseq matches are acceptable:
+
+ * 2, 5
+ * 2, 6
+ * 10, 13
+ * 10, 100
+
+But the following are not:
+
+ * 1, 5 ($modseq2 must be 2 at minimum)
+ * 2, 4 ($modseq5 must be 5 at minimum)
+ * 10, 12 ($modseq5 must be 13 at minimum)
+
 ### Predefined Variables
 
 There are also some predefined variables:
