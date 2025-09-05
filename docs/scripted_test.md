@@ -11,10 +11,15 @@ The tests consist of two files in the test directory:
 
 The test file begins with a header, followed by an empty line and then a list of commands. Messages are appended to the test mailbox from the `<name>.mbox` file.
 
+::: danger
+Unless the [state](#state) value is set to `nonauth`, running a scripted
+tests is a destructive action (all existing messages will be deleted) for
+all configured test mailboxes!
+:::
+
 ## Header
 
 The header contains `key: value` pairs.
-
 
 ### `capabilities`
 
@@ -47,6 +52,11 @@ Available states (each state does the tasks in the state listed before it):
 | `created`  | Creates the test mailbox.                                                            |
 | `appended` | Appends all mails from the test mbox.                                                |
 | `selected` | Selects the mailbox.                                                                 |
+
+::: warning
+`nonauth` is the only state that will not delete all existing messages in
+the test mailbox.
+:::
 
 ### `ignore_extra_untagged`
 
