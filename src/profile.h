@@ -19,7 +19,6 @@ struct profile_client {
 	bool imap_idle;
 	const char *imap_fetch_immediate;
 	const char *imap_fetch_manual;
-	unsigned int imap_status_interval;
 	unsigned int login_interval;
 };
 ARRAY_DEFINE_TYPE(profile_client, struct profile_client *);
