@@ -457,6 +457,8 @@ static int user_timestamp_handle(struct user *user, enum user_timestamp ts,
 		} else if (ts == USER_TIMESTAMP_LOGOUT && user_connected) {
 			/* have to have a logout timestamp when there are
 			   connected clients. */
+			if (user->profile->mail_session_length == 0)
+				return -1;
 			user->timestamps[ts] =
 				user_get_next_timeout(user, ioloop_time, ts);
 			i_assert(user->timestamps[ts] > 0);
