@@ -38,7 +38,6 @@ static const struct setting_define profile_client_setting_defines[] = {
 	DEF(BOOL, imap_idle),
 	DEF(STR, imap_fetch_immediate),
 	DEF(STR, imap_fetch_manual),
-	DEF(TIME, imap_status_interval),
 	DEF(TIME, login_interval),
 
 	SETTING_DEFINE_LIST_END
