@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'src/**'
+      - .github/workflows/static.yml
   workflow_dispatch:
 
 jobs:
