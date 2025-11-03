@@ -10,6 +10,8 @@ on:
 
 jobs:
   build_ubuntu_arm:
+    needs:
+      - build_ubuntu
     strategy:
       matrix:
         include:
@@ -82,7 +84,7 @@ jobs:
         working-directory: ${{ github.workspace }}/core
         run: |
           ./autogen.sh
-          ./configure
+          ./configure --enable-experimental-mail-utf8
           make -j8
       - name: Build imaptest
         working-directory: ${{ github.workspace }}/imaptest
@@ -90,6 +92,34 @@ jobs:
           ./autogen.sh
           ./configure --with-dovecot=../core
           make -j8
+      - name: Setup dovecot for testing
+        working-directory: ${{ github.workspace }}/core
+        run: |
+          sudo make install
+          cat <<EOF | sudo tee /usr/local/etc/dovecot/dovecot.conf
+          dovecot_config_version = 0.0.0
+          dovecot_storage_version = 2.4.0
+          mail_home = /tmp/home
+          mail_path = ~/mail
+          mail_driver = maildir
+          protocols = imap
+          default_internal_user = runner
+          default_login_user = runner
+          default_internal_group = runner
+          mail_uid = runner
+          mail_gid = runner
+          passdb static {
+            password = swordfish
+          }
+          mail_utf8_extensions = yes
+          EOF
+      - name: Test imaptest
+        run: |
+          sudo dovecot
+          mkdir ~/mail/
+          curl --location https://www.dovecot.org/res/dovecot.mbox > ~/mail/dovecot-crlf
+          env PATH=$PATH:$PWD/imaptest/src run-parts imaptest/tests
+          sudo dovecot stop
       - name: Strip imaptest
         run: |
           strip --strip-all imaptest/src/imaptest
@@ -103,6 +133,8 @@ jobs:
           name: build-x86_64-${{ matrix.os }}
           path: imaptest-x86_64-*
   build_rhel:
+    needs:
+      - build_ubuntu
     strategy:
       matrix:
         include:
