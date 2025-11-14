@@ -35,13 +35,13 @@ jobs:
       - name: Build dovecot libraries
         working-directory: ${{ github.workspace }}/core
         run: |
-          ./autogen.sh
+          autoreconf -vif
           ./configure
           make -j8
       - name: Build imaptest
         working-directory: ${{ github.workspace }}/imaptest
         run: |
-          ./autogen.sh
+          autoreconf -vif
           ./configure --with-dovecot=../core
           make -j8
       - name: Strip imaptest
@@ -83,13 +83,13 @@ jobs:
       - name: Build dovecot libraries
         working-directory: ${{ github.workspace }}/core
         run: |
-          ./autogen.sh
+          autoreconf -vif
           ./configure --enable-experimental-mail-utf8
           make -j8
       - name: Build imaptest
         working-directory: ${{ github.workspace }}/imaptest
         run: |
-          ./autogen.sh
+          autoreconf -vif
           ./configure --with-dovecot=../core
           make -j8
       - name: Setup dovecot for testing
@@ -191,13 +191,13 @@ jobs:
       - name: Build dovecot libraries
         working-directory: ${{ github.workspace }}/core
         run: |
-          env VERSION=0.0.0 ./autogen.sh
+          env VERSION=0.0.0 autoreconf -vif
           ./configure
           make -j8
       - name: Build imaptest
         working-directory: ${{ github.workspace }}/imaptest
         run: |
-          env VERSION=0.0.0 ./autogen.sh
+          env VERSION=0.0.0 autoreconf -vif
           ./configure --with-dovecot=../core
           make -j8
       - name: Strip imaptest
