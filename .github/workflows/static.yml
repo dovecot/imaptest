@@ -33,13 +33,13 @@ jobs:
         working-directory: ${{ github.workspace }}/core
         run: |
           autoreconf -vif
-          ./configure
+          env LIBPCRE_LIBS_STATIC=/usr/lib/$(uname -m)-linux-gnu/libpcre2-32.a SSL_LIBS="/usr/lib/$(uname -m)-linux-gnu/libssl.a /usr/lib/$(uname -m)-linux-gnu/libcrypto.a" ZLIB_LIBS_STATIC=/usr/lib/$(uname -m)-linux-gnu/libz.a ./configure
           make -j8
       - name: Build imaptest
         working-directory: ${{ github.workspace }}/imaptest
         run: |
           autoreconf -vif
-          ./configure --with-dovecot=../core
+          env EXTRA_LIBS="/usr/lib/$(uname -m)-linux-gnu/libpcre2-32.a  /usr/lib/$(uname -m)-linux-gnu/libssl.a /usr/lib/$(uname -m)-linux-gnu/libcrypto.a /usr/lib/$(uname -m)-linux-gnu/libz.a" ./configure --with-dovecot=../core
           make -j8
       - name: Strip imaptest
         run: |
@@ -78,17 +78,26 @@ jobs:
         working-directory: ${{ github.workspace }}/core
         run: |
           autoreconf -vif
-          ./configure --enable-experimental-mail-utf8
+          env LIBPCRE_LIBS_STATIC=/usr/lib/$(uname -m)-linux-gnu/libpcre2-32.a SSL_LIBS="/usr/lib/$(uname -m)-linux-gnu/libssl.a /usr/lib/$(uname -m)-linux-gnu/libcrypto.a" ZLIB_LIBS_STATIC=/usr/lib/$(uname -m)-linux-gnu/libz.a ./configure --enable-experimental-mail-utf8
           make -j8
+      - name: Fix dynamic library dependencies
+        working-directory: ${{ github.workspace }}/core
+        run: |
+          cp src/lib-compression/libcompression.la src/lib-compression/libcompression.la.bak
+          cp src/lib-dovecot/libdovecot.la src/lib-dovecot/libdovecot.la.bak
+          sed -i -e "s,dependency_libs=.*,dependency_libs=''," src/lib-compression/libcompression.la
+          sed -i -e "s,dependency_libs=.*,dependency_libs='-lm'," src/lib-dovecot/libdovecot.la
       - name: Build imaptest
         working-directory: ${{ github.workspace }}/imaptest
         run: |
           autoreconf -vif
-          ./configure --with-dovecot=../core
+          env EXTRA_LIBS="/usr/lib/$(uname -m)-linux-gnu/libpcre2-32.a  /usr/lib/$(uname -m)-linux-gnu/libssl.a /usr/lib/$(uname -m)-linux-gnu/libcrypto.a /usr/lib/$(uname -m)-linux-gnu/libz.a" ./configure --with-dovecot=../core
           make -j8
       - name: Setup dovecot for testing
         working-directory: ${{ github.workspace }}/core
         run: |
+          mv src/lib-compression/libcompression.la.bak src/lib-compression/libcompression.la
+          mv src/lib-dovecot/libdovecot.la.bak src/lib-dovecot/libdovecot.la
           sudo make install
           cat <<EOF | sudo tee /usr/local/etc/dovecot/dovecot.conf
           dovecot_config_version = 0.0.0
