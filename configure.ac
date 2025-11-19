@@ -22,7 +22,7 @@ LT_INIT
 DC_DOVECOT
 
 AS_IF([test "$DOVECOT_INSTALLED" = 'no'], [
-	LIBDOVECOT=$abs_dovecotdir/src/lib-dovecot/libdovecot.la
+	LIBDOVECOT="$abs_dovecotdir/src/lib-dovecot/libdovecot.la $EXTRA_LIBS"
 	LIBDOVECOT_COMPRESS=$abs_dovecotdir/src/lib-compression/libcompression.la
 	LIBDOVECOT_OPENSSL=$abs_dovecotdir/src/lib-ssl-iostream/libssl_iostream_openssl.la
 ])
@@ -30,7 +30,7 @@ AC_SUBST([LIBDOVECOT_COMPRESS])
 AC_SUBST([LIBDOVECOT_OPENSSL])
 
 AM_CFLAGS="$AM_CFLAGS $EXTRA_CFLAGS"
-LIBS="$DOVECOT_LIBS"
+LIBS="$DOVECOT_LIBS $EXTRA_LIBS"
 BINARY_CFLAGS="$PIE_CFLAGS"
 BINARY_LDFLAGS="$PIE_LDFLAGS $RELRO_LDFLAGS"
 AC_SUBST(BINARY_CFLAGS)
