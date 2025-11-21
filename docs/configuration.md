@@ -18,6 +18,12 @@ Settings marked as `boolean` are enabled by providing any value, e.g., `1`.
 
 Host name/IP address where to connect.
 
+### `hostip`
+
+* Default: \<none\>
+
+Override the IP address of `host`.
+
 ### `mbox`
 
 * Default: `~/mail/dovecot-crlf`
@@ -60,6 +66,12 @@ Username template.
 You can use multiple random users and domains by giving `%d` in the template. So for example `user%d` returns `user1..user100` and `user%d@domain%d.org` returns `user1..100@domain1..100.org`.
 
 The upper limit for users can be set with the [`users`](#users) parameter, and the upper limit for domains can be set with the [`domains`](#domains) parameter.
+
+### `user2`
+
+* Default: \<none\>
+
+Second username. Will be present as `$user2` in scripted tests.
 
 ### `userfile`
 
@@ -150,7 +162,7 @@ See [below](#append-mbox) for how this is used.
 
 Write rawlog.\* files for all connections containing their input and output.
 
-### `results_output`
+### `output`
 
 * Default: no (output to stdout)
 
@@ -179,6 +191,12 @@ Seed to use for random generator. Setting this to some specific value makes repe
 If set, activate SSL/TLS.
 
 If set to the value `any-cert`, allow invalid certificates.
+
+### `ssl_ca_file`
+
+* Default: \<none\>
+
+If set, load CA certificates from the given file.
 
 ### `stalled_disconnect_timeout`
 
