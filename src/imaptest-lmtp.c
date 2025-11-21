@@ -14,6 +14,9 @@
 #include "client.h"
 #include "client-state.h"
 #include "imaptest-lmtp.h"
+#include "guid.h"
+#include "base64.h"
+#include "str.h"
 
 #include <sys/time.h>
 
@@ -22,6 +25,7 @@
 struct imaptest_lmtp_delivery {
 	struct imaptest_lmtp_delivery *prev, *next;
 
+	char *lmtp_conn_session_id;
 	struct smtp_client_connection *lmtp_conn;
 	struct smtp_client_transaction *lmtp_trans;
 
@@ -35,6 +39,20 @@ static struct smtp_client *lmtp_client = NULL;
 static struct imaptest_lmtp_delivery *lmtp_deliveries = NULL;
 static unsigned int lmtp_count = 0;
 static time_t lmtp_last_warn;
+
+static const char *generate_session_id(void)
+{
+	//FIXME: move this to core - this is copy&pasted several times already
+	guid_128_t guid;
+	string_t *str = t_str_new(MAX_BASE64_ENCODED_SIZE(sizeof(guid)+1));
+
+	guid_128_generate(guid);
+	base64_encode(guid, sizeof(guid), str);
+	/* remove the trailing "==" */
+	i_assert(str_data(str)[str_len(str)-2] == '=');
+	str_truncate(str, str_len(str)-2);
+	return str_c(str);
+}
 
 bool imaptest_lmtp_have_deliveries(void)
 {
@@ -52,6 +70,7 @@ static void imaptest_lmtp_free(struct imaptest_lmtp_delivery *d)
 		i_stream_unref(&d->data_input);
 	timeout_remove(&d->to);
 	i_free(d->rcpt_to);
+	i_free(d->lmtp_conn_session_id);
 	i_free(d);
 
 	if (disconnect_clients && !imaptest_has_clients())
@@ -69,7 +88,8 @@ imaptest_lmtp_rcpt_to_callback(const struct smtp_reply *reply,
 			       struct imaptest_lmtp_delivery *d)
 {
 	if (!smtp_reply_is_success(reply)) {
-		i_error("LMTP: RCPT TO <%s> failed: %s",
+		i_error("LMTP <%s>: RCPT TO <%s> failed: %s",
+			d->lmtp_conn_session_id,
 			smtp_address_encode(d->rcpt_to),
 			smtp_reply_log(reply));
 	}
@@ -80,7 +100,8 @@ imaptest_lmtp_data_callback(const struct smtp_reply *reply,
 			       struct imaptest_lmtp_delivery *d)
 {
 	if (!smtp_reply_is_success(reply)) {
-		i_error("LMTP: DATA for <%s> failed: %s",
+		i_error("LMTP <%s>: DATA for <%s> failed: %s",
+			d->lmtp_conn_session_id,
 			smtp_address_encode(d->rcpt_to),
 			smtp_reply_log(reply));
 	} else {
@@ -98,7 +119,7 @@ imaptest_lmtp_data_dummy_callback(const struct smtp_reply *reply ATTR_UNUSED,
 
 static void imaptest_lmtp_timeout(struct imaptest_lmtp_delivery *d)
 {
-	i_error("LMTP: Timeout in %s",
+	i_error("LMTP <%s>: Timeout in %s", d->lmtp_conn_session_id,
 		smtp_client_transaction_get_state_name(d->lmtp_trans));
 	smtp_client_connection_disconnect(d->lmtp_conn);
 }
@@ -143,10 +164,18 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 	if (++conf.ip_idx == conf.ips_count)
 		conf.ip_idx = 0;
 
+	i_zero(&lmtp_set);
+	d->lmtp_conn_session_id = i_strdup(generate_session_id());
+	lmtp_set.proxy_data.session = d->lmtp_conn_session_id;
+	lmtp_set.event_parent = event_create(NULL);
+	event_set_append_log_prefix(lmtp_set.event_parent,
+		t_strdup_printf("<%s>: ", lmtp_set.proxy_data.session));
+
 	d->lmtp_conn = smtp_client_connection_create(lmtp_client,
 		SMTP_PROTOCOL_LMTP, net_ip2addr(ip), port,
-		SMTP_CLIENT_SSL_MODE_NONE, NULL);
+		SMTP_CLIENT_SSL_MODE_NONE, &lmtp_set);
 	smtp_client_connection_connect(d->lmtp_conn, NULL, NULL);
+	event_unref(&lmtp_set.event_parent);
 
 	d->lmtp_trans = smtp_client_transaction_create(d->lmtp_conn,
 		NULL, NULL, 0, imaptest_lmtp_finish, d);
