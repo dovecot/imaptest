@@ -100,7 +100,7 @@ static const char *t_imap_quote_str(const char *src)
 {
 	string_t *dest = t_str_new(64);
 
-	imap_append_string(dest, src);
+	imap_append_string(dest, src, 0);
 	return str_c(dest);
 }
 
