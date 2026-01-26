@@ -137,6 +137,15 @@ Using `$n`, where `n` is a number, maps to sequences at the beginning of a comma
 * $3 fetch (uid 3 (flags ()))
 ```
 
+### Case Sensitivity
+
+Normally all strings are compared case-insensitively. If you need to support case-sensitive matching, use the `%{case:text} variable:
+
+```
+ok list "" *
+* LIST () "/" ${case:INBOX/Inbox}
+```
+
 ### Modseq Variables
 
 Modseq tracking can be done using `$modseqN` variables. They are expected

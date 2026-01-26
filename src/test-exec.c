@@ -305,13 +305,14 @@ get_new_var_modseq(struct test_exec_context *ctx, uint32_t modseq_idx,
 
 static const char *
 test_expand_input(struct test_exec_context *ctx, const char *str,
-		  const char *input)
+		  const char *input, bool *icase_r)
 {
 	const char *p, *ckey, *value, *var_name, *tmp_str;
 	const char *key, *value2;
 	string_t *output;
 	uint32_t seq;
 
+	*icase_r = TRUE;
 	output = t_str_new(128);
 	for (; *str != '\0'; ) {
 		if (*str != '$' || str[1] == '$') {
@@ -341,6 +342,9 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 		if (str_to_uint32(var_name, &seq) == 0) {
 			/* relative sequence */
 			value = test_expand_relative_seq(ctx, seq);
+		} else if (str_begins(var_name, "case:", &value)) {
+			/* output is case-sensitive */
+			*icase_r = FALSE;
 		} else {
 			value = var_name[0] == '\0' ? NULL :
 				hash_table_lookup(ctx->variables, var_name);
@@ -348,12 +352,18 @@ test_expand_input(struct test_exec_context *ctx, const char *str,
 				/* find how far we want to expand.
 				   FIXME: for now we just check the first
 				   letter */
+				bool icase;
 				tmp_str = *str != '$' ? str :
-					test_expand_input(ctx, str, input);
+					test_expand_input(ctx, str, input, &icase);
 				p = input;
-				while (i_toupper(*p) != i_toupper(*tmp_str) &&
-				       *p != '\0')
-					p++;
+				if (icase) {
+					while (i_toupper(*p) != i_toupper(*tmp_str) &&
+					       *p != '\0')
+						p++;
+				} else {
+					while (*p != *tmp_str && *p != '\0')
+						p++;
+				}
 
 				const char *suffix;
 				uint32_t modseq_idx;
@@ -562,16 +572,28 @@ test_imap_match_args(struct test_exec_context *ctx,
 			}
 			if (!imap_arg_get_astring(args, &astr))
 				return ret;
+
+			bool icase;
 			mstr = test_expand_input(ctx, imap_arg_as_astring(match),
-						 astr);
+						 astr, &icase);
 			if (mstr == NULL)
 				return ret;
 			if (prefix && match[1].type == IMAP_ARG_EOL) {
-				if (strncasecmp(astr, mstr, strlen(mstr)) != 0)
-					return ret;
+				if (icase) {
+					if (strncasecmp(astr, mstr, strlen(mstr)) != 0)
+						return ret;
+				} else {
+					if (strncmp(astr, mstr, strlen(mstr)) != 0)
+						return ret;
+				}
 			} else {
-				if (strcasecmp(astr, mstr) != 0)
-					return ret;
+				if (icase) {
+					if (strcasecmp(astr, mstr) != 0)
+						return ret;
+				} else {
+					if (strcmp(astr, mstr) != 0)
+						return ret;
+				}
 			}
 			break;
 		case IMAP_ARG_LIST:
