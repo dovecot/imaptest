@@ -76,9 +76,9 @@ int imap_client_profile_send_more_commands(struct client *_client)
 	switch (_client->login_state) {
 	case LSTATE_NONAUTH:
 		str_append(cmd, "LOGIN ");
-		imap_append_astring(cmd, _client->user->username);
+		imap_append_astring(cmd, _client->user->username, 0);
 		str_append_c(cmd, ' ');
-		imap_append_astring(cmd, _client->user->password);
+		imap_append_astring(cmd, _client->user->password, 0);
 		client->client.state = STATE_LOGIN;
 		break;
 	case LSTATE_AUTH:
@@ -89,7 +89,7 @@ int imap_client_profile_send_more_commands(struct client *_client)
 		} else {
 			client_profile_send_missing_creates(client);
 			str_append(cmd, "SELECT ");
-			imap_append_astring(cmd, client->storage->name);
+			imap_append_astring(cmd, client->storage->name, 0);
 			client->client.state = STATE_SELECT;
 		}
 		break;
@@ -245,7 +245,7 @@ static void user_mailbox_action_move(struct imap_client *client,
 
 	/* FIXME: should use MOVE if client supports it */
 	str_printfa(cmd, "UID COPY %u ", uid);
-	imap_append_astring(cmd, mailbox);
+	imap_append_astring(cmd, mailbox, 0);
 	client->client.state = STATE_COPY;
 	command_send(client, str_c(cmd), state_callback);
 
