@@ -29,6 +29,9 @@ jobs:
         with:
           repository: dovecot/core
           path: core
+      - name: Install gettext (missing from GH Actions image)
+        run: |
+          sudo apt install -y gettext
       - name: Build dovecot libraries
         working-directory: ${{ github.workspace }}/core
         run: |
@@ -74,6 +77,9 @@ jobs:
         with:
           repository: dovecot/core
           path: core
+      - name: Install gettext (missing from GH Actions image)
+        run: |
+          sudo apt install -y gettext
       - name: Build dovecot libraries
         working-directory: ${{ github.workspace }}/core
         run: |
@@ -169,7 +175,7 @@ jobs:
       - name: Install build dependencies
         run: |
           dnf makecache
-          dnf install -y gcc gcc-c++ make automake autoconf libtool pkgconf-pkg-config zlib-devel openssl-devel autoconf-archive diffutils file wget git perl-version python3
+          dnf install -y gcc gcc-c++ make automake autoconf libtool pkgconf-pkg-config gettext zlib-devel openssl-devel autoconf-archive diffutils file wget git perl-version python3
       - name: Add repositories
         run: |
           cat <<EOF > /etc/yum.repos.d/stream.repo
@@ -187,7 +193,7 @@ jobs:
       - name: Install more build dependencies
         run: |
           dnf makecache
-          dnf install -y bison flex
+          dnf install -y gettext-devel bison flex
       - name: Force-enable pic
         run: |
           sed -s -i -e 's/LT_INIT/LT_INIT([pic-only])/' core/configure.ac
