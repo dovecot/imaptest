@@ -510,6 +510,12 @@ static void mailbox_offline_cache_free(struct mailbox_offline_cache *cache)
 	i_free(cache);
 }
 
+static const char *
+get_storage_guid(const char *username, const char *mailbox)
+{
+	return t_strconcat(username, "\t", mailbox, NULL);
+}
+
 struct mailbox_storage *
 mailbox_storage_lookup(struct mailbox_source *source, const char *username,
 		       const char *mailbox)
@@ -517,7 +523,7 @@ mailbox_storage_lookup(struct mailbox_source *source, const char *username,
 	struct mailbox_storage *storage;
 	const char *guid;
 
-	guid = t_strconcat(username, "\t", mailbox, NULL);
+	guid = get_storage_guid(username, mailbox);
 	storage = hash_table_lookup(storages, guid);
 	if (storage == NULL)
 		return NULL;
@@ -533,7 +539,7 @@ mailbox_storage_get(struct mailbox_source *source, const char *username,
 	struct mailbox_storage *storage;
 	const char *guid;
 
-	guid = t_strconcat(username, "\t", mailbox, NULL);
+	guid = get_storage_guid(username, mailbox);
 	storage = hash_table_lookup(storages, guid);
 	if (storage == NULL) {
 		storage = i_new(struct mailbox_storage, 1);
