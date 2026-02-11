@@ -66,7 +66,7 @@ If `no`, require that all the untagged replies are explicitly listed in the scri
 
 ## Commands
 
-There are two ways to configure commands:
+There are three ways to configure commands:
 
 ### Method 1
 
@@ -75,10 +75,11 @@ There are two ways to configure commands:
 [* <tagged reply>] (0 or more)
 ```
 
+* This method is generally fastest to write.
 * Connection number (`<connection #>`) is used if there is more than one connection.
-* The order of untagged replies doesn't matter. This method is generally faster to write.
+* The order of untagged replies doesn't matter.
 
-Example:
+#### Example
 
 ```
 ok select $mailbox
@@ -88,20 +89,60 @@ ok select $mailbox
 ### Method 2
 
 ```
-[<connection #> <command>
+[<connection #>] <command>
 [* <tagged reply>] (0 or more)
-OK|NO|BAD|"" [<prefix>]
+[<connection #>] OK|NO|BAD|"" [<prefix>]
 ```
 
+* This method allows matching reply's `<prefix>`.
 * Connection number (`<connection #>`) is used if there is more than one connection.
-* The order of untagged replies doesn't matter. This method allows matching reply's `<prefix>`.
+* The order of untagged replies doesn't matter.
 
-Example:
+#### Example
 
 ```
 select $mailbox
 * 0 exists
 1 ok [read-write]
+```
+
+### Method 3
+
+```
+[<connection #>] <tag> <command>
+[* <tagged reply>] (0 or more)
+[<connection #>] <tag> OK|NO|BAD|"" [<prefix>]
+```
+
+* This method is required for pipelining commands.
+* Connection number (`<connection #>`) is used if there is more than one connection.
+* The order of untagged replies doesn't matter.
+
+#### Examples
+
+##### Pipelined
+
+```
+tag1 status ${mailbox} (messages)
+tag2 status ${mailbox}2 (messages)
+* status ${mailbox} (messages 0)
+* status ${mailbox}2 (messages 0)
+tag1 ok
+tag2 ok
+```
+
+##### Pipelined (Multiple Connections)
+
+::: warning
+All commands in a pipelined group MUST use the same connection.
+:::
+
+```
+1 tag1 create ${mailbox}
+1 tag2 create ${mailbox}2
+1 tag1 ok
+1 tag2 ok
+
 ```
 
 ## Variables
@@ -178,19 +219,6 @@ There are also some predefined variables:
 | `$mailbox_url` | IMAP URL for the mailbox                                                                          |
 
 * If there are multiple connections with different usernames, `$user2`, `$user3`, `$username2`, `$domain2`, etc. are also supported.
-
-## Pipelining
-
-Multiple commands can be pipelined:
-
-```
-tag1 status ${mailbox} (messages)
-tag2 status ${mailbox}2 (messages)
-* status ${mailbox} (messages 0)
-* status ${mailbox}2 (messages 0)
-tag1 ok
-tag2 ok
-```
 
 ## Directives
 
