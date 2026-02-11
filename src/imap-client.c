@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#define IMAP_INITIAL_HIERARCHY_SEP  '/'
+
 static void
 imap_client_vlog_error(struct imap_client *client, const char *fmt, va_list va)
 {
@@ -243,6 +245,21 @@ imap_client_list_result(struct imap_client *client, const struct imap_arg *args)
 	    !IMAP_ARG_IS_NSTRING(&args[1]) ||
 	    !imap_arg_get_astring(&args[2], &name))
 		return;
+
+	/* Check for hierarchy delimiter response (LIST "" "" case) */
+	if (name[0] == '\0') {
+		const char *hier_delim;
+		if (!imap_arg_get_nstring(&args[1], &hier_delim)) {
+			imap_client_input_error(client, "Hierarchy delimiter is not an nstring");
+		} else if (hier_delim == NULL) {
+			/* No hierarchy. Just use default hierarchy. */
+		} else if (hier_delim[0] == '\0') {
+			imap_client_input_error(client, "Hierarchy delimiter is empty");
+		} else {
+			client->hierarchy_separator = hier_delim[0];
+		}
+		return;
+	}
 
 	if (!array_is_created(&client->mailboxes_list))
 		i_array_init(&client->mailboxes_list, 4);
@@ -789,6 +806,8 @@ imap_client_new(unsigned int idx, struct user *user, struct user_client *uc)
 	i_array_init(&client->commands, 16);
 
 	client->tag_counter = 1;
+	/* initialize hierarchy separator to default (will be updated by LIST "" "") */
+	client->hierarchy_separator = IMAP_INITIAL_HIERARCHY_SEP;
 	mailbox = user_get_new_mailbox(&client->client);
 	client->storage = mailbox_storage_get(user->mailbox_source,
 					      user->username, mailbox);
