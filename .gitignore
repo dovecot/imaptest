@@ -57,3 +57,6 @@ src/rawlog.*
 docs/.vitepress/cache
 docs/.vitepress/dist
 node_modules/
+
+__pycache__/
+*.pyc
