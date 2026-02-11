@@ -1,6 +1,7 @@
 /* Copyright (c) 2016-2018 ImapTest authors, see the included COPYING file */
 
 #include "lib.h"
+#include "randgen.h"
 #include "hash.h"
 #include "istream.h"
 #include "istream-crlf.h"
@@ -36,8 +37,8 @@ random_mailbox_source_get_next(struct mailbox_source *_source,
 		(struct random_mailbox_source *)_source;
 	size_t buf_size = i_rand_limit(source->max_size) + 1;
 	unsigned char *buf = i_malloc(buf_size);
+	random_fill(buf, buf_size);
 	for (size_t i = 0; i < buf_size; i++) {
-		buf[i] = i_rand_limit(256);
 		if (buf[i] == '\r' || buf[i] == '\n') {
 			if (i+1 == buf_size)
 				buf[i] = ' ';
