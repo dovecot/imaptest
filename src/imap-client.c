@@ -657,12 +657,11 @@ static void imap_client_input(struct client *_client)
 				}
 				/* literal too large. we still have to skip it
 				   though. */
+				client->cur_args = imap_args;
 				client->literal_left = literal_size;
 				continue;
 			}
 
-			/* FIXME: we should call this for large
-			   literals too.. */
 			client->cur_args = imap_args;
 			T_BEGIN {
 				ret = imap_client_input_args(client, imap_args);
