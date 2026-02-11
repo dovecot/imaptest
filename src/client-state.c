@@ -254,10 +254,25 @@ static enum client_state client_update_plan(struct imap_client *client)
 			/* can't do this now */
 			continue;
 		}
-		if (state == STATE_COMPRESS &&
-		    (client->compress_enabling || client->compress_enabled)) {
-			/* can't do more than one COMPRESS */
-			continue;
+
+		if (state == STATE_COMPRESS) {
+			unsigned int i;
+			bool found = FALSE;
+
+			/* Can't do more than one COMPRESS. */
+			if (client->compress_enabling || client->compress_enabled)
+				continue;
+
+			/* If we have COMPRESS already in the plan, don't add
+			   another one. */
+			for (i = 0; i < client->plan_size; i++) {
+				if (client->plan[i] == STATE_COMPRESS) {
+					found = TRUE;
+					break;
+				}
+			}
+			if (found)
+				continue;
 		}
 
 		client->plan[client->plan_size++] = state;
@@ -304,6 +319,12 @@ int imap_client_plan_send_more_commands(struct client *_client)
 
 	while (array_count(&client->commands) < MAX_COMMAND_QUEUE_LEN) {
 		state = client_update_plan(client);
+		/* client_update_plan() may return early with an empty plan if a
+		 * state-changing command (like LOGIN) is pending. This causes
+		 * imap_client_plan_send_next_cmd() to be called with an empty plan,
+		 * triggering an assertion failure in client_eat_first_plan(). */
+		if (client->plan_size == 0)
+			break;
 		i_assert(state <= STATE_LOGOUT);
 
 		if (client->append_unfinished)
