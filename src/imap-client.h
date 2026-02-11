@@ -67,6 +67,9 @@ struct imap_client {
 	struct command *last_cmd;
 	unsigned int tag_counter;
 
+	/* hierarchy delimiter (from LIST "" "") */
+	char hierarchy_separator;
+
 	/* Highest MODSEQ seen in untagged FETCH replies. Tagged reply
 	   handler updates highest_modseq based on this and resets to 0. */
 	uint64_t highest_untagged_modseq;

@@ -1229,6 +1229,8 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 			command_send(client, "ENABLE QRESYNC", state_callback);
 		if (conf.imap4rev2)
 			command_send(client, "ENABLE IMAP4REV2", state_callback);
+		/* Get hierarchy delimiter using LIST "" "" per RFC 3501 */
+		command_send(client, "LIST \"\" \"\"", state_callback);
 		o_stream_uncork(_client->output);
 		break;
 	case STATE_COMPRESS:
@@ -1244,13 +1246,13 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 	case STATE_MCREATE:
 		if (i_rand_limit(2) != 0)
 			str = t_strdup_printf("CREATE \"test%c%d\"", 
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20));
 		else
 			str = t_strdup_printf("CREATE \"test%c%d%c%d\"", 
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20),
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20));
 		command_send(client, str, state_callback);
 		break;
@@ -1258,13 +1260,13 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		const char *cmd = (i_rand_limit(2) != 0 ? "SUBSCRIBE" : "UNSUBSCRIBE");
 		if (i_rand_limit(2) != 0)
 			str = t_strdup_printf("%s \"test%c%d\"", cmd,
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20));
 		else
 			str = t_strdup_printf("%s \"test%c%d%c%d\"", cmd,
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20),
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20));
 		command_send(client, str, state_callback);
 		break;
@@ -1272,32 +1274,32 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 	case STATE_MDELETE:
 		if (i_rand_limit(2) != 0)
 			str = t_strdup_printf("DELETE \"test%c%d\"", 
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20));
 		else
 			str = t_strdup_printf("DELETE \"test%c%d%c%d\"", 
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20),
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20));
 		command_send(client, str, state_callback);
 		break;
 	case STATE_MRENAME:
 		if (i_rand_limit(2) != 0)
 			str = t_strdup_printf("RENAME \"test%c%d\" \"test%c%d\"",
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20),
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20));
 		else
 			str = t_strdup_printf("RENAME \"test%c%d%c%d\" \"test%c%d%c%d\"",
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20),
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20),
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20),
-					      IMAP_HIERARCHY_SEP,
+					      client->hierarchy_separator,
 					      i_rand_limit(20));
 		command_send(client, str, state_callback);
 		break;
