@@ -609,9 +609,12 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			if (p != NULL)
 				value = t_strdup_until(value, p++);
 
-			state->probability = atoi(value);
-			if (p != NULL)
-				state->probability_again = atoi(p);
+			if (str_to_uint(value, &state->probability) < 0)
+				i_fatal("Invalid probability: %s", value);
+			if (p != NULL) {
+				if (str_to_uint(p, &state->probability_again) < 0)
+					i_fatal("Invalid probability again: %s", p);
+			}
 			continue;
 		}
 
@@ -683,7 +686,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 
 		/* clients=# */
 		if (strcmp(key, "clients") == 0) {
-			conf.clients_count = atoi(value);
+			if (str_to_uint(value, &conf.clients_count) < 0)
+				i_fatal("Invalid clients count: %s", value);
 			continue;
 		}
 
@@ -704,17 +708,20 @@ int main(int argc ATTR_UNUSED, char *argv[])
 
 		/* msgs=# */
 		if (strcmp(key, "msgs") == 0) {
-			conf.message_count_threshold = atoi(value);
+			if (str_to_uint(value, &conf.message_count_threshold) < 0)
+				i_fatal("Invalid msgs count: %s", value);
 			continue;
 		}
 		/* checkpoint=# */
 		if (strcmp(key, "checkpoint") == 0) {
-			conf.checkpoint_interval = atoi(value);
+			if (str_to_uint(value, &conf.checkpoint_interval) < 0)
+				i_fatal("Invalid checkpoint interval: %s", value);
 			continue;
 		}
 		/* stalled_disconnect_timeout=secs */
 		if (strcmp(key, "stalled_disconnect_timeout") == 0) {
-			conf.stalled_disconnect_timeout = atoi(value);
+			if (str_to_uint(value, &conf.stalled_disconnect_timeout) < 0)
+				i_fatal("Invalid stalled_disconnect_timeout: %s", value);
 			continue;
 		}
 
@@ -767,7 +774,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			continue;
 		}
 		if (strcmp(key, "port") == 0) {
-			conf.port = atoi(value);
+			if (str_to_uint(value, &conf.port) < 0)
+				i_fatal("Invalid port: %s", value);
 			continue;
 		}
 		if (strcmp(key, "ssl_ca_file") == 0) {
