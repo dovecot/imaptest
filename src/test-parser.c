@@ -601,12 +601,40 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 							   linelen-2, existence,
 							   error_r);
 		}
-		line2 = line;
-		if (group->replies_pending > 0 &&
-		    test_get_cmd_reply(parser, &tag, &line2) != NULL) {
-			return test_parse_command_finish(parser, tag,
-							 line, linelen,
-							 error_r);
+		if (group->replies_pending > 0) {
+			/* we are waiting for one or more tagged replies in this group */
+			const char *line_no_conn = line;
+			unsigned int reply_conn_idx = 0;
+
+			/* if multiple connections are used, replies must be prefixed with
+			   the connection index (e.g., "1 tag1 ok") */
+			if (test->connection_count > 1 &&
+			    str_to_uint(t_strcut(line_no_conn, ' '), &reply_conn_idx) == 0 &&
+			    reply_conn_idx > 0) {
+				line_no_conn = strchr(line_no_conn, ' ');
+				if (line_no_conn != NULL)
+					++line_no_conn;
+				else
+					line_no_conn = "";
+			}
+
+			line2 = line_no_conn;
+			if (test_get_cmd_reply(parser, &tag, &line2) != NULL) {
+				/* this line looks like a tagged reply */
+				if (test->connection_count > 1) {
+					if (reply_conn_idx == 0) {
+						*error_r = "Missing client index";
+						return FALSE;
+					}
+					if (reply_conn_idx-1 != group->connection_idx) {
+						*error_r = "Reply for wrong connection";
+						return FALSE;
+					}
+				}
+				return test_parse_command_finish(parser, tag,
+								 line_no_conn, strlen(line_no_conn),
+								 error_r);
+			}
 		}
 	}
 
@@ -628,7 +656,7 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 			return FALSE;
 		}
 		if (array_count(&group->commands) > 0 &&
-		    group->connection_idx != connection_idx) {
+		    group->connection_idx != connection_idx-1) {
 			*error_r = "All pipelined commands must use the same connection";
 			return FALSE;
 		}

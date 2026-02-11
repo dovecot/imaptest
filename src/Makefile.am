@@ -69,6 +69,7 @@ EXTRA_DIST = \
 	tests/fetch-envelope.mbox \
 	tests/list \
 	tests/listext \
+	tests/pipeline-connections \
 	tests/search-addresses \
 	tests/search-addresses.mbox \
 	tests/search-body \
