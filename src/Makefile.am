@@ -1,4 +1,5 @@
 bin_PROGRAMS = imaptest
+noinst_PROGRAMS = test-test-parser
 
 AM_CPPFLAGS = $(LIBDOVECOT_INCLUDE) -DSTATIC_OPENSSL=1
 imaptest_LDFLAGS = $(AM_LDFLAGS)
@@ -23,6 +24,10 @@ imaptest_SOURCES = \
 	test-exec.c \
 	test-parser.c \
 	user.c
+
+test_test_parser_SOURCES = test-test-parser.c test-parser.c
+test_test_parser_LDADD = $(imaptest_LDADD)
+test_test_parser_CFLAGS = $(imaptest_CFLAGS)
 
 noinst_HEADERS = \
 	checkpoint.h \

@@ -60,3 +60,8 @@ node_modules/
 
 __pycache__/
 *.pyc
+
+src/**/test-*
+!src/**/test-*.c
+!src/**/test-*.h
+!src/**/test-*.inc
