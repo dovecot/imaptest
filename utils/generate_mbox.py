@@ -18,19 +18,19 @@ import tempfile
 # ImapTest iterates through the mbox sequentially, so all randomness must be
 # in the mbox file.
 size_distribution = {
-  10:    5,
-  80:    5,
-  150:   5,
-  250:   5,
-  15000: 0,
+    10: 5,
+    80: 5,
+    150: 5,
+    250: 5,
+    15000: 0,
 }
 
 TEST_DOMAIN = "example.com"
 
 mailfrom = f"sender@{TEST_DOMAIN}"
 mailto = f"recipient@{TEST_DOMAIN}"
-mbox_out = 'testmbox'
-subject = 'Testmsg of %s kB'
+mbox_out = "testmbox"
+subject = "Testmsg of %s kB"
 
 
 def splitrow(string, linelen):
@@ -39,7 +39,7 @@ def splitrow(string, linelen):
     for i in range(0, len(string), linelen):
         out.append(string[i:step])
         step += linelen
-    return '\n' . join(out)
+    return "\n".join(out)
 
 
 def main():
@@ -59,24 +59,26 @@ def main():
     mid_chars = string.ascii_letters + string.digits
 
     for val in mails:
-        body = ''.join(random.choices(body_chars, k=val*1024))
+        body = "".join(random.choices(body_chars, k=val * 1024))
         body = splitrow(body, 76)
-        msg = MIMEText(body + '\n')
-        msg.set_unixfrom('From %s %s' % (mailfrom, date))
-        msg['Date'] = date
-        msg['Subject'] = subject % val
-        msg['To'] = mailto
-        msg['From'] = mailfrom
-        msg['Message-ID'] = '<' + ''.join(random.choices(mid_chars, k=24)) + f"@{TEST_DOMAIN}>"
+        msg = MIMEText(body + "\n")
+        msg.set_unixfrom("From %s %s" % (mailfrom, date))
+        msg["Date"] = date
+        msg["Subject"] = subject % val
+        msg["To"] = mailto
+        msg["From"] = mailfrom
+        msg["Message-ID"] = (
+            "<" + "".join(random.choices(mid_chars, k=24)) + f"@{TEST_DOMAIN}>"
+        )
         print(f"Creating message of size {val} KB")
         mbox.add(msg)
 
     mbox.close()
 
-    with open(mbox_tmp[1], 'r') as tmpmbox:
-        with open(mbox_out, 'w') as mbox:
+    with open(mbox_tmp[1], "r") as tmpmbox:
+        with open(mbox_out, "w") as mbox:
             for line in tmpmbox:
-                mbox.write(line.replace('\n', '\r\n'))
+                mbox.write(line.replace("\n", "\r\n"))
 
     os.unlink(mbox_tmp[1])
 
