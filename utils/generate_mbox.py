@@ -25,8 +25,10 @@ size_distribution = {
   15000: 0,
 }
 
-mailfrom = 'sender@example.com'
-mailto = 'recipient@example.com'
+TEST_DOMAIN = "example.com"
+
+mailfrom = f"sender@{TEST_DOMAIN}"
+mailto = f"recipient@{TEST_DOMAIN}"
 mbox_out = 'testmbox'
 subject = 'Testmsg of %s kB'
 
@@ -53,10 +55,11 @@ def main():
 
     random.shuffle(mails)
 
+    body_chars = string.ascii_letters + string.digits + " .-"
+    mid_chars = string.ascii_letters + string.digits
+
     for val in mails:
-        body = ''.join(random.choice(
-            string.ascii_lowercase + string.ascii_uppercase + string.digits +
-            " .-") for _ in range(0, val*1024))
+        body = ''.join(random.choices(body_chars, k=val*1024))
         body = splitrow(body, 76)
         msg = MIMEText(body + '\n')
         msg.set_unixfrom('From %s %s' % (mailfrom, date))
@@ -64,9 +67,7 @@ def main():
         msg['Subject'] = subject % val
         msg['To'] = mailto
         msg['From'] = mailfrom
-        msg['Message-ID'] = '<' + ''.join(random.choice(
-            string.ascii_lowercase + string.ascii_uppercase + string.digits)
-            for _ in range(0, 24)) + '>'
+        msg['Message-ID'] = '<' + ''.join(random.choices(mid_chars, k=24)) + f"@{TEST_DOMAIN}>"
         print(f"Creating message of size {val} KB")
         mbox.add(msg)
 
