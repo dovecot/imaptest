@@ -74,7 +74,7 @@ def main():
 
     with open(mbox_tmp[1], 'r') as tmpmbox:
         with open(mbox_out, 'w') as mbox:
-            for line in tmpmbox.readlines():
+            for line in tmpmbox:
                 mbox.write(line.replace('\n', '\r\n'))
 
     os.unlink(mbox_tmp[1])
