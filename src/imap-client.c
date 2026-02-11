@@ -26,15 +26,21 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+static void
+imap_client_vlog_error(struct imap_client *client, const char *fmt, va_list va)
+{
+	i_error("%s[%u]: %s: %s", client->client.user->username,
+		client->client.global_id,
+		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
+		imap_args_to_str(client->cur_args));
+}
+
 int imap_client_input_error(struct imap_client *client, const char *fmt, ...)
 {
 	va_list va;
 
 	va_start(va, fmt);
-	i_error("%s[%u]: %s: %s", client->client.user->username,
-		client->client.global_id,
-		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
-		imap_args_to_str(client->cur_args));
+	imap_client_vlog_error(client, fmt, va);
 	va_end(va);
 
 	client_disconnect(&client->client);
@@ -48,10 +54,7 @@ int imap_client_input_warn(struct imap_client *client, const char *fmt, ...)
 	va_list va;
 
 	va_start(va, fmt);
-	i_error("%s[%u]: %s: %s", client->client.user->username,
-		client->client.global_id,
-		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
-		imap_args_to_str(client->cur_args));
+	imap_client_vlog_error(client, fmt, va);
 	va_end(va);
 	return -1;
 }
@@ -61,10 +64,7 @@ int imap_client_state_error(struct imap_client *client, const char *fmt, ...)
 	va_list va;
 
 	va_start(va, fmt);
-	i_error("%s[%u]: %s: %s", client->client.user->username,
-		client->client.global_id,
-		t_strdup_vprintf(fmt, va), client->cur_args == NULL ? "" :
-		imap_args_to_str(client->cur_args));
+	imap_client_vlog_error(client, fmt, va);
 	va_end(va);
 
 	error_quit();
