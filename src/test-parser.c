@@ -580,7 +580,7 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 		return TRUE;
 
 	if (group != NULL) {
-		/* continuing the command */
+		/* continuing the existing command group */
 		if (strncmp(line, "!sleep ", 7) == 0) {
 			if (str_parse_get_interval_msecs(line+7, &group->sleep_msecs, &error) < 0) {
 				*error_r = t_strdup_printf("Invalid !sleep value %s: %s", line+7, error);
@@ -597,6 +597,7 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 		}
 
 		if (test_is_untagged(line, &existence)) {
+			/* parse untagged replies (*, !, ?) */
 			return test_parse_command_untagged(parser, line + 2,
 							   linelen-2, existence,
 							   error_r);
@@ -639,6 +640,7 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 	}
 
 	if (group == NULL || group->replies_pending == 0) {
+		/* start a new command group */
 		group = p_new(parser->pool, struct test_command_group, 1);
 		p_array_init(&group->commands, parser->pool, 2);
 		parser->cur_cmd_group = group;
@@ -649,7 +651,7 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 	i_zero(&newcmd);
 	cmd->linenum = linenum;
 	if (test->connection_count > 1) {
-		/* begins with connection index */
+		/* command begins with connection index (1..n) */
 		if (str_to_uint(t_strcut(line, ' '), &connection_idx) < 0 ||
 		    connection_idx == 0) {
 			*error_r = "Missing client index";
@@ -675,21 +677,21 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 		}
 	}
 
-	/* optional expected ok/no/bad reply */
+	/* optional expected ok/no/bad reply and optional tag (e.g. "tag1 ok ...") */
 	p = line;
 	cmd->reply = test_get_cmd_reply(parser, &cmd->tag, &p);
 	linelen -= p-line;
 	line = p;
 
 	if (cmd->tag == 0) {
-		/* not part of pipelined commands, make sure we
-		   finished the previous group */
+		/* non-pipelined command (method 1 or method 2 without tags) */
 		if (group->replies_pending > 0) {
 			*error_r = "Missing reply from previous command group";
 			return FALSE;
 		}
 		i_assert(array_count(&group->commands) == 0);
 	} else {
+		/* pipelined command with explicit tag */
 		if (cmd_find_by_tag(group, cmd->tag) != NULL) {
 			*error_r = "Tag reused within command group";
 			return FALSE;
