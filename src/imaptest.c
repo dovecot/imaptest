@@ -781,8 +781,6 @@ int main(int argc ATTR_UNUSED, char *argv[])
 			continue;
 		}
 		if (strcmp(key, "user") == 0) {
-			if (!username_format_is_valid(value, &error))
-				i_fatal("invalid user format: %s", error);
 			conf.username_template = value;
 			continue;
 		}
@@ -847,6 +845,10 @@ int main(int argc ATTR_UNUSED, char *argv[])
 
 	if (conf.username_template == NULL)
 		i_fatal("Missing username");
+
+	if (!username_format_is_valid(conf.username_template, &error))
+		i_fatal("invalid user format: %s", error);
+
 	if (testpath != NULL && strchr(conf.username_template, '%') != NULL)
 		i_fatal("Don't use %% in username with tests");
 
