@@ -243,13 +243,19 @@ static void user_mailbox_action_move(struct imap_client *client,
 {
 	string_t *cmd = t_str_new(128);
 
-	/* FIXME: should use MOVE if client supports it */
-	str_printfa(cmd, "UID COPY %u ", uid);
-	imap_append_astring(cmd, mailbox, 0);
-	client->client.state = STATE_COPY;
-	command_send(client, str_c(cmd), state_callback);
+	if ((client->capabilities & (CAP_MOVE | CAP_IMAP4REV2)) != 0) {
+		str_printfa(cmd, "UID MOVE %u ", uid);
+		imap_append_astring(cmd, mailbox, 0);
+		client->client.state = STATE_MOVE;
+		command_send(client, str_c(cmd), state_callback);
+	} else {
+		str_printfa(cmd, "UID COPY %u ", uid);
+		imap_append_astring(cmd, mailbox, 0);
+		client->client.state = STATE_COPY;
+		command_send(client, str_c(cmd), state_callback);
 
-	user_mailbox_action_delete(client, uid);
+		user_mailbox_action_delete(client, uid);
+	}
 }
 
 static void user_draft_callback(struct imap_client *client, struct command *cmd,

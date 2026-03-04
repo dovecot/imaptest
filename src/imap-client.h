@@ -12,6 +12,7 @@ enum imap_capability {
 	CAP_QRESYNC		= 0x08,
 	CAP_UIDPLUS		= 0x10,
 	CAP_IMAP4REV2		= 0x20,
+	CAP_MOVE		= 0x40,
 };
 
 struct imap_capability_name {
@@ -26,6 +27,7 @@ static const struct imap_capability_name cap_names[] = {
 	{ "QRESYNC", CAP_QRESYNC },
 	{ "UIDPLUS", CAP_UIDPLUS },
 	{ "IMAP4REV2", CAP_IMAP4REV2 },
+	{ "MOVE", CAP_MOVE },
 
 	{ NULL, 0 }
 };
