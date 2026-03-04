@@ -54,7 +54,7 @@ ARRAY_DEFINE_TYPE(client, struct client *);
 extern int clients_count;
 extern unsigned int total_disconnects;
 extern ARRAY_TYPE(client) clients;
-extern bool stalled, disconnect_clients, no_new_clients;
+extern bool stalled, disconnect_clients, scripted_tests_running;
 
 struct client *client_new_user(struct user *user);
 struct client *client_new_random(unsigned int i, struct mailbox_source *source);

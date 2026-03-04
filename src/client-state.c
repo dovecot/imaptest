@@ -956,7 +956,7 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
 		/* successful logins, create some more clients */
 		if (profile_running)
 			break;
-		for (i = 0; i < 3 && !stalled && !no_new_clients; i++) {
+		for (i = 0; i < 3 && !stalled && !scripted_tests_running; i++) {
 			if (array_count(&clients) >= conf.clients_count)
 				break;
 

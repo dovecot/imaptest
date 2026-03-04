@@ -402,7 +402,7 @@ static void imaptest_run_tests(const char *path)
 	const ARRAY_TYPE(test) *tests;
 	struct tests_execute_context *exec_ctx;
 
-	no_new_clients = TRUE;
+	scripted_tests_running = TRUE;
 	test_parser = test_parser_init(path);
 	tests = test_parser_get_tests(test_parser);
 

@@ -31,7 +31,7 @@ int clients_count = 0;
 unsigned int total_disconnects = 0;
 ARRAY_TYPE(client) clients;
 ARRAY(unsigned int) stalled_clients;
-bool stalled = FALSE, disconnect_clients = FALSE, no_new_clients = FALSE;
+bool stalled = FALSE, disconnect_clients = FALSE, scripted_tests_running = FALSE;
 
 static unsigned int client_min_free_idx = 0;
 static unsigned int global_id_counter = 0;
@@ -348,7 +348,7 @@ bool client_unref(struct client *client, bool reconnect)
 
 	if (disconnect_clients && !imaptest_has_clients())
 		io_loop_stop(current_ioloop);
-	else if (io_loop_is_running(current_ioloop) && !no_new_clients &&
+	else if (io_loop_is_running(current_ioloop) && !scripted_tests_running &&
 		 !disconnect_clients && reconnect) {
 		if (client->logout_sent) {
 			/* user successfully logged out, get another
