@@ -29,6 +29,7 @@ struct state states[] = {
 	{ "AUTHENTICATE", "Auth", LSTATE_NONAUTH,  0,   0,  FLAG_STATECHANGE | FLAG_STATECHANGE_AUTH },
 	{ "LOGIN",	  "Logi", LSTATE_NONAUTH,  100, 0,  FLAG_STATECHANGE | FLAG_STATECHANGE_AUTH },
 	{ "COMPRESS",	  "Comp", LSTATE_AUTH,     0,   0,  0 },
+	{ "LISTROOT",	  "Root", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "LIST",	  "List", LSTATE_AUTH,     50,  0,  FLAG_EXPUNGES },
 	{ "MCREATE",	  "MCre", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
 	{ "MDELETE",	  "MDel", LSTATE_AUTH,     0,   0,  FLAG_EXPUNGES },
@@ -953,16 +954,26 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
 			return -1;
 		}
 
+		if (scripted_tests_running)
+			break;
+
+		/* Get hierarchy delimiter using LIST "" "" per RFC 3501 */
+		client->client.state = STATE_LIST_ROOT;
+		command_send(client, "LIST \"\" \"\"", state_callback);
+
 		/* successful logins, create some more clients */
 		if (profile_running)
 			break;
-		for (i = 0; i < 3 && !stalled && !scripted_tests_running; i++) {
+
+		for (i = 0; i < 3 && !stalled; i++) {
 			if (array_count(&clients) >= conf.clients_count)
 				break;
 
 			client_new_random(array_count(&clients),
 					  client->client.user->mailbox_source);
 		}
+		break;
+	case STATE_LIST_ROOT:
 		break;
 	case STATE_LIST:
 		if (reply == REPLY_OK)
@@ -1229,13 +1240,14 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 			command_send(client, "ENABLE QRESYNC", state_callback);
 		if (conf.imap4rev2)
 			command_send(client, "ENABLE IMAP4REV2", state_callback);
-		/* Get hierarchy delimiter using LIST "" "" per RFC 3501 */
-		command_send(client, "LIST \"\" \"\"", state_callback);
 		o_stream_uncork(_client->output);
 		break;
 	case STATE_COMPRESS:
 		i_assert(!client->compress_enabled);
 		command_send(client, "COMPRESS DEFLATE", state_callback);
+		break;
+	case STATE_LIST_ROOT:
+		/* automatically sent at login */
 		break;
 	case STATE_LIST:
 		//str = t_strdup_printf("LIST \"\" * RETURN (X-STATUS (MESSAGES))");
