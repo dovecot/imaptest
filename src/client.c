@@ -251,10 +251,10 @@ int client_init(struct client *client, unsigned int idx,
 
 	i_assert(idx >= array_count(&clients) ||
 		 *(struct client **)array_idx(&clients, idx) == NULL);
-	/*if (stalled) {
+	if (stalled) {
 		array_append(&stalled_clients, &idx, 1);
-		return NULL;
-	}*/
+		return -1;
+	}
 
 	ip = &conf.ips[conf.ip_idx];
 	fd = net_connect_ip(ip, client->port, NULL);
@@ -315,11 +315,22 @@ void client_disconnect(struct client *client)
 static void clients_unstalled(struct mailbox_source *source)
 {
 	const unsigned int *indexes;
-	unsigned int i, count;
+	unsigned int count, i, restart[3], take;
 
 	indexes = array_get(&stalled_clients, &count);
-	for (i = 0; i < count && i < 3; i++)
-		client_new_random(indexes[i], source);
+	take = I_MIN(count, N_ELEMENTS(restart));
+	if (!take)
+		return;
+
+	/* Safely remove the indexes from the stalled array before
+	 * restarting clients. This is because client_new_random() may
+	 * re-add this index to the stalled_clients, which may reallocate
+	 * the array and invalidate indexes pointer. */
+	memcpy(restart, indexes, take * sizeof(restart[0]));
+	array_delete(&stalled_clients, 0, take);
+
+	for (i = 0; i < take; i++)
+		(void)client_new_random(restart[i], source);
 }
 
 bool client_unref(struct client *client, bool reconnect)
