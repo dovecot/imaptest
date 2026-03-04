@@ -105,8 +105,9 @@ static inline struct imap_client *imap_client(struct client *client)
 	return (struct imap_client *)client;
 }
 
-struct imap_client *
-imap_client_new(unsigned int idx, struct user *user, struct user_client *uc);
+int
+imap_client_new(unsigned int idx, struct user *user, struct user_client *uc,
+		struct imap_client **client_r);
 void imap_client_delayed_flush(struct imap_client *client);
 
 void imap_client_exists(struct imap_client *client, unsigned int msgs);

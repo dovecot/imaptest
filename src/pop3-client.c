@@ -413,8 +413,9 @@ static const struct client_vfuncs pop3_client_vfuncs = {
 	.free = pop3_client_free
 };
 
-struct pop3_client *
-pop3_client_new(unsigned int idx, struct user *user, struct user_client *uc)
+int
+pop3_client_new(unsigned int idx, struct user *user, struct user_client *uc,
+		struct pop3_client **client_r)
 {
 	struct pop3_client *client;
 
@@ -423,12 +424,13 @@ pop3_client_new(unsigned int idx, struct user *user, struct user_client *uc)
 	client->client.port = conf.port != 0 ? conf.port : 110;
 	if (client_init(&client->client, idx, user, uc) < 0) {
 		i_free(client);
-		return NULL;
+		return -1;
 	}
 
 	client->pop3_keep_mails = uc != NULL && uc->profile->pop3_keep_mails;
 	client->uidls_pool = pool_alloconly_create("pop3 client", 1024);
 	i_array_init(&client->commands, 16);
 	client->client.v = pop3_client_vfuncs;
-        return client;
+	*client_r = client;
+	return 0;
 }

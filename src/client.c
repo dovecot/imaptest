@@ -196,15 +196,22 @@ static void client_wait_connect(struct client *client)
 static struct client *
 client_new_full(unsigned int i, struct user *user, struct user_client *uc)
 {
+	struct imap_client *imap_c;
+	struct pop3_client *pop3_c;
+
 	if (client_min_free_idx == i)
 		client_min_free_idx++;
 
 	if (uc == NULL || uc->profile == NULL ||
-	    strcmp(uc->profile->protocol, "imap") == 0)
-		return &imap_client_new(i, user, uc)->client;
-	else if (strcmp(uc->profile->protocol, "pop3") == 0)
-		return &pop3_client_new(i, user, uc)->client;
-	else
+	    strcmp(uc->profile->protocol, "imap") == 0) {
+		if (imap_client_new(i, user, uc, &imap_c) < 0)
+			return NULL;
+		return &imap_c->client;
+	} else if (strcmp(uc->profile->protocol, "pop3") == 0) {
+		if (pop3_client_new(i, user, uc, &pop3_c) < 0)
+			return NULL;
+		return &pop3_c->client;
+	} else
 		i_unreached();
 }
 

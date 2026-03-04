@@ -44,8 +44,9 @@ static inline struct pop3_client *pop3_client(struct client *client)
 	return (struct pop3_client *)client;
 }
 
-struct pop3_client *
-pop3_client_new(unsigned int idx, struct user *user, struct user_client *uc);
+int
+pop3_client_new(unsigned int idx, struct user *user, struct user_client *uc,
+		struct pop3_client **client_r);
 
 int pop3_client_input_error(struct pop3_client *client, const char *fmt, ...)
 	ATTR_FORMAT(2, 3);
