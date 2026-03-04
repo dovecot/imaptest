@@ -786,8 +786,9 @@ static const struct client_vfuncs imap_client_vfuncs = {
 	.free = imap_client_free
 };
 
-struct imap_client *
-imap_client_new(unsigned int idx, struct user *user, struct user_client *uc)
+int
+imap_client_new(unsigned int idx, struct user *user, struct user_client *uc,
+		struct imap_client **client_r)
 {
 	struct imap_client *client;
 	const char *mailbox;
@@ -797,7 +798,7 @@ imap_client_new(unsigned int idx, struct user *user, struct user_client *uc)
 	client->client.port = conf.port != 0 ? conf.port : 143;
 	if (client_init(&client->client, idx, user, uc) < 0) {
 		i_free(client);
-		return NULL;
+		return -1;
 	}
 
 	if (strchr(conf.mailbox, '%') != NULL ||
@@ -819,5 +820,6 @@ imap_client_new(unsigned int idx, struct user *user, struct user_client *uc)
 	client->client.v.send_more_commands = user->profile != NULL ?
 		imap_client_profile_send_more_commands :
 		imap_client_plan_send_more_commands;
-        return client;
+	*client_r = client;
+	return 0;
 }
