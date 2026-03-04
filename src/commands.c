@@ -88,18 +88,13 @@ command_get_cmdline(struct imap_client *client, const char **_cmdline,
 				p--;
 			}
 			i_assert(p[-1] == '}');
-			if ((client->capabilities & CAP_LITERALPLUS) == 0 &&
-			    p[-2] == '+') {
-				/* using literal+ without server support,
-				   change it to a normal literal */
+			if ((client->capabilities & CAP_LITERALPLUS) == 0) {
+				/* we don't support sync literals yet */
 				i_fatal("FIXME: Add support for sync literals");
-			} else if ((client->capabilities & CAP_LITERALPLUS) != 0 &&
-				   p[-2] != '+') {
+			} else if (p[-2] != '+') {
 				/* for now we always convert to literal+ */
 				buffer_append(str, cmdline, p-cmdline-1);
 				str_append(str, "+}");
-			} else if (p[-2] != '+') {
-				i_fatal("FIXME: Add support for sync literals");
 			} else {
 				buffer_append(str, cmdline, p-cmdline);
 			}
