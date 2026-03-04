@@ -66,5 +66,6 @@ extern struct settings conf;
 extern bool profile_running;
 
 void error_quit(void);
+void set_conf_default(struct settings *conf);
 
 #endif
