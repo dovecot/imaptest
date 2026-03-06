@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 
 #define DEFAULT_MBOX_FNAME "default.mbox"
+#define MAX_TEST_CONNECTIONS 100
 
 struct ifenv {
 	unsigned int linenum;
@@ -60,6 +61,11 @@ test_parse_header_line(struct test_parser *parser, struct test *test,
 	if (strcmp(key, "connections") == 0) {
 		test->connection_count = strcmp(value, "n") == 0 ? 2 :
 			strtoul(value, NULL, 10);
+		if (test->connection_count == 0 ||
+		    test->connection_count > MAX_TEST_CONNECTIONS) {
+			*error_r = "Too many connections";
+			return FALSE;
+		}
 		return TRUE;
 	}
 	if (strcmp(key, "ignore_extra_untagged") == 0) {
@@ -68,6 +74,10 @@ test_parse_header_line(struct test_parser *parser, struct test *test,
 	}
 	if (strncmp(key, "user ", 5) == 0 &&
 	    str_to_uint(key+5, &idx) == 0 && idx != 0) {
+		if (idx > MAX_TEST_CONNECTIONS) {
+			*error_r = "Too many connections";
+			return FALSE;
+		}
 		/* FIXME: kludgy kludgy */
 		if (strcmp(value, "$user2") == 0 ||
 		    strcmp(value, "${user2}") == 0) {
@@ -655,6 +665,10 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 		if (str_to_uint(t_strcut(line, ' '), &connection_idx) < 0 ||
 		    connection_idx == 0) {
 			*error_r = "Missing client index";
+			return FALSE;
+		}
+		if (connection_idx > MAX_TEST_CONNECTIONS) {
+			*error_r = "Too many connections";
 			return FALSE;
 		}
 		if (array_count(&group->commands) > 0 &&
