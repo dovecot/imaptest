@@ -577,18 +577,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	lib_signals_ignore(SIGPIPE, TRUE);
 	lib_signals_set_handler(SIGINT, LIBSIG_FLAG_DELAYED, sig_die, NULL);
 
-	conf.password = PASSWORD;
-	conf.username_template = USERNAME_TEMPLATE;
-	conf.host = HOST;
-	conf.port = PORT;
-	conf.mbox_path = home_expand(MBOX_PATH);
-	conf.clients_count = CLIENTS_COUNT;
-	conf.message_count_threshold = MESSAGE_COUNT_THRESHOLD;
-	conf.users_rand_start = 1;
-	conf.users_rand_count = USER_RAND;
-	conf.domains_rand_start = 1;
-	conf.domains_rand_count = DOMAIN_RAND;
-	conf.mech = "LOGIN";
+	set_conf_default(&conf);
 	to_stop = NULL;
 
 	for (argv++; *argv != NULL; argv++) {

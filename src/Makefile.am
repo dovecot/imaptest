@@ -21,11 +21,12 @@ imaptest_SOURCES = \
 	profile.c \
 	profile-parse.c \
 	search.c \
+	settings.c \
 	test-exec.c \
 	test-parser.c \
 	user.c
 
-test_test_parser_SOURCES = test-test-parser.c test-parser.c
+test_test_parser_SOURCES = test-test-parser.c test-parser.c settings.c
 test_test_parser_LDADD = $(imaptest_LDADD)
 test_test_parser_CFLAGS = $(imaptest_CFLAGS)
 

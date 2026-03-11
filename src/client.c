@@ -196,15 +196,22 @@ static void client_wait_connect(struct client *client)
 static struct client *
 client_new_full(unsigned int i, struct user *user, struct user_client *uc)
 {
+	struct imap_client *imap_c;
+	struct pop3_client *pop3_c;
+
 	if (client_min_free_idx == i)
 		client_min_free_idx++;
 
 	if (uc == NULL || uc->profile == NULL ||
-	    strcmp(uc->profile->protocol, "imap") == 0)
-		return &imap_client_new(i, user, uc)->client;
-	else if (strcmp(uc->profile->protocol, "pop3") == 0)
-		return &pop3_client_new(i, user, uc)->client;
-	else
+	    strcmp(uc->profile->protocol, "imap") == 0) {
+		if (imap_client_new(i, user, uc, &imap_c) < 0)
+			return NULL;
+		return &imap_c->client;
+	} else if (strcmp(uc->profile->protocol, "pop3") == 0) {
+		if (pop3_client_new(i, user, uc, &pop3_c) < 0)
+			return NULL;
+		return &pop3_c->client;
+	} else
 		i_unreached();
 }
 
@@ -244,10 +251,10 @@ int client_init(struct client *client, unsigned int idx,
 
 	i_assert(idx >= array_count(&clients) ||
 		 *(struct client **)array_idx(&clients, idx) == NULL);
-	/*if (stalled) {
+	if (stalled) {
 		array_append(&stalled_clients, &idx, 1);
-		return NULL;
-	}*/
+		return -1;
+	}
 
 	ip = &conf.ips[conf.ip_idx];
 	fd = net_connect_ip(ip, client->port, NULL);
@@ -308,11 +315,22 @@ void client_disconnect(struct client *client)
 static void clients_unstalled(struct mailbox_source *source)
 {
 	const unsigned int *indexes;
-	unsigned int i, count;
+	unsigned int count, i, restart[3], take;
 
 	indexes = array_get(&stalled_clients, &count);
-	for (i = 0; i < count && i < 3; i++)
-		client_new_random(indexes[i], source);
+	take = I_MIN(count, N_ELEMENTS(restart));
+	if (!take)
+		return;
+
+	/* Safely remove the indexes from the stalled array before
+	 * restarting clients. This is because client_new_random() may
+	 * re-add this index to the stalled_clients, which may reallocate
+	 * the array and invalidate indexes pointer. */
+	memcpy(restart, indexes, take * sizeof(restart[0]));
+	array_delete(&stalled_clients, 0, take);
+
+	for (i = 0; i < take; i++)
+		(void)client_new_random(restart[i], source);
 }
 
 bool client_unref(struct client *client, bool reconnect)

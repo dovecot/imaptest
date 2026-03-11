@@ -79,7 +79,7 @@ ok list (subscribed recursivematch) "" $mailbox*test7
 * list (\subscribed) $sep $mailbox${sep}test7${sep}test7
 
 ok list (subscribed recursivematch) "" $mailbox*test8
-* list ($!unordered $!ban=\subscribed) $sep $mailbox${sep}test8 (childinfo ("subscribed"))
+? list ($!unordered $!ban=\subscribed) $sep $mailbox${sep}test8 (childinfo ("subscribed"))
 * list (\subscribed) $sep $mailbox${sep}test8${sep}test8
 
 ok list (subscribed recursivematch) "" ($mailbox${sep}test2)

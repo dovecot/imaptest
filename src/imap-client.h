@@ -12,6 +12,7 @@ enum imap_capability {
 	CAP_QRESYNC		= 0x08,
 	CAP_UIDPLUS		= 0x10,
 	CAP_IMAP4REV2		= 0x20,
+	CAP_MOVE		= 0x40,
 };
 
 struct imap_capability_name {
@@ -26,6 +27,7 @@ static const struct imap_capability_name cap_names[] = {
 	{ "QRESYNC", CAP_QRESYNC },
 	{ "UIDPLUS", CAP_UIDPLUS },
 	{ "IMAP4REV2", CAP_IMAP4REV2 },
+	{ "MOVE", CAP_MOVE },
 
 	{ NULL, 0 }
 };
@@ -105,8 +107,9 @@ static inline struct imap_client *imap_client(struct client *client)
 	return (struct imap_client *)client;
 }
 
-struct imap_client *
-imap_client_new(unsigned int idx, struct user *user, struct user_client *uc);
+int
+imap_client_new(unsigned int idx, struct user *user, struct user_client *uc,
+		struct imap_client **client_r);
 void imap_client_delayed_flush(struct imap_client *client);
 
 void imap_client_exists(struct imap_client *client, unsigned int msgs);

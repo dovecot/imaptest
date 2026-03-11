@@ -44,6 +44,7 @@ struct state states[] = {
 	{ "SORT",	  "Sort", LSTATE_SELECTED, 0,   0,  FLAG_MSGSET },
 	{ "THREAD",	  "Thre", LSTATE_SELECTED, 0,   0,  FLAG_MSGSET },
 	{ "COPY",	  "Copy", LSTATE_SELECTED, 33,  5,  FLAG_MSGSET | FLAG_EXPUNGES },
+	{ "MOVE",	  "Move", LSTATE_SELECTED, 0,   0,  FLAG_MSGSET | FLAG_EXPUNGES },
 	{ "STORE",	  "Stor", LSTATE_SELECTED, 50,  0,  FLAG_MSGSET },
 	{ "DELETE",	  "Dele", LSTATE_SELECTED, 100, 0,  FLAG_MSGSET },
 	{ "EXPUNGE",	  "Expu", LSTATE_SELECTED, 100, 0,  FLAG_EXPUNGES },
@@ -870,6 +871,7 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
 	case REPLY_NO:
 		switch (cmd->state) {
 		case STATE_COPY:
+		case STATE_MOVE:
 		case STATE_MCREATE:
 		case STATE_MDELETE:
 		case STATE_MRENAME:
@@ -1023,11 +1025,12 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
 		break;
 	}
 	case STATE_COPY:
+	case STATE_MOVE:
 		if (reply == REPLY_NO) {
 			if (imap_arg_atom_equals(args, "[TRYCREATE]")) {
 				str = t_strdup_printf("CREATE \"%s\"",
 						      conf.copy_dest);
-				client->client.state = STATE_COPY;
+				client->client.state = cmd->state;
 				command_send(client, str, state_callback);
 				break;
 			}
@@ -1035,7 +1038,8 @@ static int client_handle_cmd_reply(struct imap_client *client, struct command *c
 				/* this isn't an error */
 				break;
 			}
-			imap_client_state_error(client, "COPY failed");
+			imap_client_state_error(client, "%s failed",
+						states[cmd->state].name);
 		}
 		break;
 	case STATE_APPEND:
@@ -1434,13 +1438,19 @@ int imap_client_plan_send_next_cmd(struct imap_client *client)
 		command_send(client, "THREAD REFERENCES US-ASCII ALL", state_callback);
 		break;
 	case STATE_COPY:
+	case STATE_MOVE:
 		i_assert(conf.copy_dest != NULL);
+
+		/* Skip if MOVE is not available on the server. */
+		if (state == STATE_MOVE &&
+		    ((client->capabilities & (CAP_MOVE | CAP_IMAP4REV2)) == 0))
+			break;
 
 		seq1 = (i_rand_limit(msgs)) + 1;
 		seq2 = (i_rand_limit(msgs - seq1 + 1));
 		seq2 = seq1 + I_MIN(seq2, 5);
-		str = t_strdup_printf("COPY %u:%u %s",
-				      seq1, seq2, conf.copy_dest);
+		str = t_strdup_printf("%s %u:%u %s", states[state].name,
+							  seq1, seq2, conf.copy_dest);
 		command_send(client, str, state_callback);
 		break;
 	case STATE_STORE:
