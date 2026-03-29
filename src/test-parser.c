@@ -176,7 +176,7 @@ test_parse_imap_args(pool_t pool, const char *line, unsigned int linelen,
 	int ret;
 
 	input = i_stream_create_from_data(line, linelen);
-	imap_parser = imap_parser_create(input, NULL, (size_t)-1);
+	imap_parser = imap_parser_create(input, NULL, (size_t)-1, NULL);
 	ret = imap_parser_finish_line(imap_parser, 0,
 				      IMAP_PARSE_FLAG_LITERAL8 |
 				      IMAP_PARSE_FLAG_LITERAL_TYPE |

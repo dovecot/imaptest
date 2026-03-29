@@ -21,7 +21,7 @@ static const char *get_astring(const char *str)
 	const char *ret = NULL;
 
 	input = i_stream_create_from_data(str, strlen(str));
-	parser = imap_parser_create(input, NULL, (size_t)-1);
+	parser = imap_parser_create(input, NULL, (size_t)-1, NULL);
 	if (imap_parser_finish_line(parser, 1, 0, &args) > 0 &&
 	    imap_arg_get_astring(&args[0], &ret))
 		ret = t_strdup(ret);

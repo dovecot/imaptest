@@ -719,7 +719,7 @@ static void imap_client_connected(struct client *_client)
 {
 	struct imap_client *client = (struct imap_client *)_client;
 
-	client->parser = imap_parser_create(_client->input, NULL, (size_t)-1);
+	client->parser = imap_parser_create(_client->input, NULL, (size_t)-1, NULL);
 }
 
 static void imap_client_logout(struct client *_client)
