@@ -174,7 +174,7 @@ ok fetch 1 (uid flags)
 * 1 fetch (uid $ flags $)
 ```
 
-Using `$n`, where `n` is a number, maps to sequences at the beginning of a command. These are useful when receiving EXPUNGEs from another session. Example:
+Using `$n`, where `n` is a number, maps to the UID at sequence position `n` in the current mailbox. These are useful when receiving EXPUNGEs from another session, where sequence numbers may shift. Example:
 
 ```
 1 ok expunge
@@ -186,7 +186,7 @@ Using `$n`, where `n` is a number, maps to sequences at the beginning of a comma
 
 ### Case Sensitivity
 
-Normally all strings are compared case-insensitively. If you need to support case-sensitive matching, use the `%{case:text} variable:
+Normally all strings are compared case-insensitively. If you need to support case-sensitive matching, use the `${case:text}` variable:
 
 ```
 ok list "" *
