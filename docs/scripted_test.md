@@ -243,7 +243,7 @@ There are also some predefined variables:
 If a list has no explicit directives, defaults are used (separately for each list within same command):
 
 * "n FETCH ($!unordered=2)"
-* "n FETCH (FLAGS ($!unordered $!noextra $!ignore=\recent))"
+* "n FETCH (FLAGS ($!unordered $!noextra $!ignore=\recent $!ignore=$HasAttachment $!ignore=$HasNoAttachment))"
 * "LIST ($!unordered)"
 * "LSUB ($!unordered)"
 * "STATUS mailbox ($!unordered=2)"
