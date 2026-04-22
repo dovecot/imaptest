@@ -260,18 +260,69 @@ So the FLAGS won't have `$!unordered` or `$!ignored=\recent`, but the parent FET
 
 ## Preprocessing
 
-You can use `!ifenv`, `!ifnenv`, `!else` and `!endif` to run tests only if specified environment variables exist. For example:
+Preprocessing directives allow test files to be conditional, include delays, or produce custom output.
+
+::: info
+All directives begin with `!` and must appear on their own line.
+:::
+
+### Conditional Execution
+
+| Directive | Description |
+| --- | --- |
+| `!ifenv <VAR>` | Start a block that runs only if the environment variable `<VAR>` is **set** (regardless of its value). |
+| `!ifnenv <VAR>` | Start a block that runs only if the environment variable `<VAR>` is **not set**. |
+| `!else` | Toggle the skip state. If the preceding `!ifenv`/`!ifnenv` block was being skipped, the `!else` block is executed and vice versa. Only one `!else` is allowed per `!ifenv`/`!ifnenv` block. |
+| `!endif` | End the current `!ifenv`/`!ifnenv` block. The skip state is restored to what it was before the matching `!ifenv`/`!ifnenv`. |
+
+The directives can be nested. Each `!ifenv`/`!ifnenv` must have a matching `!endif`.
 
 ```
+!ifenv HAVE_FOO
+# HAVE_FOO is defined
+ok foo
+* foo stuff
+!else
+# HAVE_FOO is NOT defined
+ok fallback
+* fallback response
+!endif
+
+!ifenv HAVE_BAR
+!ifenv HAVE_BAZ
+# HAVE_BAR and HAVE_BAZ are defined
+ok both bar and baz
+!endif
+!endif
+```
+
+### Delay
+
+| Directive | Description |
+| --- | --- |
+| `!sleep <interval>` | Pause for the specified interval before processing the next command. The interval is specified in milliseconds. |
+
+```
+ok some-command
+# Delay for 500ms
+!sleep 500
+ok next-command
+```
+
+### Output
+
+| Directive | Description |
+| --- | --- |
+| `!output <text>` | Print `<text>` to the test output during execution. |
+
+```
+# This text will be printed in the test output
+!output Starting optional test section
 !ifenv HAVE_FOO
 ok foo
 * foo stuff
 !endif
 ```
-
-The "foo" command is run only if the `HAVE_FOO` environment variable exists.
-
-Similarly `!ifnenv HAVE_FOO` block is run only if the `HAVE_FOO` environment variable doesn't exist.
 
 ## Full Example
 
