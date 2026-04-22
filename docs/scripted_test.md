@@ -258,6 +258,15 @@ is fully expanded as:
 So the FLAGS won't have `$!unordered` or `$!ignored=\recent`, but the parent FETCH list will have the default `$!unordered=2`.
 :::
 
+## Comments
+
+Lines beginning with `#` are treated as comments and ignored by the parser.
+
+```
+# This is a comment and will be ignored
+ok select $mailbox
+```
+
 ## Preprocessing
 
 Preprocessing directives allow test files to be conditional, include delays, or produce custom output.
