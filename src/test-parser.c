@@ -59,8 +59,7 @@ test_parse_header_line(struct test_parser *parser, struct test *test,
 		return TRUE;
 	}
 	if (strcmp(key, "connections") == 0) {
-		test->connection_count = strcmp(value, "n") == 0 ? 2 :
-			strtoul(value, NULL, 10);
+		test->connection_count = strtoul(value, NULL, 10);
 		if (test->connection_count == 0 ||
 		    test->connection_count > MAX_TEST_CONNECTIONS) {
 			*error_r = "Too many connections";

@@ -58,6 +58,12 @@ Available states (each state does the tasks in the state listed before it):
 the test mailbox.
 :::
 
+### `user <N>`
+
+* Default: \<none\>
+
+Sets the username template for connection `<N>` (where `<N>` is a positive integer). This is useful when testing with different accounts on multiple connections. The value is typically set to `${user2}`, `${user3}`, etc. to use the username templates configured via command-line parameters.
+
 ### `ignore_extra_untagged`
 
 * Default: `yes`
