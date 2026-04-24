@@ -1,16 +1,17 @@
 bin_PROGRAMS = imaptest
 noinst_PROGRAMS = test-test-parser
+check_PROGRAMS = test-client-stalled
+TESTS = $(check_PROGRAMS)
 
 AM_CPPFLAGS = $(LIBDOVECOT_INCLUDE) -DSTATIC_OPENSSL=1
 imaptest_LDFLAGS = $(AM_LDFLAGS)
 
-imaptest_SOURCES = \
+common_sources = \
 	checkpoint.c \
 	client.c \
 	client-state.c \
 	commands.c \
 	imap-client.c \
-	imaptest.c \
 	imaptest-lmtp.c \
 	mailbox.c \
 	mailbox-source.c \
@@ -26,9 +27,19 @@ imaptest_SOURCES = \
 	test-parser.c \
 	user.c
 
+imaptest_SOURCES = \
+	$(common_sources) \
+	imaptest.c
+
 test_test_parser_SOURCES = test-test-parser.c test-parser.c settings.c
 test_test_parser_LDADD = $(imaptest_LDADD)
 test_test_parser_CFLAGS = $(imaptest_CFLAGS)
+
+test_client_stalled_SOURCES = \
+	$(common_sources) \
+	test-client-stalled.c
+test_client_stalled_LDADD = $(imaptest_LDADD)
+test_client_stalled_CFLAGS = $(imaptest_CFLAGS)
 
 noinst_HEADERS = \
 	checkpoint.h \

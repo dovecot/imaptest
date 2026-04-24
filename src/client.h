@@ -51,10 +51,12 @@ struct client {
 	bool idling:1;
 };
 ARRAY_DEFINE_TYPE(client, struct client *);
+ARRAY_DEFINE_TYPE(unsigned_int, unsigned int);
 
 extern int clients_count;
 extern unsigned int total_disconnects;
 extern ARRAY_TYPE(client) clients;
+extern ARRAY_TYPE(unsigned_int) stalled_clients;
 extern bool stalled, disconnect_clients, scripted_tests_running;
 
 struct client *client_new_user(struct user *user);

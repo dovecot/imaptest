@@ -30,7 +30,7 @@
 int clients_count = 0;
 unsigned int total_disconnects = 0;
 ARRAY_TYPE(client) clients;
-ARRAY(unsigned int) stalled_clients;
+ARRAY_TYPE(unsigned_int) stalled_clients;
 bool stalled = FALSE, disconnect_clients = FALSE, scripted_tests_running = FALSE;
 
 static unsigned int client_min_free_idx = 0;
