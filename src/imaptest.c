@@ -862,7 +862,6 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	ssl_iostream_openssl_init();
 #endif
 
-	i_array_init(&clients, CLIENTS_COUNT);
 	if (testpath == NULL)
 		imaptest_run();
 	else

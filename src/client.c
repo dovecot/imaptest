@@ -448,7 +448,8 @@ unsigned int clients_get_random_idx(void)
 
 void clients_init(void)
 {
-	i_array_init(&stalled_clients, CLIENTS_COUNT);
+	i_array_init(&clients, conf.clients_count);
+	i_array_init(&stalled_clients, conf.clients_count);
 }
 
 void clients_deinit(void)
