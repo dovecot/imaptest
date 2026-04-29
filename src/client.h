@@ -39,6 +39,7 @@ struct client {
 	struct ssl_iostream *ssl_iostream;
 	struct io *io;
 	struct timeout *to;
+	struct event *event;
 
 	enum login_state login_state;
 	enum client_state state;

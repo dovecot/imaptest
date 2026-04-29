@@ -49,7 +49,7 @@ static void client_input(struct client *client)
 		if (client->input->stream_errno != 0 &&
 		    client->input->stream_errno != EPIPE &&
 		    !client->logout_sent)
-			i_error("Client disconnected: %s",
+			e_error(client->event, "Client disconnected: %s",
 				i_stream_get_error(client->input));
 		if (client->v.disconnected != NULL) {
 			if (!client->v.disconnected(client))
@@ -59,7 +59,7 @@ static void client_input(struct client *client)
 		return;
 	case -2:
 		/* buffer full */
-		i_error("line too long");
+		e_error(client->event, "line too long");
 		client_unref(client, TRUE);
 		return;
 	}
@@ -168,7 +168,7 @@ static void client_wait_connect(struct client *client)
 
 	err = net_geterror(client->fd);
 	if (err != 0) {
-		i_error("connect() failed: %s", strerror(err));
+		e_error(client->event, "connect() failed: %s", strerror(err));
 		client_unref(client, TRUE);
 		return;
 	}
@@ -256,21 +256,26 @@ int client_init(struct client *client, unsigned int idx,
 		return -1;
 	}
 
+	client->refcount = 1;
+	client->idx = idx;
+	client->user = user;
+	client->user_client = uc;
+	client->global_id = ++global_id_counter;
+	client->event = event_create(NULL);
+	event_set_append_log_prefix(client->event,
+		t_strdup_printf("%s[%u]: ", user->username,
+				client->global_id));
+
 	ip = &conf.ips[conf.ip_idx];
 	fd = net_connect_ip(ip, client->port, NULL);
 	if (++conf.ip_idx == conf.ips_count)
 		conf.ip_idx = 0;
 
 	if (fd < 0) {
-		i_error("connect() failed: %m");
+		e_error(client->event, "connect() failed: %m");
+		event_unref(&client->event);
 		return -1;
 	}
-
-	client->refcount = 1;
-	client->idx = idx;
-	client->user = user;
-	client->user_client = uc;
-	client->global_id = ++global_id_counter;
 
 	client->fd = fd;
 	client->rawlog_fd = -1;
@@ -361,7 +366,7 @@ bool client_unref(struct client *client, bool reconnect)
 	if (client->to != NULL)
 		timeout_remove(&client->to);
 	if (close(client->fd) < 0)
-		i_error("close(client) failed: %m");
+		e_error(client->event, "close(client) failed: %m");
 	user_remove_client(client->user, client);
 
 	if (disconnect_clients && !imaptest_has_clients())
@@ -386,6 +391,7 @@ bool client_unref(struct client *client, bool reconnect)
 				 client->user_client->profile == NULL))
 			clients_unstalled(source);
 	}
+	event_unref(&client->event);
 	i_free(client);
 	return FALSE;
 }
