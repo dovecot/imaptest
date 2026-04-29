@@ -51,9 +51,9 @@ keyword_map_update(struct checkpoint_context *ctx, struct imap_client *client)
 		if (j == all_count) {
 			name = kw_my[i].name->name;
 			if (!ctx->first) {
-				i_error("Checkpoint: client %u: "
-					"Missing keyword %s",
-					client->client.idx, name);
+				e_error(client->client.event,
+					"Checkpoint: Missing keyword %s",
+					name);
 			}
 			array_append(&ctx->all_keywords, &name, 1);
 			kw_all = array_get(&ctx->all_keywords, &all_count);
@@ -115,24 +115,25 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 	uids = array_get(&view->uidmap, &count);
 	if (count != ctx->count) {
 		ctx->errors = TRUE;
-		i_error("Checkpoint: client %u: "
-			"Mailbox has only %u of %u messages",
-			client->client.global_id, count, ctx->count);
+		e_error(client->client.event,
+			"Checkpoint: Mailbox has only %u of %u messages",
+			count, ctx->count);
 	}
 
 	if (!view->storage->checkpoint->thread_sent) {
 		/* no THREAD checking */
 	} else if (client->view->last_thread_reply == NULL) {
 		ctx->errors = TRUE;
-		i_error("Checkpoint: client %u: Missing THREAD reply",
-			client->client.global_id);
+		e_error(client->client.event,
+			"Checkpoint: Missing THREAD reply");
 	} else if (ctx->thread_reply == NULL)
 		ctx->thread_reply = client->view->last_thread_reply;
 	else if (strcmp(client->view->last_thread_reply,
 			ctx->thread_reply) != 0) {
 		ctx->errors = TRUE;
-		i_error("Checkpoint: client %u: THREAD reply differs: %s != %s",
-			client->client.global_id, client->view->last_thread_reply,
+		e_error(client->client.event,
+			"Checkpoint: THREAD reply differs: %s != %s",
+			client->view->last_thread_reply,
 			ctx->thread_reply);
 	}
 
@@ -149,10 +150,9 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 			ctx->uids[i] = uids[i];
 		if (uids[i] != ctx->uids[i]) {
 			ctx->errors = TRUE;
-			i_error("Checkpoint: client %u: "
-				"Message seq=%u UID %u != %u",
-				client->client.global_id, i + 1,
-				uids[i], ctx->uids[i]);
+			e_error(client->client.event,
+				"Checkpoint: Message seq=%u UID %u != %u",
+				i + 1, uids[i], ctx->uids[i]);
 			break;
 		}
 
@@ -162,10 +162,10 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 				ctx->messages[i].modseq = msgs[i].modseq;
 			else if (ctx->messages[i].modseq != msgs[i].modseq) {
 				ctx->errors = TRUE;
-				i_error("Checkpoint: client %u: "
-					"Message seq=%u UID=%u "
+				e_error(client->client.event,
+					"Checkpoint: Message seq=%u UID=%u "
 					"modseqs differ: %s vs %s",
-					client->client.global_id, i + 1, uids[i],
+					i + 1, uids[i],
 					dec2str(msgs[i].modseq),
 					dec2str(ctx->messages[i].modseq));
 			}
@@ -195,10 +195,10 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 			if ((ctx->messages[i].mail_flags & MAIL_RECENT) == 0)
 				ctx->messages[i].mail_flags |= MAIL_RECENT;
 			else {
-				i_error("Checkpoint: client %u: "
-					"Message seq=%u UID=%u "
+				e_error(client->client.event,
+					"Checkpoint: Message seq=%u UID=%u "
 					"has \\Recent flag in multiple sessions",
-					client->client.global_id, i + 1, uids[i]);
+					i + 1, uids[i]);
 				view->storage->dont_track_recent = TRUE;
 			}
 		}
@@ -207,18 +207,20 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 		other_flags = ctx->messages[i].mail_flags & ~MAIL_RECENT;
 		if (this_flags != other_flags) {
 			ctx->errors = TRUE;
-			i_error("Checkpoint: client %u: Message seq=%u UID=%u "
+			e_error(client->client.event,
+				"Checkpoint: Message seq=%u UID=%u "
 				"flags differ: (%s) vs (%s)",
-				client->client.global_id, i + 1, uids[i],
+				i + 1, uids[i],
 				mail_flags_to_str(this_flags),
 				mail_flags_to_str(other_flags));
 		}
 		if (memcmp(keywords_remapped, ctx->messages[i].keyword_bitmask,
 			   dest_keywords_size) != 0) {
 			ctx->errors = TRUE;
-			i_error("Checkpoint: client %u: Message seq=%u UID=%u "
+			e_error(client->client.event,
+				"Checkpoint: Message seq=%u UID=%u "
 				"keywords differ: (%s) vs (%s)",
-				client->client.global_id, i + 1, uids[i],
+				i + 1, uids[i],
 				checkpoint_keywords_to_str(ctx, keywords_remapped),
 				checkpoint_keywords_to_str(ctx, ctx->messages[i].keyword_bitmask));
 		}
