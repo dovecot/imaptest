@@ -138,7 +138,7 @@ void client_rawlog_init(struct client *client)
 	client->pre_rawlog_input = client->input;
 	client->pre_rawlog_output = client->output;
 
-	if (iostream_rawlog_create_path(
+	if (iostream_rawlog_create_path(client->event, "rawlog",
 			t_strdup_printf("rawlog.%u", client->global_id),
 			&client->input, &client->output) != 0)
 		client->rawlog_fd = o_stream_get_fd(client->output);
