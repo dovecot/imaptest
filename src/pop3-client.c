@@ -23,8 +23,7 @@ int pop3_client_input_error(struct pop3_client *client, const char *fmt, ...)
 	va_list va;
 
 	va_start(va, fmt);
-	i_error("%s[%u]: %s: %s", client->client.user->username,
-		client->client.global_id, t_strdup_vprintf(fmt, va),
+	e_error(client->client.event, "%s: %s", t_strdup_vprintf(fmt, va),
 		client->cur_line == NULL ? "" : client->cur_line);
 	va_end(va);
 
