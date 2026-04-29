@@ -387,10 +387,12 @@ int imap_client_append_continue(struct imap_client *client)
 		o_stream_set_flush_pending(client->client.output, TRUE);
 		return 0;
 	case OSTREAM_SEND_ISTREAM_RESULT_ERROR_INPUT:
-		i_error("APPEND failed: %s", i_stream_get_error(client->append_stream));
+		e_error(client->client.event, "APPEND failed: %s",
+			i_stream_get_error(client->append_stream));
 		return -1;
 	case OSTREAM_SEND_ISTREAM_RESULT_ERROR_OUTPUT:
-		i_error("APPEND failed: %s", o_stream_get_error(client->client.output));
+		e_error(client->client.event, "APPEND failed: %s",
+			o_stream_get_error(client->client.output));
 		return -1;
 	}
 
@@ -788,7 +790,8 @@ void imap_client_handle_resp_text_code(struct imap_client *client,
 		if (new_uidvalidity != view->storage->uidvalidity) {
 			if (view->storage->uidvalidity != 0 &&
 			    !conf.no_tracking) {
-				i_error("UIVALIDITY changed: %u -> %u",
+				e_error(client->client.event,
+					"UIVALIDITY changed: %u -> %u",
 					view->storage->uidvalidity,
 					new_uidvalidity);
 			}
