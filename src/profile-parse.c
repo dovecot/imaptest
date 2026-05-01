@@ -75,6 +75,7 @@ static const struct setting_define profile_user_setting_defines[] = {
 
 	DEF(UINT, mail_inbox_reply_percentage),
 	DEF(UINT, mail_inbox_delete_percentage),
+	DEF(UINT, mail_inbox_trash_percentage),
 	DEF(UINT, mail_inbox_move_percentage),
 	DEF(UINT, mail_inbox_move_filter_percentage),
 

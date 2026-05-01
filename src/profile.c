@@ -56,6 +56,10 @@ client_profile_send_missing_creates(struct imap_client *client)
 	    imap_client_mailboxes_list_find(client, PROFILE_MAILBOX_SPAM) == NULL)
 		command_send(client, "CREATE \""PROFILE_MAILBOX_SPAM"\"", state_callback);
 
+	if (client->client.user->profile->mail_inbox_trash_percentage > 0 &&
+	    imap_client_mailboxes_list_find(client, PROFILE_MAILBOX_TRASH) == NULL)
+		command_send(client, "CREATE \""PROFILE_MAILBOX_TRASH"\"", state_callback);
+
 	if (client->client.user->profile->mail_inbox_reply_percentage > 0 ||
 	    client->client.user->profile->mail_send_interval > 0) {
 		if (imap_client_mailboxes_list_find(client, PROFILE_MAILBOX_DRAFTS) == NULL)
@@ -221,11 +225,10 @@ user_get_next_timeout(struct user *user, time_t start_time,
 	return start_time + weighted_rand(interval);
 }
 
-static void user_mailbox_action_delete(struct imap_client *client, uint32_t uid)
+static void user_mailbox_action_delete_hard(struct imap_client *client, uint32_t uid)
 {
 	const char *cmd;
 
-	/* FIXME: support also deletion via Trash */
 	cmd = t_strdup_printf("UID STORE %u +FLAGS \\Deleted", uid);
 	client->client.state = STATE_STORE_DEL;
 	command_send(client, cmd, state_callback);
@@ -254,8 +257,16 @@ static void user_mailbox_action_move(struct imap_client *client,
 		client->client.state = STATE_COPY;
 		command_send(client, str_c(cmd), state_callback);
 
-		user_mailbox_action_delete(client, uid);
+		user_mailbox_action_delete_hard(client, uid);
 	}
+}
+
+static void user_mailbox_action_delete(struct imap_client *client, uint32_t uid)
+{
+	if (i_rand_limit(100) < client->client.user->profile->mail_inbox_trash_percentage)
+		user_mailbox_action_move(client, PROFILE_MAILBOX_TRASH, uid);
+	else
+		user_mailbox_action_delete_hard(client, uid);
 }
 
 static void user_draft_callback(struct imap_client *client, struct command *cmd,
@@ -319,7 +330,7 @@ static bool user_write_mail(struct user_client *uc)
 			imap_client_append_full(client2, PROFILE_MAILBOX_SENT,
 						NULL, "", state_callback, &cmd);
 		}
-		user_mailbox_action_delete(client, uc->draft_uid);
+		user_mailbox_action_delete_hard(client, uc->draft_uid);
 		uc->draft_uid = 0;
 		return TRUE;
 	}

@@ -6,6 +6,7 @@
 #define PROFILE_MAILBOX_SPAM "Spam"
 #define PROFILE_MAILBOX_DRAFTS "Drafts"
 #define PROFILE_MAILBOX_SENT "Sent"
+#define PROFILE_MAILBOX_TRASH "Trash"
 
 struct imap_arg;
 struct imap_client;
@@ -48,6 +49,7 @@ struct profile_user {
 	   the action that is done to it (0-100, with total <= 100) */
 	unsigned int mail_inbox_reply_percentage;
 	unsigned int mail_inbox_delete_percentage;
+	unsigned int mail_inbox_trash_percentage;
 	unsigned int mail_inbox_move_percentage;
 	/* Same as "move", but this is done immediately instead of after
 	   mail_action_delay. */

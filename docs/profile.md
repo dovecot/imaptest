@@ -149,6 +149,14 @@ Chance a mail is replied to: APPEND via Drafts and Sent mailboxes and add
 
 Applied to incoming mails. Multiple actions can be performed on the same mail.
 
+### `mail_inbox_trash_percentage`
+
+* Default: `0%`
+
+The percentage of deletions (see [`mail_inbox_delete_percentage`](#mail-inbox-delete-percentage))
+that result in the mail being moved to the Trash mailbox instead of being
+hard-deleted.
+
 ### `mail_send_interval`
 
 * Default: `0` (no outgoing mail sent)
@@ -348,6 +356,7 @@ user normal {
   
   mail_inbox_reply_percentage = 0
   mail_inbox_delete_percentage = 80
+  mail_inbox_trash_percentage = 50
   mail_inbox_move_percentage = 5
   mail_inbox_move_filter_percentage = 10
 }
