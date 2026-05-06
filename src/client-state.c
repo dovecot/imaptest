@@ -138,8 +138,13 @@ static enum client_state client_eat_first_plan(struct imap_client *client)
 {
 	enum client_state state;
 
-	if (disconnect_clients)
+	if (disconnect_clients) {
+		/* Clear the remaining plan to prevent an assertion failure in
+		 * client_update_plan() when the client transitions to
+		 * LSTATE_NONAUTH. */
+		client->plan_size = 0;
 		return STATE_LOGOUT;
+	}
 
 	i_assert(client->plan_size > 0);
 	state = client->plan[0];

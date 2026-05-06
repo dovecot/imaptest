@@ -263,6 +263,14 @@ static void checkpoint_send_state_cmd(struct mailbox_storage *storage,
 		if (client == NULL || client->checkpointing != storage)
 			continue;
 
+		/* Skip clients that are already disconnecting or no longer selected,
+		 * preventing the redundant queuing of checkpoint commands that would
+		 * otherwise be immediately discarded. */
+		if (disconnect_clients || client->client.login_state != LSTATE_SELECTED) {
+			client->checkpointing = NULL;
+			continue;
+		}
+
 		/* send the checkpoint command */
 		client->plan[0] = state;
 		client->plan_size = 1;
