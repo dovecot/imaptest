@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# Verifies imaptest accepts IMAP4rev2 short-form tagged replies
+# (tag OK\r\n with no resp-text) when imap4rev2 is on the cmdline AND
+# the server confirmed ENABLE IMAP4REV2; rejects them otherwise.
+#
+# Three cases driven by the bundled mock IMAP server:
+#   compliant: short replies only after ENABLE IMAP4REV2
+#              -> imaptest with imap4rev2 cmdline must succeed.
+#   rogue:     short replies from the start
+#              -> imaptest WITHOUT imap4rev2 cmdline must surface the
+#                 "Missing resp-text" / "Invalid resp-text" error.
+#   rogue:     short replies from the start
+#              -> imaptest WITH imap4rev2 cmdline must accept (covers
+#                 servers like dovecot --enable-experimental-imap4rev2
+#                 that emit IMAP4rev2 syntax before ENABLE completes).
+
+set -eu
+
+here="$(cd "$(dirname "$0")" && pwd)"
+mock="$here/mock-imap4rev2.py"
+
+IMAPTEST="${IMAPTEST:-$here/../src/imaptest}"
+if [ ! -x "$IMAPTEST" ]; then
+    IMAPTEST="$(command -v imaptest || true)"
+fi
+if [ -z "$IMAPTEST" ] || [ ! -x "$IMAPTEST" ]; then
+    echo "imaptest binary not found; build it first" >&2
+    exit 2
+fi
+
+PYTHON="${PYTHON:-python3}"
+
+free_port() {
+    "$PYTHON" - <<'EOF'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+EOF
+}
+
+wait_listen() {
+    local port="$1" tries=0
+    while [ $tries -lt 50 ]; do
+        if "$PYTHON" -c "import socket,sys;s=socket.socket();
+try:
+    s.connect(('127.0.0.1',$port))
+except Exception:
+    sys.exit(1)" 2>/dev/null; then
+            return 0
+        fi
+        tries=$((tries+1))
+        sleep 0.1
+    done
+    return 1
+}
+
+mock_pids=""
+cleanup() {
+    for pid in $mock_pids; do
+        kill "$pid" 2>/dev/null || true
+    done
+}
+trap cleanup EXIT
+
+run_imaptest() {
+    local out="$1"; shift
+    # imaptest exits 0 even on protocol errors; stderr is the signal.
+    "$IMAPTEST" "$@" >"$out" 2>&1 || true
+}
+
+# ---- POSITIVE: compliant mock + imap4rev2 ---------------------------
+PORT_A="$(free_port)"
+"$PYTHON" "$mock" compliant "$PORT_A" >/tmp/mock-compliant.log 2>&1 &
+mock_pids="$mock_pids $!"
+wait_listen "$PORT_A" || { echo "compliant mock failed to listen"; exit 1; }
+
+OUT_A="$(mktemp)"
+run_imaptest "$OUT_A" \
+    host=127.0.0.1 port="$PORT_A" \
+    user=u pass=p imap4rev2 \
+    append=0 secs=2 clients=1 no_tracking
+
+if grep -E "Invalid resp-text|Missing resp-text" "$OUT_A" >/dev/null; then
+    echo "POSITIVE FAILED: short reply rejected with imap4rev2 enabled"
+    sed 's/^/  /' "$OUT_A"
+    exit 1
+fi
+echo "POSITIVE PASSED"
+
+# ---- NEGATIVE: rogue mock + no imap4rev2 ----------------------------
+PORT_B="$(free_port)"
+"$PYTHON" "$mock" rogue "$PORT_B" >/tmp/mock-rogue.log 2>&1 &
+mock_pids="$mock_pids $!"
+wait_listen "$PORT_B" || { echo "rogue mock failed to listen"; exit 1; }
+
+OUT_B="$(mktemp)"
+run_imaptest "$OUT_B" \
+    host=127.0.0.1 port="$PORT_B" \
+    user=u pass=p \
+    append=0 secs=2 clients=1 no_tracking
+
+if ! grep -E "Invalid resp-text|Missing resp-text" "$OUT_B" >/dev/null; then
+    echo "NEGATIVE FAILED: short reply accepted when imap4rev2 not enabled"
+    sed 's/^/  /' "$OUT_B"
+    exit 1
+fi
+echo "NEGATIVE PASSED"
+
+# ---- POSITIVE: rogue mock + imap4rev2 cmdline -----------------------
+# Covers dovecot --enable-experimental-imap4rev2, which emits short-form
+# replies before ENABLE IMAP4REV2 has been negotiated. Cmdline opt-in
+# must allow the rogue grammar.
+PORT_C="$(free_port)"
+"$PYTHON" "$mock" rogue "$PORT_C" >/tmp/mock-rogue-cmdline.log 2>&1 &
+mock_pids="$mock_pids $!"
+wait_listen "$PORT_C" || { echo "rogue mock (cmdline) failed to listen"; exit 1; }
+
+OUT_C="$(mktemp)"
+run_imaptest "$OUT_C" \
+    host=127.0.0.1 port="$PORT_C" \
+    user=u pass=p imap4rev2 \
+    append=0 secs=2 clients=1 no_tracking
+
+if grep -E "Invalid resp-text|Missing resp-text" "$OUT_C" >/dev/null; then
+    echo "ROGUE+CMDLINE FAILED: short reply rejected with imap4rev2 cmdline"
+    sed 's/^/  /' "$OUT_C"
+    exit 1
+fi
+echo "ROGUE+CMDLINE PASSED"
+
+echo "imap4rev2 short-reply test: OK"
