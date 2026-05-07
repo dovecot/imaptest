@@ -84,7 +84,7 @@ jobs:
         working-directory: ${{ github.workspace }}/core
         run: |
           autoreconf -vif
-          env LIBPCRE_LIBS_STATIC=/usr/lib/$(uname -m)-linux-gnu/libpcre2-32.a SSL_LIBS="/usr/lib/$(uname -m)-linux-gnu/libssl.a /usr/lib/$(uname -m)-linux-gnu/libcrypto.a" ZLIB_LIBS_STATIC=/usr/lib/$(uname -m)-linux-gnu/libz.a ./configure --enable-experimental-mail-utf8
+          env LIBPCRE_LIBS_STATIC=/usr/lib/$(uname -m)-linux-gnu/libpcre2-32.a SSL_LIBS="/usr/lib/$(uname -m)-linux-gnu/libssl.a /usr/lib/$(uname -m)-linux-gnu/libcrypto.a" ZLIB_LIBS_STATIC=/usr/lib/$(uname -m)-linux-gnu/libz.a ./configure --enable-experimental-mail-utf8 --enable-experimental-imap4rev2
           make -j8
       - name: Fix dynamic library dependencies
         working-directory: ${{ github.workspace }}/core
