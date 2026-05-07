@@ -735,14 +735,19 @@ void imap_client_handle_resp_text_code(struct imap_client *client,
 	struct mailbox_view *view = client->view;
 	const char *key, *value, *p;
 
+	bool imap4rev2 = conf.imap4rev2 || client->imap4rev2_enabled;
 	if (args->type != IMAP_ARG_ATOM) {
+		/* RFC 9051 (IMAP4rev2) Appendix E.23 + Errata 7343: resp-text
+		   may be empty once IMAP4rev2 is enabled. */
+		if (IMAP_ARG_IS_EOL(args) && imap4rev2)
+			return;
 		imap_client_input_error(client, "Invalid resp-text");
 		return;
 	}
 
 	value = imap_args_to_str(args);
 	if (*value != '[') {
-		if (*value == '\0')
+		if (*value == '\0' && !imap4rev2)
 			imap_client_input_warn(client, "Missing text in resp-text");
 		return;
 	}
@@ -751,7 +756,7 @@ void imap_client_handle_resp_text_code(struct imap_client *client,
 		imap_client_input_error(client, "Missing ']' in resp-text");
 		return;
 	}
-	if (p[1] == '\0' || p[1] != ' ' || p[2] == '\0')
+	if ((p[1] == '\0' || p[1] != ' ' || p[2] == '\0') && !imap4rev2)
 		imap_client_input_warn(client, "Missing text in resp-text");
 	key = t_strdup_until(value + 1, p);
 

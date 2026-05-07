@@ -572,6 +572,17 @@ imap_client_input_args(struct imap_client *client, const struct imap_arg *args)
 	if (!imap_arg_get_atom(args, &tag_status))
 		return imap_client_input_error(client, "Broken tagged reply");
 
+	/* RFC 9051 (IMAP4rev2) Appendix E.23 + Errata 7343: resp-text
+	   may be empty (no SP and no text after OK/NO/BAD). Accept the
+	   short form once IMAP4rev2 is enabled on this connection, or
+	   when the user opted in via the imap4rev2 cmdline (some servers
+	   emit IMAP4rev2 syntax before ENABLE has been negotiated). */
+	if (IMAP_ARG_IS_EOL(&args[1]) &&
+	    !conf.imap4rev2 && !client->imap4rev2_enabled) {
+		return imap_client_input_error(client,
+			"Missing resp-text in tagged reply (IMAP4rev2 not enabled)");
+	}
+
 	p = strchr(tag, '.');
 	cmd = p != NULL &&
 		atoi(t_strdup_until(tag, p)) == (int)client->client.global_id ?
