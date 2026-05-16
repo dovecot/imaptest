@@ -18,6 +18,7 @@
 #include "checkpoint.h"
 #include "commands.h"
 #include "search.h"
+#include "client-auth-settings.h"
 #include "dsasl-client.h"
 #include "imap-client.h"
 #include "client-state.h"
@@ -100,12 +101,12 @@ static void auth_sasl_callback(struct imap_client *client, struct command *cmd,
 	buffer_t *str;
 
 	if (reply == REPLY_OK) {
-		dsasl_client_free(&client->sasl_client);
+		dsasl_client_session_destroy(&client->sasl_session);
 		state_callback(client, cmd, args, reply);
 		return;
 	}
 	if (reply != REPLY_CONT) {
-		dsasl_client_free(&client->sasl_client);
+		dsasl_client_session_destroy(&client->sasl_session);
 		imap_client_state_error(client, "AUTHENTICATE failed");
 		client_disconnect(_client);
 		return;
@@ -117,9 +118,11 @@ static void auth_sasl_callback(struct imap_client *client, struct command *cmd,
 	/* decode */
 	buffer_t *input = t_base64_decode(0, input_b64, strlen(input_b64));
 
-	if (dsasl_client_input(client->sasl_client, input->data, input->used, &error) < 0 ||
-	    dsasl_client_output(client->sasl_client, &out, &outlen, &error) < 0) {
-		dsasl_client_free(&client->sasl_client);
+	if (dsasl_client_session_input(client->sasl_session,
+				       input->data, input->used, &error) < 0 ||
+	    dsasl_client_session_output(client->sasl_session,
+					&out, &outlen, &error) < 0) {
+		dsasl_client_session_destroy(&client->sasl_session);
 		imap_client_state_error(client, "AUTHENTICATE failed: %s", error);
 		client_disconnect(_client);
 		return;
@@ -1184,29 +1187,42 @@ static void client_select_qresync(struct imap_client *client)
 
 static int start_sasl_login(struct imap_client *client)
 {
-	struct dsasl_client_settings set = {
-		.authid = client->client.user->username,
+	const char *error;
+	int ret;
+
+	const struct client_auth_settings set = {
+		.mechanism = conf.mech,
+		.authzid = client->client.user->username,
 		.password = client->client.user->password,
 	};
-	const char *error;
-	const struct dsasl_client_mech *mech = dsasl_client_mech_find(conf.mech);
-	if (mech == NULL) {
-		imap_client_state_error(client, "AUTHENTICATE failed: %s mech not supported", conf.mech);
+	ret = dsasl_client_session_create(sasl_client, NULL, NULL, &set,
+					  &client->sasl_session, &error);
+	if (ret < 0) {
+		imap_client_state_error(client, "AUTHENTICATE failed: %s",
+					error);
 		client_disconnect(&client->client);
 		return 0;
 	}
+	if (ret == 0) {
+		imap_client_state_error(client, "AUTHENTICATE failed: "
+					"No authentication configured");
+		client_disconnect(&client->client);
+		return 0;
+	}
+
 	/* get IR */
 	const unsigned char *out;
 	size_t outlen;
-	client->sasl_client = dsasl_client_new(mech, &set);
-	if (dsasl_client_output(client->sasl_client, &out, &outlen, &error) < 0) {
-		dsasl_client_free(&client->sasl_client);
+	if (dsasl_client_session_output(client->sasl_session,
+					&out, &outlen, &error) < 0) {
+		dsasl_client_session_destroy(&client->sasl_session);
 		imap_client_state_error(client, "AUTHENTICATE failed: %s", error);
 		client_disconnect(&client->client);
 		return 0;
 	}
 	buffer_t *ir = t_base64_encode(0, SIZE_MAX, out, outlen);
-	const char *cmd = t_strdup_printf("AUTHENTICATE %s", dsasl_client_mech_get_name(mech));
+	const char *cmd = t_strdup_printf("AUTHENTICATE %s",
+		dsasl_client_session_get_mech_name(client->sasl_session));
 	if (ir->used > 0)
 		cmd = t_strconcat(cmd, " ", str_c(ir), NULL);
 	command_send(client, cmd, auth_sasl_callback);
