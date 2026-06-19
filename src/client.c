@@ -127,7 +127,7 @@ static int client_output(struct client *client)
 	o_stream_uncork(client->output);
 	if (ret < 0)
 		client_unref(client, TRUE);
-        return ret;
+	return ret;
 }
 
 void client_rawlog_init(struct client *client)
@@ -305,11 +305,11 @@ int client_init(struct client *client, unsigned int idx,
 	o_stream_set_no_error_handling(client->output, TRUE);
 	o_stream_set_flush_callback(client->output, client_output, client);
 	client->io = io_add(fd, IO_WRITE, client_wait_connect, client);
-        client->last_io = ioloop_time;
+	client->last_io = ioloop_time;
 
 	clients_count++;
 	user_add_client(user, client);
-        array_idx_set(&clients, idx, &client);
+	array_idx_set(&clients, idx, &client);
 	return 0;
 }
 

@@ -404,12 +404,12 @@ int imap_client_handle_untagged(struct imap_client *client,
 		if (strcmp(str, "EXISTS") == 0)
 			imap_client_exists(client, num);
 
-                if (num > array_count(&view->uidmap) &&
+		if (num > array_count(&view->uidmap) &&
 		    client->last_cmd->state > STATE_SELECT) {
 			imap_client_input_warn(client,
 				"seq too high (%u > %u, state=%s)",
 				num, array_count(&view->uidmap),
-                                states[client->last_cmd->state].name);
+				states[client->last_cmd->state].name);
 		} else if (strcmp(str, "EXPUNGE") == 0) {
 			if (imap_client_expunge(client, num) < 0)
 				return -1;

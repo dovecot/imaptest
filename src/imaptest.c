@@ -163,7 +163,7 @@ static void print_timeout(void *context ATTR_UNUSED)
 	 (ioloop_time - (c)->last_io))
 	struct client *const *c;
 	string_t *str;
-        static int rowcount = 0;
+	static int rowcount = 0;
 	unsigned int i, count, banner_waits, stall_count;
 
 	if (results_output != NULL)
@@ -173,13 +173,13 @@ static void print_timeout(void *context ATTR_UNUSED)
 		print_header();
 	}
 
-        for (i = 1; i < STATE_COUNT; i++) {
+	for (i = 1; i < STATE_COUNT; i++) {
 		if (!STATE_IS_VISIBLE(i))
 			continue;
 		printf("%4d ", counters[i]);
 		total_counters[i] += counters[i];
 		counters[i] = 0;
-        }
+	}
 
 	stalled = FALSE;
 	banner_waits = 0;
@@ -199,7 +199,7 @@ static void print_timeout(void *context ATTR_UNUSED)
 		if (stalled_secs >= conf.stalled_disconnect_timeout &&
 		    conf.stalled_disconnect_timeout > 0)
 			client_disconnect(c[i]);
-        }
+	}
 
 	printf("%3d/%3d", (clients_count - banner_waits), clients_count);
 	if (stall_count > 0)
@@ -228,8 +228,8 @@ static void print_timeout(void *context ATTR_UNUSED)
 				print_stalled_imap_client(str, client);
 
 			stalled = TRUE;
-                        printf("%s\n", str_c(str));
-                }
+			printf("%s\n", str_c(str));
+		}
 	}
 
 	if (ioloop_time >= next_checkpoint_time &&
@@ -254,7 +254,7 @@ static void print_total(void)
 	printf("\nTotals:\n");
 	print_header();
 
-        for (i = 1; i < STATE_COUNT; i++) {
+	for (i = 1; i < STATE_COUNT; i++) {
 		if (!STATE_IS_VISIBLE(i))
 			continue;
 
@@ -357,7 +357,7 @@ static void clients_unref(void)
 	for (i = 0; i < count; i++) {
 		if (c[i] != NULL)
 			client_unref(c[i], FALSE);
-        }
+	}
 }
 
 static struct mailbox_source *imaptest_mailbox_source(void)
@@ -388,7 +388,7 @@ static void imaptest_run(void)
 			client_new_random(i, mailbox_source);
 	}
 
-        io_loop_run(ioloop);
+	io_loop_run(ioloop);
 
 	timeout_remove(&to);
 	clients_unref();

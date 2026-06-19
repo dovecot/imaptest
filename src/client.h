@@ -29,8 +29,8 @@ struct client {
 	enum client_protocol protocol;
 	unsigned int port;
 
-        unsigned int idx, global_id;
-        unsigned int cur;
+	unsigned int idx, global_id;
+	unsigned int cur;
 
 	int fd, rawlog_fd;
 	/* [pre_]_rawlog_[in|out]put is not referenced */
@@ -43,7 +43,7 @@ struct client {
 
 	enum login_state login_state;
 	enum client_state state;
-        time_t last_io;
+	time_t last_io;
 
 	bool delayed:1;
 	bool disconnected:1;
