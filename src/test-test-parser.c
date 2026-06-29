@@ -1,4 +1,4 @@
-/* Copyright (c) ImapTest authors, see the included COPYING file */
+/* Copyright (c) ImapTest authors, see top-level COPYING file */
 
 #include "lib.h"
 #include "test-parser.h"

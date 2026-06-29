@@ -1,4 +1,4 @@
-/* Copyright (c) 2007-2018 ImapTest authors, see the included COPYING file */
+/* Copyright (c) ImapTest authors, see top-level COPYING file */
 
 #include "lib.h"
 #include "str.h"
