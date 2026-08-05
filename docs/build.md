@@ -5,7 +5,7 @@ layout: doc
 # ImapTest Build
 
 ::: info
-ImapTest is also available in static binaries. See [download](/download)
+ImapTest is also available in static binaries and as a Docker container. See [download](/download)
 for details.
 :::
 
