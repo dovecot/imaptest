@@ -153,9 +153,11 @@ All commands in a pipelined group MUST use the same connection.
 
 ## Variables
 
-Commands and replies can have `$variables`.
+Commands and replies can use `$variables`.
 
-If a variable doesn't have a value when it's matched against server input, the variable is initialized from the server input. Example:
+### Dynamic Variables
+
+If a variable doesn't have a value when it's matched against server input, the variable is initialized from the server input and can be reused in subsequent commands. Example:
 
 ```
 ok fetch 1,2 uid
@@ -167,53 +169,58 @@ ok uid store $uid1,$uid2 flags \seen
 * 2 fetch (uid $uid2 flags (\seen))
 ```
 
-If you want to match the IMAP argument against anything, use `$`. This also works for lists, unlike named variables. Example:
+### Escaping and Wildcards
 
-```
-ok fetch 1 (uid flags)
-* 1 fetch (uid $ flags $)
-```
+- **Literal Escaping (`$$`)**:
+  If you need a literal `$` character in a command or response match without treating it as a variable lookup, escape it by writing `$$`.
 
-Using `$n`, where `n` is a number, maps to the UID at sequence position `n` in the current mailbox. These are useful when receiving EXPUNGEs from another session, where sequence numbers may shift. Example:
+- **Wildcard Matching (`$`)**:
+  To match any single IMAP argument or list structure without storing it in a variable, use `$`. Example:
+  ```
+  ok fetch 1 (uid flags)
+  * 1 fetch (uid $ flags $)
+  ```
 
-```
-1 ok expunge
-2 ok uid fetch 3 flags
-# server may send expunge before or after fetch - both match this test
-* $2 expunge
-* $3 fetch (uid 3 (flags ()))
-```
+- **Bracket Skipping (`$]`)**:
+  To skip untagged response tokens until encountering a closing bracket `]`, use `$]`. Example:
+  ```
+  * OK [CAPABILITY $] Capabilities.
+  ```
 
-### Case Sensitivity
+### Special Variable Matchers
 
-Normally all strings are compared case-insensitively. If you need to support case-sensitive matching, use the `${case:text}` variable:
+- **Sequence Position UIDs (`$n`)**:
+  Using `$n`, where `n` is a number, maps to the UID at sequence position `n` in the current mailbox. These are useful when receiving EXPUNGEs from another session, where sequence numbers may shift. Example:
+  ```
+  1 ok expunge
+  2 ok uid fetch 3 flags
+  # server may send expunge before or after fetch - both match this test
+  * $2 expunge
+  * $3 fetch (uid 3 (flags ()))
+  ```
 
-```
-ok list "" *
-* LIST () "/" ${case:INBOX/Inbox}
-```
+- **Case Sensitivity (`${case:text}`)**:
+  Normally all strings are compared case-insensitively. If you need to support case-sensitive matching, use `${case:text}`:
+  ```
+  ok list "" *
+  * LIST () "/" ${case:INBOX/Inbox}
+  ```
 
-### Modseq Variables
+- **Modseq Variables (`$modseqN`)**:
+  Modseq tracking can be done using `$modseqN` variables. They are expected to be listed in an increasing order. Each new value must be at least as high as the gap between the index numbers. For example with `$modseq2` and `$modseq5` the following modseq matches are acceptable:
+   * 2, 5
+   * 2, 6
+   * 10, 13
+   * 10, 100
 
-Modseq tracking can be done using `$modseqN` variables. They are expected
-to be listed in an increasing order. Each new value must be at least as
-high as the gap between the index numbers. For example with `$modseq2` and
-`$modseq5` the following modseq matches are acceptable:
-
- * 2, 5
- * 2, 6
- * 10, 13
- * 10, 100
-
-But the following are not:
-
- * 1, 5 ($modseq2 must be 2 at minimum)
- * 2, 4 ($modseq5 must be 5 at minimum)
- * 10, 12 ($modseq5 must be 13 at minimum)
+  But the following are not:
+   * 1, 5 ($modseq2 must be 2 at minimum)
+   * 2, 4 ($modseq5 must be 5 at minimum)
+   * 10, 12 ($modseq5 must be 13 at minimum)
 
 ### Predefined Variables
 
-There are also some predefined variables:
+There are also predefined runtime variables provided by the test execution environment:
 
 | Variable       | Description                                                                                       |
 | -------------- | ------------------------------------------------------------------------------------------------- |
@@ -223,8 +230,9 @@ There are also some predefined variables:
 | `$password`    | Password                                                                                          |
 | `$mailbox`     | Mailbox used for testing. `box` command line parameter specifies this. The default is `imaptest`. |
 | `$mailbox_url` | IMAP URL for the mailbox                                                                          |
+| `$tag`         | IMAP command tag for the command (e.g. `1.1`)                                                     |
 
-* If there are multiple connections with different usernames, `$user2`, `$user3`, `$username2`, `$domain2`, etc. are also supported.
+* If there are multiple connections with different usernames, `$user2`, `$user3`, `$username2`, `$domain2`, `$password2`, etc. are also supported.
 
 ## Directives
 
