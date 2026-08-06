@@ -719,9 +719,14 @@ test_handle_untagged_match(struct imap_client *client, const struct imap_arg *ar
 				return;
 			}
 			found[i] = 1;
-			/* continue - we may want to match more */
 			found_some = TRUE;
 			array_clear(&ctx->added_variables);
+			if ((*groupp)->untagged_ordered) {
+				/* this reply matched the next expected reply -
+				   don't let it match the later ones */
+				break;
+			}
+			/* continue - we may want to match more */
 			continue;
 		}
 		if (maybes[i].count < match_count) {
@@ -735,6 +740,14 @@ test_handle_untagged_match(struct imap_client *client, const struct imap_arg *ar
 		for (j = 0; j < var_count; j++)
 			hash_table_remove(ctx->variables, vars[j]);
 		array_clear(&ctx->added_variables);
+
+		if ((*groupp)->untagged_ordered &&
+		    untagged[i].existence == TEST_EXISTENCE_MUST_EXIST) {
+			/* the next required reply didn't match, so this reply
+			   is out of order. Don't match it against the later
+			   replies - they are reported as missing instead. */
+			break;
+		}
 	}
 	if (!found_some) {
 		ctx->cur_untagged_mismatch_count++;

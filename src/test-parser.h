@@ -61,6 +61,9 @@ struct test_command_group {
 	unsigned int sleep_msecs;
 	/* TRUE if one of the untagged replies is a BYE */
 	bool have_untagged_bye;
+	/* TRUE if the untagged replies must be received in the same order as
+	   they are listed in the test script */
+	bool untagged_ordered;
 };
 
 struct test_connection {

@@ -365,6 +365,24 @@ ok some-command
 ok next-command
 ```
 
+### Untagged reply order
+
+| Directive | Description |
+| --- | --- |
+| `!ordered` | Require the untagged replies of this command to be received in the same order as they are listed. |
+
+By default the untagged replies may be received in any order. With
+`!ordered` a reply is matched only against the first expected reply that
+hasn't been matched yet, so replies arriving in the wrong order are reported
+as missing.
+
+```
+ok noop
+!ordered
+* LIST () "." foo
+* LIST (\NonExistent) "." foo
+```
+
 ### Output
 
 | Directive | Description |

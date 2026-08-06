@@ -604,6 +604,10 @@ test_parse_command_line(struct test_parser *parser, struct test *test,
 			array_append(&group->output, &output, 1);
 			return TRUE;
 		}
+		if (strcmp(line, "!ordered") == 0) {
+			group->untagged_ordered = TRUE;
+			return TRUE;
+		}
 
 		if (test_is_untagged(line, &existence)) {
 			/* parse untagged replies (*, !, ?) */
