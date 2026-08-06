@@ -1,6 +1,7 @@
 {
   "devDependencies": {
-    "vitepress": "^1.6.4"
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-llmstxt": "^0.5.2"
   },
   "scripts": {
     "docs:dev": "vitepress dev docs",

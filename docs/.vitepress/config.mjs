@@ -1,14 +1,26 @@
 import { defineConfig } from 'vitepress'
+import llmstxtPlugin from 'vitepress-plugin-llmstxt'
+
+const base = 'imaptest'
+const hostname = `https://dovecot.github.io/${base}/`
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  base: '/imaptest/',
+  base: `/${base}/`,
   title: "IMAP Server Tester",
   lang: 'en-US',
   description: "Documentation for the IMAP Server Tester",
 
+  vite: {
+    plugins: [
+      llmstxtPlugin({
+        hostname: hostname,
+      }),
+    ],
+  },
+
   sitemap: {
-    hostname: 'https://dovecot.github.io/imaptest/',
+    hostname: hostname,
   },
 
   themeConfig: {
@@ -49,6 +61,7 @@ export default defineConfig({
         items: [
           { text: 'Authors', link: '/authors' },
           { text: 'License', link: '/license' },
+          { text: 'LLM Resources', link: '/llms' },
         ]
       },
     ],
