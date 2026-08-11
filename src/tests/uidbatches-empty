@@ -1,0 +1,5 @@
+capabilities: UIDBATCHES
+
+# Empty mailbox — returns no ranges
+ok uidbatches 1000
+* uidbatches (tag $tag)
