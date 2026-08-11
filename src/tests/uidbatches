@@ -1,0 +1,22 @@
+capabilities: UIDBATCHES
+messages: 6
+
+# Basic UIDBATCHES — all batches (6 messages fit in one batch of 1000)
+ok uidbatches 1000
+* uidbatches (tag $tag) 1:6
+ok uidbatches 1000
+* uidbatches (tag $tag) 1:6
+
+# Batch range argument
+ok uidbatches 1000 1:2
+* uidbatches (tag $tag) 1:2
+
+# Out-of-bounds batch range — returns empty
+ok uidbatches 1 100:100
+* uidbatches (tag $tag)
+
+# Reversed batch range — BAD
+bad uidbatches 1000 4:1
+
+# Batch size below minimum — NO [TOOFEW]
+no [toofew] uidbatches 100
