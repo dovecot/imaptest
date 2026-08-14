@@ -13,6 +13,7 @@
 #include "mailbox.h"
 #include "profile.h"
 #include "pop3-client.h"
+#include "imaptest-events.h"
 #include "commands.h"
 
 #include <stdlib.h>
@@ -56,6 +57,9 @@ static void pop3_command_send(struct pop3_client *client, const char *cmdline,
 static void
 pop3_command_finish(struct pop3_client *client, struct pop3_command *cmd)
 {
+	struct imaptest_event ev;
+	long long duration_usecs;
+	struct timeval tv_now;
 	struct pop3_command *const *cmds;
 	unsigned int i, count;
 
@@ -70,11 +74,27 @@ pop3_command_finish(struct pop3_client *client, struct pop3_command *cmd)
 
 	counters[cmd->state]++;
 	client_state_add_to_timer(cmd->state, &cmd->tv_start);
+
+	i_gettimeofday(&tv_now);
+	duration_usecs = timeval_diff_usecs(&tv_now, &cmd->tv_start);
+	if (duration_usecs < 0)
+		duration_usecs = 0;
+
+	imaptest_event_cmd_completed(&ev,
+		client->client.global_id,
+		client->client.user->username,
+		"POP3",
+		states[cmd->state].name,
+		"OK",
+		duration_usecs,
+		"",
+		0);
 	pop3_command_free(cmd);
 }
 
 static int pop3_client_input_line(struct pop3_client *client, const char *line)
 {
+	struct imaptest_event ev;
 	struct pop3_command *const *cmdp;
 	int ret;
 
@@ -95,9 +115,24 @@ static int pop3_client_input_line(struct pop3_client *client, const char *line)
 	}
 	cmdp = array_idx(&client->commands, 0);
 	ret = (*cmdp)->callback(client, *cmdp, line);
+	if (ret < 0) {
+		struct pop3_command *const *cmdpp;
+
+		cmdpp = array_idx(&client->commands, 0);
+		imaptest_event_cmd_completed(&ev,
+			client->client.global_id,
+			client->client.user->username,
+			"POP3",
+			states[(*cmdpp)->state].name,
+			"ERR",
+			0,
+			"",
+			0);
+		return -1;
+	}
 	if (ret > 0)
 		pop3_command_finish(client, *cmdp);
-	return ret < 0 ? -1 : 0;
+	return 0;
 }
 
 static void pop3_client_input(struct client *_client)

@@ -37,7 +37,7 @@ struct settings {
 	const char *username_template, *username2_template;
 	const char *host, *master_user, *password;
 	const char *mailbox, *copy_dest, *mbox_path;
-	const char *mech;
+	const char *mech, *exporter;
 	unsigned int port;
 
 	ARRAY_TYPE(const_string) usernames;
@@ -53,7 +53,7 @@ struct settings {
 
 	bool random_states, no_pipelining, disconnect_quit;
 	bool no_tracking, rawlog, error_quit, own_msgs, own_flags, qresync,
-	     imap4rev2;
+	     imap4rev2, quiet;
 
 	struct ip_addr *ips;
 	unsigned int ip_idx, ips_count;

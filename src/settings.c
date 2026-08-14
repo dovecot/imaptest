@@ -18,4 +18,6 @@ void set_conf_default(struct settings *c)
 	c->domains_rand_start = 1;
 	c->domains_rand_count = DOMAIN_RAND;
 	c->mech = "LOGIN";
+	c->exporter = NULL;
+	c->quiet = FALSE;
 }

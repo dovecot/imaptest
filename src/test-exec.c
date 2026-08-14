@@ -16,6 +16,7 @@
 #include "settings.h"
 #include "test-parser.h"
 #include "test-exec.h"
+#include "imaptest-events.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,14 +113,18 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 	struct imap_client *client;
 	string_t *str;
 	va_list args;
+	const char *reason;
 
 	groupp = array_idx(&ctx->test->cmd_groups, ctx->cur_group_idx);
 	client = ctx->clients[(*groupp)->connection_idx];
 
 	va_start(args, fmt);
+	reason = t_strdup_vprintf(fmt, args);
+	va_end(args);
+
 	if (!ctx->init_finished) {
 		fprintf(stderr, "*** Test %s initialization failed: %s\n",
-			ctx->test->name, t_strdup_vprintf(fmt, args));
+			ctx->test->name, reason);
 	} else {
 		/* FIXME: we're now just showing the first command in the
 		   group. the failing one might be something else, or the
@@ -129,7 +134,7 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 		str_printfa(str, "*** Test %s command %u/%u (line %u)\n - failed: %s\n"
 			    " - Command", ctx->test->name, ctx->cur_group_idx+1,
 			    array_count(&ctx->test->cmd_groups),
-			    cmd->linenum, t_strdup_vprintf(fmt, args));
+			    cmd->linenum, reason);
 		if (cmd->cur_cmd_tag != 0 && client != NULL) {
 			str_printfa(str, " (tag %u.%u)",
 				    client->client.global_id, cmd->cur_cmd_tag);
@@ -137,13 +142,16 @@ test_fail(struct test_exec_context *ctx, const char *fmt, ...)
 		str_printfa(str, ": %s", cmd->command);
 		fprintf(stderr, "%s\n\n", str_c(str));
 	}
-	va_end(args);
 
 	if (ctx->test->required_capabilities == NULL)
 		ctx->exec_ctx->base_failures++;
 	else
 		ctx->exec_ctx->ext_failures++;
 	ctx->failed = TRUE;
+
+	struct imaptest_event ev;
+	imaptest_event_test_result(&ev,
+		ctx->test->name, FALSE, FALSE, reason);
 }
 
 static struct test_command *
@@ -1488,6 +1496,7 @@ static int test_execute(const struct test *test,
 
 static void tests_execute_next(struct tests_execute_context *exec_ctx)
 {
+	struct imaptest_event ev;
 	struct test *const *tests;
 	unsigned int count;
 
@@ -1500,7 +1509,11 @@ static void tests_execute_next(struct tests_execute_context *exec_ctx)
 		printf("base protocol: %u/%u individual commands failed\n",
 		       exec_ctx->base_failures, exec_ctx->base_tests);
 		printf("extensions: %u/%u individual commands failed\n",
-		       exec_ctx->ext_failures, exec_ctx->ext_tests);
+			   exec_ctx->ext_failures, exec_ctx->ext_tests);
+		imaptest_event_test_summary(&ev,
+			count, exec_ctx->group_failures, exec_ctx->group_skips,
+			exec_ctx->base_failures, exec_ctx->base_tests,
+			exec_ctx->ext_failures, exec_ctx->ext_tests);
 		io_loop_stop(current_ioloop);
 	}
 }
@@ -1528,6 +1541,7 @@ bool tests_execute_done(struct tests_execute_context **_ctx)
 
 static void test_execute_finish(struct test_exec_context *ctx)
 {
+	struct imaptest_event ev;
 	unsigned int i;
 
 	i_assert(!ctx->finished);
@@ -1535,8 +1549,14 @@ static void test_execute_finish(struct test_exec_context *ctx)
 
 	if (ctx->failed)
 		ctx->exec_ctx->group_failures++;
-	else if (ctx->skipped)
+	else if (ctx->skipped) {
 		ctx->exec_ctx->group_skips++;
+		imaptest_event_test_result(&ev,
+			ctx->test->name, TRUE, TRUE, "");
+	} else {
+		imaptest_event_test_result(&ev,
+			ctx->test->name, TRUE, FALSE, "");
+	}
 
 	/* disconnect all clients */
 	for (i = 0; i < ctx->test->connection_count; i++) {

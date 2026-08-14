@@ -8,6 +8,7 @@
 #include "mailbox.h"
 #include "imap-client.h"
 #include "checkpoint.h"
+#include "imaptest-events.h"
 
 #include <stdlib.h>
 
@@ -31,6 +32,24 @@ struct checkpoint_context {
 	bool errors:1;
 };
 
+static void checkpoint_error(struct imap_client *client, const char *fmt, ...)
+{
+	struct imaptest_event ev;
+	va_list args;
+	const char *error_detail;
+
+	va_start(args, fmt);
+	error_detail = t_strdup_vprintf(fmt, args);
+	va_end(args);
+
+	e_error(client->client.event, "%s", error_detail);
+	imaptest_event_checkpoint_error(&ev,
+		client->client.global_id,
+		client->client.user->username,
+		client->storage != NULL ? client->storage->name : "",
+		error_detail);
+}
+
 static void
 keyword_map_update(struct checkpoint_context *ctx, struct imap_client *client)
 {
@@ -51,7 +70,7 @@ keyword_map_update(struct checkpoint_context *ctx, struct imap_client *client)
 		if (j == all_count) {
 			name = kw_my[i].name->name;
 			if (!ctx->first) {
-				e_error(client->client.event,
+				checkpoint_error(client,
 					"Checkpoint: Missing keyword %s",
 					name);
 			}
@@ -115,7 +134,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 	uids = array_get(&view->uidmap, &count);
 	if (count != ctx->count) {
 		ctx->errors = TRUE;
-		e_error(client->client.event,
+		checkpoint_error(client,
 			"Checkpoint: Mailbox has only %u of %u messages",
 			count, ctx->count);
 	}
@@ -124,14 +143,14 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 		/* no THREAD checking */
 	} else if (client->view->last_thread_reply == NULL) {
 		ctx->errors = TRUE;
-		e_error(client->client.event,
+		checkpoint_error(client,
 			"Checkpoint: Missing THREAD reply");
 	} else if (ctx->thread_reply == NULL)
 		ctx->thread_reply = client->view->last_thread_reply;
 	else if (strcmp(client->view->last_thread_reply,
 			ctx->thread_reply) != 0) {
 		ctx->errors = TRUE;
-		e_error(client->client.event,
+		checkpoint_error(client,
 			"Checkpoint: THREAD reply differs: %s != %s",
 			client->view->last_thread_reply,
 			ctx->thread_reply);
@@ -150,7 +169,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 			ctx->uids[i] = uids[i];
 		if (uids[i] != ctx->uids[i]) {
 			ctx->errors = TRUE;
-			e_error(client->client.event,
+			checkpoint_error(client,
 				"Checkpoint: Message seq=%u UID %u != %u",
 				i + 1, uids[i], ctx->uids[i]);
 			break;
@@ -162,7 +181,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 				ctx->messages[i].modseq = msgs[i].modseq;
 			else if (ctx->messages[i].modseq != msgs[i].modseq) {
 				ctx->errors = TRUE;
-				e_error(client->client.event,
+				checkpoint_error(client,
 					"Checkpoint: Message seq=%u UID=%u "
 					"modseqs differ: %s vs %s",
 					i + 1, uids[i],
@@ -195,7 +214,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 			if ((ctx->messages[i].mail_flags & MAIL_RECENT) == 0)
 				ctx->messages[i].mail_flags |= MAIL_RECENT;
 			else {
-				e_error(client->client.event,
+				checkpoint_error(client,
 					"Checkpoint: Message seq=%u UID=%u "
 					"has \\Recent flag in multiple sessions",
 					i + 1, uids[i]);
@@ -207,7 +226,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 		other_flags = ctx->messages[i].mail_flags & ~MAIL_RECENT;
 		if (this_flags != other_flags) {
 			ctx->errors = TRUE;
-			e_error(client->client.event,
+			checkpoint_error(client,
 				"Checkpoint: Message seq=%u UID=%u "
 				"flags differ: (%s) vs (%s)",
 				i + 1, uids[i],
@@ -217,7 +236,7 @@ checkpoint_update(struct checkpoint_context *ctx, struct imap_client *client)
 		if (memcmp(keywords_remapped, ctx->messages[i].keyword_bitmask,
 			   dest_keywords_size) != 0) {
 			ctx->errors = TRUE;
-			e_error(client->client.event,
+			checkpoint_error(client,
 				"Checkpoint: Message seq=%u UID=%u "
 				"keywords differ: (%s) vs (%s)",
 				i + 1, uids[i],
