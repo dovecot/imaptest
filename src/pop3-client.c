@@ -7,6 +7,7 @@
 #include "istream.h"
 #include "ostream.h"
 #include "time-util.h"
+#include "client-auth-settings.h"
 #include "dsasl-client.h"
 
 #include "settings.h"
@@ -161,9 +162,11 @@ static int auth_sasl_callback(struct pop3_client *client, struct pop3_command *c
 	/* decode */
 	buffer_t *input = t_base64_decode(0, line + 2, strlen(line) - 2);
 
-	if (dsasl_client_input(client->sasl_client, input->data, input->used, &error) < 0 ||
-	    dsasl_client_output(client->sasl_client, &out, &outlen, &error) < 0) {
-		dsasl_client_free(&client->sasl_client);
+	if (dsasl_client_session_input(client->sasl_session,
+				       input->data, input->used, &error) < 0 ||
+	    dsasl_client_session_output(client->sasl_session,
+					&out, &outlen, &error) < 0) {
+		dsasl_client_session_destroy(&client->sasl_session);
 		pop3_client_input_error(client, "AUTHENTICATE failed: %s", error);
 		return -1;
 	}
@@ -208,17 +211,29 @@ static int user_callback(struct pop3_client *client,
 
 static void start_sasl_login(struct pop3_client *client)
 {
-	struct dsasl_client_settings set = {
-		.authid = client->client.user->username,
+	const char *error;
+	int ret;
+
+	const struct client_auth_settings set = {
+		.mechanism = conf.mech,
+		.authzid = client->client.user->username,
 		.password = client->client.user->password,
 	};
-	const struct dsasl_client_mech *mech = dsasl_client_mech_find(conf.mech);
-	if (mech == NULL) {
-		pop3_client_input_error(client, "AUTHENTICATE failed: %s mech not supported", conf.mech);
+	ret = dsasl_client_session_create(sasl_client, NULL, NULL, &set,
+					  &client->sasl_session, &error);
+	if (ret < 0) {
+		pop3_client_input_error(client, "AUTHENTICATE failed: %s",
+					error);
 		return;
 	}
-	client->sasl_client = dsasl_client_new(mech, &set);
-	const char *cmd = t_strdup_printf("AUTH %s", dsasl_client_mech_get_name(mech));
+	if (ret == 0) {
+		pop3_client_input_error(client, "AUTHENTICATE failed: "
+					"No authentication configured");
+		return;
+	}
+
+	const char *cmd = t_strdup_printf("AUTH %s",
+		dsasl_client_session_get_mech_name(client->sasl_session));
 	pop3_command_send(client,cmd, auth_sasl_callback);
 }
 

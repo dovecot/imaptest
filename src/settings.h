@@ -65,6 +65,8 @@ struct settings {
 extern struct settings conf;
 extern bool profile_running;
 
+extern struct dsasl_client *sasl_client;
+
 void error_quit(void);
 void set_conf_default(struct settings *conf);
 

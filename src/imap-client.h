@@ -43,7 +43,7 @@ struct imap_client {
 	struct client client;
 
 	struct imap_parser *parser;
-	struct dsasl_client *sasl_client;
+	struct dsasl_client_session *sasl_session;
 	enum imap_capability capabilities;
 	char **capabilities_list;
 	struct timeout *to_flush;
