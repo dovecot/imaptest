@@ -13,6 +13,8 @@
 #include "mailbox-source.h"
 #include "commands.h"
 #include "imaptest-lmtp.h"
+#include "net.h"
+#include "settings.h"
 #include "profile.h"
 
 #include <stdlib.h>
@@ -26,6 +28,7 @@
 
 static time_t users_min_timestamp = INT_MAX;
 static struct timeout *to_users;
+static struct profile *current_profile = NULL;
 
 static void user_mailbox_action_move(struct imap_client *client,
 				     const char *mailbox, uint32_t uid);
@@ -415,11 +418,30 @@ static void deliver_new_mail(struct user *user, const char *mailbox)
 			t_strdup_printf("%s+%s", rcpt_to->localpart, mailbox);
 	}
 
-	imaptest_lmtp_send(user->profile->profile->lmtp_port,
+	imaptest_lmtp_send(user->profile->profile,
+			   user->profile->profile->lmtp_port,
 			   user->profile->profile->lmtp_max_parallel_count,
 			   rcpt_to, mailbox_source);
 }
 
+bool profile_resolve_ip(const char *host, ARRAY_TYPE(ip_addr_array) *ips)
+{
+	struct ip_addr *ips_ptr;
+	unsigned int ips_count;
+	int ret;
+
+	i_assert(host != NULL);
+
+	if ((ret = net_gethostbyname(host, &ips_ptr, &ips_count)) != 0) {
+		i_error("net_gethostbyname(%s) failed: %s",
+			host, net_gethosterror(ret));
+		return FALSE;
+	}
+
+	array_append(ips, ips_ptr, ips_count);
+	i_free(ips_ptr);
+	return TRUE;
+}
 static bool user_client_is_connected(struct user_client *uc)
 {
 	struct client *client;
@@ -723,6 +745,8 @@ users_add_from_user_profile(const struct profile_user *user_profile,
 void profile_add_users(struct profile *profile, ARRAY_TYPE(user) *users,
 		       struct mailbox_source *source)
 {
+	current_profile = profile;
+
 	struct profile_user *user;
 
 	i_array_init(users, 128);
@@ -732,6 +756,18 @@ void profile_add_users(struct profile *profile, ARRAY_TYPE(user) *users,
 
 void profile_deinit(void)
 {
+	struct profile *p;
+
 	if (to_users != NULL)
 		timeout_remove(&to_users);
+
+	if (current_profile == NULL)
+		return;
+
+	p = current_profile;
+	current_profile = NULL;
+
+	array_free(&p->imap_ips);
+	array_free(&p->pop3_ips);
+	array_free(&p->lmtp_ips);
 }

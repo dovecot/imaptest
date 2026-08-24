@@ -28,6 +28,7 @@ struct client {
 	struct client_vfuncs v;
 	enum client_protocol protocol;
 	unsigned int port;
+	char *ssl_hostname;
 
 	unsigned int idx, global_id;
 	unsigned int cur;
@@ -62,7 +63,8 @@ extern bool stalled, disconnect_clients, scripted_tests_running;
 struct client *client_new_user(struct user *user);
 struct client *client_new_random(unsigned int i, struct mailbox_source *source);
 int client_init(struct client *client, unsigned int idx,
-		struct user *user, struct user_client *uc);
+		struct user *user, struct user_client *uc,
+		const struct ip_addr *ip);
 bool client_unref(struct client *client, bool reconnect);
 void client_logout(struct client *client);
 void client_disconnect(struct client *client);

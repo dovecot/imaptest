@@ -17,12 +17,6 @@ Duration settings are parsed the same as
 
 ## Global Parameters
 
-### `lmtp_port`
-
-* Default: \<none\> (**REQUIRED**)
-
-Port number to use for LMTP. The host is assumed to be the same as for IMAP.
-
 ### `lmtp_max_parallel_count`
 
 * Default: `0` (unlimited)
@@ -56,6 +50,42 @@ connections for the users.
 Total number of users used for the test. This is divided between user {}
 definitions according to their count=n% settings.
 
+## Protocol Override Sections
+
+You can specify per-protocol host and port overrides using `imap {}`, `pop3 {}`,
+and `lmtp {}` sections. When set, clients for that protocol connect to the
+specified host:port instead of the global `host`/`port` values.
+
+```
+imap {
+    host = imap.example.com
+    port = 143 # DEFAULT
+}
+
+pop3 {
+    host = pop3.example.com
+    port = 110 # DEFAULT
+}
+
+lmtp {
+    host = lmtp.example.com
+    port = 24 # DEFAULT
+}
+```
+
+- `host` — hostname or IP address for this protocol (optional)
+- `port` — port number for this protocol (optional)
+
+When `host` is set, SSL SNI uses the specified hostname. When `port` is
+omitted, the protocol default is used.
+
+::: tip
+All three protocol sections (`imap {}`, `pop3 {}`, `lmtp {}`) are
+optional. You may override just the host, just the port, or both for
+any protocol independently. If neither `host` nor `port` is set for a
+protocol, the global [`host`](/configuration#host) and the port
+defaults (defined above) are used as fallbacks.
+:::
 
 ## User Definitions
 

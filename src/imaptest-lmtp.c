@@ -11,6 +11,9 @@
 #include "smtp-client-transaction.h"
 #include "settings.h"
 #include "mailbox-source.h"
+#include "array.h"
+#include "profile.h"
+#include "net.h"
 #include "client.h"
 #include "client-state.h"
 #include "imaptest-lmtp.h"
@@ -103,7 +106,8 @@ static void imaptest_lmtp_timeout(struct imaptest_lmtp_delivery *d)
 	smtp_client_connection_disconnect(d->lmtp_conn);
 }
 
-void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
+void imaptest_lmtp_send(struct profile *profile,
+			unsigned int port, unsigned int lmtp_max_parallel_count,
 			const struct smtp_address *rcpt_to,
 			struct mailbox_source *source)
 {
@@ -138,10 +142,20 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 	d->rcpt_to = smtp_address_clone(default_pool, rcpt_to);
 	i_gettimeofday(&d->tv_start);
 
+	if (profile != NULL) {
+		const struct ip_addr *ips;
+		unsigned int count;
 
-	ip = &conf.ips[conf.ip_idx];
-	if (++conf.ip_idx == conf.ips_count)
-		conf.ip_idx = 0;
+		ips = array_get(&profile->lmtp_ips, &count);
+		i_assert(count > 0);
+		ip = &ips[profile->lmtp_ip_idx];
+		if (++profile->lmtp_ip_idx == count)
+			profile->lmtp_ip_idx = 0;
+	} else {
+		ip = &conf.ips[conf.ip_idx];
+		if (++conf.ip_idx == conf.ips_count)
+			conf.ip_idx = 0;
+	}
 
 	d->lmtp_conn = smtp_client_connection_create(lmtp_client,
 		SMTP_PROTOCOL_LMTP, net_ip2addr(ip), port,

@@ -57,6 +57,17 @@ the command line. Use [`userfile`](#userfile) if you need that functionality.
 
 Port to connect to.
 
+::: warning
+When running in [profile mode](/profile),
+this setting is ambiguous, as profile mode supports connections to
+IMAP, POP3, and LMTP. Use the port settings in the profile configuration
+instead.
+
+In profile mode, `port` continues to be used as the IMAP port fallback
+for backward compatibility, but a warning is issued. Use the `imap {}`
+section in your profile to set the IMAP port explicitly, if needed.
+:::
+
 ### `user`
 
 * Default: `$USER`
