@@ -164,6 +164,7 @@ struct mailbox_view {
 	uint64_t highest_modseq;
 
 	char *last_thread_reply;
+	char *last_uidbatches_reply; /* stored for future use, not currently read */
 
 	/* all keywords used currently in a mailbox */
 	ARRAY_TYPE(mailbox_keyword) keywords;
