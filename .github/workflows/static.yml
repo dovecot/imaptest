@@ -21,11 +21,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout imaptest
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: imaptest
       - name: Checkout dovecot
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: dovecot/core
           path: core
@@ -69,11 +69,11 @@ jobs:
     runs-on: ${{ matrix.image }}
     steps:
       - name: Checkout imaptest
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: imaptest
       - name: Checkout dovecot
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: dovecot/core
           path: core
@@ -164,11 +164,11 @@ jobs:
         image: ${{ matrix.container }}
     steps:
       - name: Checkout imaptest
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: imaptest
       - name: Checkout dovecot
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: dovecot/core
           path: core
