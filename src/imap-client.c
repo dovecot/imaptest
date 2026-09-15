@@ -18,6 +18,7 @@
 #include "search.h"
 #include "mailbox.h"
 #include "mailbox-state.h"
+#include "imaptest-events.h"
 #include "checkpoint.h"
 #include "profile.h"
 #include "test-exec.h"
@@ -541,6 +542,9 @@ imap_client_input_banner(struct imap_client *client,
 static int
 imap_client_input_args(struct imap_client *client, const struct imap_arg *args)
 {
+	struct imaptest_event ev;
+	long long duration_usecs;
+	struct timeval tv_now;
 	const char *p, *tag, *tag_status;
 	struct command *cmd = NULL;
 	enum command_reply reply;
@@ -611,6 +615,21 @@ imap_client_input_args(struct imap_client *client, const struct imap_arg *args)
 	}
 
 	command_unlink(client, cmd);
+
+	i_gettimeofday(&tv_now);
+	duration_usecs = timeval_diff_usecs(&tv_now, &cmd->tv_start);
+	if (duration_usecs < 0)
+		duration_usecs = 0;
+
+	imaptest_event_cmd_completed(&ev,
+		client->client.global_id,
+		client->client.user->username,
+		"IMAP",
+		states[cmd->state].name,
+		tag_status,
+		duration_usecs,
+		client->storage != NULL ? client->storage->name : "",
+		cmd->tag);
 
 	o_stream_cork(client->client.output);
 	cmd->callback(client, cmd, args, reply);
