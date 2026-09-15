@@ -417,14 +417,38 @@ pop3_client_new(unsigned int idx, struct user *user, struct user_client *uc,
 		struct pop3_client **client_r)
 {
 	struct pop3_client *client;
+	const struct ip_addr *ip;
+
+	if (user->profile != NULL) {
+		struct profile *p = user->profile->profile;
+		const struct ip_addr *ips;
+		unsigned int count;
+
+		ips = array_get(&p->pop3_ips, &count);
+		i_assert(count > 0);
+		ip = &ips[p->pop3_ip_idx];
+		if (++p->pop3_ip_idx == count)
+			p->pop3_ip_idx = 0;
+	} else {
+		ip = &conf.ips[conf.ip_idx];
+		if (++conf.ip_idx == conf.ips_count)
+			conf.ip_idx = 0;
+	}
 
 	client = i_new(struct pop3_client, 1);
 	client->client.protocol = CLIENT_PROTOCOL_POP3;
-	client->client.port = conf.port != 0 ? conf.port : 110;
-	if (client_init(&client->client, idx, user, uc) < 0) {
+	if (user->profile != NULL)
+		client->client.port = user->profile->profile->pop3_port;
+	else
+		client->client.port = conf.port != 0 ? conf.port : POP3_DEFAULT_PORT;
+
+	if (client_init(&client->client, idx, user, uc, ip) < 0) {
 		i_free(client);
 		return -1;
 	}
+
+	client->client.ssl_hostname = i_strdup(user->profile != NULL && user->profile->profile->pop3_host != NULL ?
+		user->profile->profile->pop3_host : conf.host);
 
 	client->pop3_keep_mails = uc != NULL && uc->profile->pop3_keep_mails;
 	client->uidls_pool = pool_alloconly_create("pop3 client", 1024);

@@ -805,15 +805,39 @@ imap_client_new(unsigned int idx, struct user *user, struct user_client *uc,
 		struct imap_client **client_r)
 {
 	struct imap_client *client;
+	const struct ip_addr *ip;
 	const char *mailbox;
+
+	if (user->profile != NULL) {
+		struct profile *p = user->profile->profile;
+		const struct ip_addr *ips;
+		unsigned int count;
+
+		ips = array_get(&p->imap_ips, &count);
+		i_assert(count > 0);
+		ip = &ips[p->imap_ip_idx];
+		if (++p->imap_ip_idx == count)
+			p->imap_ip_idx = 0;
+	} else {
+		ip = &conf.ips[conf.ip_idx];
+		if (++conf.ip_idx == conf.ips_count)
+			conf.ip_idx = 0;
+	}
 
 	client = i_new(struct imap_client, 1);
 	client->client.protocol = CLIENT_PROTOCOL_IMAP;
-	client->client.port = conf.port != 0 ? conf.port : 143;
-	if (client_init(&client->client, idx, user, uc) < 0) {
+	if (user->profile != NULL && user->profile->profile->imap_port != 0)
+		client->client.port = user->profile->profile->imap_port;
+	else
+		client->client.port = conf.port != 0 ? conf.port : IMAP_DEFAULT_PORT;
+
+	if (client_init(&client->client, idx, user, uc, ip) < 0) {
 		i_free(client);
 		return -1;
 	}
+
+	client->client.ssl_hostname = i_strdup(user->profile != NULL && user->profile->profile->imap_host != NULL ?
+		user->profile->profile->imap_host : conf.host);
 
 	if (strchr(conf.mailbox, '%') != NULL ||
 	    client->client.user_client != NULL)

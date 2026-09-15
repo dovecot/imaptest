@@ -458,7 +458,7 @@ static void print_help(void)
 "Connection & Network:\n"
 "  host=HOST          Host to connect to [%s]\n"
 "  hostip=IP          Override IP address for host\n"
-"  port=PORT          Port to connect to (default: 143/110)\n"
+"  port=PORT          Port to connect to (default: %u/%u)\n"
 "  ssl                Activate SSL/TLS\n"
 "  ssl=any-cert       Activate SSL/TLS and allow invalid certificates\n"
 "  ssl_ca_file=FILE   Load CA certificates from file\n"
@@ -496,6 +496,7 @@ static void print_help(void)
 "  -                  Set all probabilities to 0%% except LOGIN, LOGOUT, SELECT\n"
 "  <state>[=n[,m]]    Set state's probability to n%% and repeat probability to m%%\n",
 	USER_RAND, DOMAIN_RAND, HOST,
+	IMAP_DEFAULT_PORT, POP3_DEFAULT_PORT,
 	CLIENTS_COUNT, MESSAGE_COUNT_THRESHOLD);
 }
 static void
@@ -833,6 +834,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 
 		i_fatal("Unknown arg: %s", *argv);
 	}
+	if (profile_running && conf.port != 0)
+		i_warning("port= is deprecated in profile mode (used as IMAP port only)");
 	if (conf.mailbox == NULL)
 		conf.mailbox = testpath == NULL ? "INBOX" : "imaptest";
 
@@ -845,12 +848,29 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	if (testpath != NULL && strchr(conf.username_template, '%') != NULL)
 		i_fatal("Don't use %% in username with tests");
 
-	if (hostip == NULL)
-		hostip = conf.host;
-	if ((ret = net_gethostbyname(hostip, &conf.ips,
-				     &conf.ips_count)) != 0) {
-		i_fatal("net_gethostbyname(%s) failed: %s",
-			hostip, net_gethosterror(ret));
+	if (profile == NULL) {
+		if (hostip == NULL)
+			hostip = conf.host;
+		if ((ret = net_gethostbyname(hostip, &conf.ips,
+					     &conf.ips_count)) != 0) {
+			i_fatal("net_gethostbyname(%s) failed: %s",
+				hostip, net_gethosterror(ret));
+		}
+	} else {
+		if (hostip == NULL)
+			hostip = conf.host;
+		if (!profile_resolve_ip(profile->imap_host != NULL ?
+					profile->imap_host : hostip,
+					&profile->imap_ips))
+			i_fatal("Failed to resolve IMAP host");
+		if (!profile_resolve_ip(profile->pop3_host != NULL ?
+					profile->pop3_host : hostip,
+					&profile->pop3_ips))
+			i_fatal("Failed to resolve POP3 host");
+		if (!profile_resolve_ip(profile->lmtp_host != NULL ?
+					profile->lmtp_host : hostip,
+					&profile->lmtp_ips))
+			i_fatal("Failed to resolve LMTP host");
 	}
 
 	lib_set_clean_exit(FALSE);
@@ -876,8 +896,8 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	mailboxes_deinit();
 	users_deinit();
 	if (profile != NULL) {
-		pool_unref(&profile->pool);
 		profile_deinit();
+		pool_unref(&profile->pool);
 	}
 	mailbox_source_unref(&mailbox_source);
 
