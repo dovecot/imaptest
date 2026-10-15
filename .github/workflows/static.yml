@@ -163,6 +163,9 @@ jobs:
     container:
         image: ${{ matrix.container }}
     steps:
+      - name: Install git (needed for a real git checkout)
+        run: |
+          dnf install -y git
       - name: Checkout imaptest
         uses: actions/checkout@v4
         with:
