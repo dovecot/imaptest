@@ -163,6 +163,10 @@ jobs:
     container:
         image: ${{ matrix.container }}
     steps:
+      - name: Install git for checkout and version generation
+        run: |
+          dnf makecache
+          dnf install -y git
       - name: Checkout imaptest
         uses: actions/checkout@v4
         with:
@@ -172,10 +176,13 @@ jobs:
         with:
           repository: dovecot/core
           path: core
+      - name: Mark workspace as safe for git
+        run: |
+          git config --global --add safe.directory '*'
       - name: Install build dependencies
         run: |
           dnf makecache
-          dnf install -y gcc gcc-c++ make automake autoconf libtool pkgconf-pkg-config gettext zlib-devel openssl-devel autoconf-archive diffutils file wget git perl-version python3
+          dnf install -y gcc gcc-c++ make automake autoconf libtool pkgconf-pkg-config gettext zlib-devel openssl-devel autoconf-archive diffutils file wget perl-version python3
       - name: Add repositories
         run: |
           cat <<EOF > /etc/yum.repos.d/stream.repo
