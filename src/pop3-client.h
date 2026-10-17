@@ -23,7 +23,7 @@ struct pop3_client {
 	struct client client;
 	const char *cur_line;
 	const char *mech;
-	struct dsasl_client *sasl_client;
+	struct dsasl_client_session *sasl_session;
 	ARRAY(struct pop3_command *) commands;
 
 	pool_t uidls_pool;

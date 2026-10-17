@@ -33,6 +33,7 @@
 
 struct settings conf;
 bool profile_running = FALSE;
+struct dsasl_client *sasl_client;
 
 static struct ioloop *ioloop;
 static int return_value = 0;
@@ -861,7 +862,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 	users_init(profile, mailbox_source);
 	mailboxes_init();
 	clients_init();
-	dsasl_clients_init();
+	sasl_client = dsasl_client_create(NULL);
 #ifdef STATIC_OPENSSL
 	ssl_iostream_openssl_init();
 #endif
@@ -894,7 +895,7 @@ int main(int argc ATTR_UNUSED, char *argv[])
 #ifdef STATIC_OPENSSL
 	ssl_iostream_openssl_deinit();
 #endif
-	dsasl_clients_deinit();
+	dsasl_client_unref(&sasl_client);
 	lib_signals_deinit();
 	io_loop_destroy(&ioloop);
 	lib_deinit();
