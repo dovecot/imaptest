@@ -234,6 +234,74 @@ static int client_vanished(struct imap_client *client, const struct imap_arg *ar
 	return 0;
 }
 
+static int
+client_uidbatches(struct imap_client *client, const struct imap_arg *args)
+{
+	struct mailbox_view *view = client->view;
+	const struct imap_arg *ranges, *subargs;
+
+	i_free(view->last_uidbatches_reply);
+	if (IMAP_ARG_IS_EOL(args)) {
+		view->last_uidbatches_reply = NULL;
+		imap_client_input_error(client,
+			"UIDBATCHES response missing search-correlator");
+		return -1;
+	}
+
+	/* args[0] must be (TAG <string>) */
+	if (args[0].type != IMAP_ARG_LIST ||
+		!imap_arg_get_list(args, &subargs) ||
+		!imap_arg_atom_equals(&subargs[0], "TAG")) {
+		imap_client_input_error(client,
+			"UIDBATCHES response has invalid search-correlator");
+		return -1;
+	}
+
+	/* args[1..] are uid-range atoms — validate structure.
+	 * RFC 10022: uid-range *("," uid-range) is a single comma-separated atom.
+	 * imap_seq_range_parse is slightly permissive (accepts "*" wildcard), but
+	 * harmless — uid-range = uniqueid ":" uniqueid never uses "*". */
+	uint32_t prev_high = 0;
+	ranges = args + 1;
+	for (; !IMAP_ARG_IS_EOL(&ranges[0]); ranges++) {
+		const char *atom;
+
+		if (!imap_arg_get_atom(ranges, &atom)) {
+			imap_client_input_error(client,
+				"UIDBATCHES response has non-atom range");
+			return -1;
+		}
+
+		for (const char *p = atom; *p != '\0';) {
+			const char *comma = strchr(p, ',');
+			const char *range_str = t_strdup_until(p,
+				comma == NULL ? p + strlen(p) : comma);
+			uint32_t low, high;
+
+			if (imap_seq_range_parse(range_str, &low, &high) < 0) {
+				imap_client_input_error(client,
+					"UIDBATCHES range invalid: %s", range_str);
+				return -1;
+			}
+
+			/* RFC 10022 §3.1: ranges returned in descending UID order */
+			if (prev_high > 0 && high > prev_high) {
+				imap_client_input_error(client,
+					"UIDBATCHES ranges not descending: %s after high %u",
+					range_str, prev_high);
+				return -1;
+			}
+			prev_high = high;
+
+			p = comma == NULL ? p + strlen(p) : comma + 1;
+		}
+	}
+
+	view->last_uidbatches_reply = IMAP_ARG_IS_EOL(&args[1]) ?
+		NULL : i_strdup(imap_args_to_str(args));
+	return 0;
+}
+
 static void
 imap_client_list_result(struct imap_client *client, const struct imap_arg *args)
 {
@@ -346,6 +414,7 @@ void imap_client_mailbox_close(struct imap_client *client)
 	}
 	mailbox_view_free(&client->view);
 	client->view = mailbox_view_new(client->storage);
+	client->uid_fetch_performed = FALSE;
 }
 
 struct mailbox_list_entry *
@@ -443,6 +512,9 @@ int imap_client_handle_untagged(struct imap_client *client,
 		imap_client_enabled(client, args);
 	else if (strcmp(str, "VANISHED") == 0) {
 		if (client_vanished(client, args) < 0)
+			return -1;
+	} else if (strcmp(str, "UIDBATCHES") == 0) {
+		if (client_uidbatches(client, args) < 0)
 			return -1;
 	} else if (strcmp(str, "THREAD") == 0) {
 		i_free(view->last_thread_reply);
