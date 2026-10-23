@@ -18,6 +18,7 @@
 #include "mailbox-state.h"
 #include "commands.h"
 #include "checkpoint.h"
+#include "imaptest-events.h"
 #include "profile.h"
 #include "search.h"
 #include "test-exec.h"
@@ -248,6 +249,7 @@ struct client *client_new_random(unsigned int i, struct mailbox_source *source)
 int client_init(struct client *client, unsigned int idx,
 		struct user *user, struct user_client *uc)
 {
+	struct imaptest_event ev;
 	const struct ip_addr *ip;
 	int fd;
 
@@ -284,7 +286,6 @@ int client_init(struct client *client, unsigned int idx,
 	event_set_append_log_prefix(client->event,
 		t_strdup_printf("%s[%u]: ", user->username,
 				client->global_id));
-
 	ip = &conf.ips[conf.ip_idx];
 	fd = net_connect_ip(ip, client->port, NULL);
 	if (++conf.ip_idx == conf.ips_count)
@@ -295,6 +296,12 @@ int client_init(struct client *client, unsigned int idx,
 		event_unref(&client->event);
 		return -1;
 	}
+
+	i_gettimeofday(&client->connect_time_tv);
+	imaptest_event_client_connected(&ev,
+		client->global_id, client->user->username,
+		client->protocol == CLIENT_PROTOCOL_IMAP ? "IMAP" : "POP3",
+		client->port);
 
 	client->fd = fd;
 	client->rawlog_fd = -1;
@@ -359,10 +366,33 @@ static void clients_unstalled(struct mailbox_source *source)
 
 bool client_unref(struct client *client, bool reconnect)
 {
+	struct imaptest_event ev;
+	long long duration_usecs;
+	struct timeval tv_now;
 	struct mailbox_source *source = client->user->mailbox_source;
 	unsigned int idx = client->idx;
+	const char *reason;
 
 	i_assert(client->refcount > 0);
+	if (client->refcount == 1) {
+		if (client->logout_sent)
+			reason = "Logout";
+		else if (client->input != NULL && client->input->stream_errno != 0)
+			reason = i_stream_get_error(client->input);
+		else if (client->disconnected)
+			reason = "Disconnected";
+		else
+			reason = "Closed";
+
+		i_gettimeofday(&tv_now);
+		duration_usecs = timeval_diff_usecs(&tv_now, &client->connect_time_tv);
+		if (duration_usecs < 0)
+			duration_usecs = 0;
+
+		imaptest_event_client_disconnected(&ev,
+			client->global_id, client->user->username,
+			reason != NULL ? reason : "", duration_usecs);
+	}
 	if (--client->refcount > 0)
 		return TRUE;
 
