@@ -1,6 +1,6 @@
 bin_PROGRAMS = imaptest
 noinst_PROGRAMS = test-test-parser
-check_PROGRAMS = test-client-stalled
+check_PROGRAMS = test-client-stalled test-profile-parser
 TESTS = $(check_PROGRAMS)
 
 AM_CPPFLAGS = $(LIBDOVECOT_INCLUDE) -DSTATIC_OPENSSL=1
@@ -34,6 +34,12 @@ imaptest_SOURCES = \
 test_test_parser_SOURCES = test-test-parser.c test-parser.c settings.c
 test_test_parser_LDADD = $(imaptest_LDADD)
 test_test_parser_CFLAGS = $(imaptest_CFLAGS)
+
+test_profile_parser_SOURCES = \
+	$(common_sources) \
+	test-profile-parser.c
+test_profile_parser_LDADD = $(imaptest_LDADD)
+test_profile_parser_CFLAGS = $(imaptest_CFLAGS)
 
 test_client_stalled_SOURCES = \
 	$(common_sources) \
