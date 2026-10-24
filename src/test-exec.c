@@ -1069,6 +1069,24 @@ static void test_send_first_command(struct test_exec_context *ctx)
 	test_send_next_command_group(ctx);
 }
 
+static void test_init_failed(struct test_exec_context *ctx)
+{
+	unsigned int i;
+
+	if (ctx->finished)
+		return;
+
+	/* The startup state didn't advance, so the failed command would just
+	   be sent again forever. Give up on the test instead. */
+	for (i = 0; i < ctx->test->connection_count; i++) {
+		if (ctx->clients[i] != NULL) {
+			ctx->clients[i]->client.v.send_more_commands =
+				test_send_no_commands;
+		}
+	}
+	test_execute_finish(ctx);
+}
+
 static void wakeup_clients(struct test_exec_context *ctx)
 {
 	unsigned int i;
@@ -1116,8 +1134,10 @@ static void init_callback(struct imap_client *client, struct command *command,
 
 	if (reply == REPLY_CONT) {
 		i_assert(command->state == STATE_APPEND);
-		if (imap_client_append_continue(client) < 0)
+		if (imap_client_append_continue(client) < 0) {
 			test_fail(ctx, "APPEND failed");
+			test_init_failed(ctx);
+		}
 		return;
 	}
 	imap_client_handle_tagged_reply(client, command, args, reply);
@@ -1129,6 +1149,7 @@ static void init_callback(struct imap_client *client, struct command *command,
 		test_fail(ctx, "%s (tag %u.%u) failed: %s", command->cmdline,
 			  client->client.global_id, command->tag,
 			  imap_args_to_str(args));
+		test_init_failed(ctx);
 		return;
 	}
 	if (ctx->listing) {
@@ -1173,9 +1194,11 @@ capability_callback(struct imap_client *client, struct command *command,
 {
 	struct test_exec_context *ctx = client->test_exec_ctx;
 
-	if (reply != REPLY_OK || !client->postlogin_capability)
-		test_fail(ctx, "CAPABILITY failed");
 	imap_client_handle_tagged_reply(client, command, args, reply);
+	if (reply != REPLY_OK || !client->postlogin_capability) {
+		test_fail(ctx, "CAPABILITY failed");
+		test_init_failed(ctx);
+	}
 }
 
 static void
