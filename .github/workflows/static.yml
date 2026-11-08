@@ -131,9 +131,8 @@ jobs:
           sudo dovecot
           mkdir ~/mail/
           curl --location https://www.dovecot.org/res/dovecot.mbox > ~/mail/dovecot-crlf
-          env USER=testuser1 PATH=$PATH:$PWD/imaptest/src run-parts imaptest/tests
+          ./imaptest/runtest.sh
           sudo dovecot stop
-          cat /tmp/dovecot.log
       - name: Strip imaptest
         run: |
           strip --strip-all imaptest/src/imaptest
