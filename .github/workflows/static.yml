@@ -104,11 +104,14 @@ jobs:
         run: |
           mv src/lib-compression/libcompression.la.bak src/lib-compression/libcompression.la
           mv src/lib-dovecot/libdovecot.la.bak src/lib-dovecot/libdovecot.la
+          mkdir /tmp/inst1
           sudo make install
           cat <<EOF | sudo tee /usr/local/etc/dovecot/dovecot.conf
           dovecot_config_version = 0.0.0
           dovecot_storage_version = 2.4.0
-          mail_home = /tmp/home
+          base_dir = /tmp/inst1/run
+          state_dir = /tmp/inst1/lib
+          mail_home = /tmp/home/%{user}
           mail_path = ~/mail
           mail_driver = maildir
           protocols = imap
@@ -121,6 +124,7 @@ jobs:
             password = swordfish
           }
           mail_utf8_extensions = yes
+          log_path = /tmp/dovecot.log
           EOF
       - name: Test imaptest
         run: |
