@@ -2,4 +2,4 @@
 
 set -eux
 
-imaptest pass=swordfish secs=5
+imaptest pass=swordfish secs=5 error_quit
