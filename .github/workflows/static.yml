@@ -95,7 +95,6 @@ jobs:
         working-directory: ${{ github.workspace }}/core
         run: |
           cp src/lib-compression/libcompression.la src/lib-compression/libcompression.la.bak
-          cp src/lib-dovecot/libdovecot.la src/lib-dovecot/libdovecot.la.bak
           sed -i -e "s,dependency_libs=.*,dependency_libs=''," src/lib-compression/libcompression.la
           sed -i -e "s,dependency_libs=.*,dependency_libs='-lm'," src/lib-dovecot/libdovecot.la
       - name: Build imaptest
@@ -108,9 +107,11 @@ jobs:
         working-directory: ${{ github.workspace }}/core
         run: |
           mv src/lib-compression/libcompression.la.bak src/lib-compression/libcompression.la
-          mv src/lib-dovecot/libdovecot.la.bak src/lib-dovecot/libdovecot.la
+          # Relink libdovecot against the system zlib and pcre2 instead of the static archives
+          rm -f src/lib-dovecot/libdovecot.la
+          make -j8 ZLIB_LIBS_STATIC= LIBPCRE_LIBS_STATIC=
           mkdir /tmp/inst1
-          sudo make install
+          sudo make install ZLIB_LIBS_STATIC= LIBPCRE_LIBS_STATIC=
           cat <<EOF | sudo tee /usr/local/etc/dovecot/dovecot.conf
           dovecot_config_version = 0.0.0
           dovecot_storage_version = 2.4.0
