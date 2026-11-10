@@ -1,0 +1,61 @@
+capabilities: IMAP4rev2
+state: created
+
+# RFC 9051 6.3.2: SELECT and EXAMINE must return FLAGS, EXISTS and LIST
+# untagged responses, and PERMANENTFLAGS, UIDNEXT and UIDVALIDITY response
+# codes. Closing the previously selected mailbox returns the CLOSED
+# response code.
+
+ok enable IMAP4rev2
+ok append
+ok append
+"" delete ${mailbox}2
+ok create ${mailbox}2
+
+select $mailbox
+* flags $
+* 2 exists
+* list $ $ $mailbox
+* ok [permanentflags $]
+* ok [uidnext $uidnext]
+* ok [uidvalidity $uidvalidity]
+! ok [closed]
+ok
+
+# Selecting the same mailbox again closes it first
+select $mailbox
+* ok [closed]
+* flags $
+* 2 exists
+* list $ $ $mailbox
+* ok [permanentflags $]
+* ok [uidnext $uidnext]
+* ok [uidvalidity $uidvalidity]
+ok
+
+examine ${mailbox}2
+* ok [closed]
+* flags $
+* 0 exists
+* list $ $ ${mailbox}2
+* ok [permanentflags $]
+* ok [uidnext $]
+* ok [uidvalidity $]
+ok [read-only]
+
+# A failing SELECT also closes the selected mailbox
+select $mailbox
+* ok [closed]
+* 2 exists
+ok
+no select ${mailbox}nonexistent
+* ok [closed]
+
+# Nothing is selected now, so there's no CLOSED
+select $mailbox
+! ok [closed]
+* 2 exists
+ok
+
+ok close
+"" delete ${mailbox}2
