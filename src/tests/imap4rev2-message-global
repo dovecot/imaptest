@@ -1,0 +1,53 @@
+capabilities: IMAP4rev1 IMAP4rev2
+connections: 2
+state: appended
+messages: all
+
+# A message/global part has the message/rfc822-style body structure
+# (envelope, body structure and line count) only in IMAP4rev2. IMAP4rev1
+# (RFC 3501) allows the envelope and body structure only for message/rfc822,
+# so there message/global is a basic body part.
+#
+# Connection 1 is IMAP4rev1, connection 2 has IMAP4rev2 enabled. A server
+# advertising only IMAP4rev2 responds using IMAP4rev2 rules from the start
+# (RFC 9051 7.2.2), so IMAP4rev1 must be advertised as well.
+
+2 ok enable IMAP4rev2
+1 ok select $mailbox
+2 ok select $mailbox
+
+1 ok fetch 1 body
+* 1 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1)("MESSAGE" "GLOBAL" NIL NIL NIL "7BIT" 106) "MIXED"))
+1 ok fetch 1 bodystructure
+* 1 fetch (bodystructure (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1 $? NIL NIL NIL NIL)("MESSAGE" "GLOBAL" NIL NIL NIL "7BIT" 106 $? NIL NIL NIL NIL) "MIXED" $? ("BOUNDARY" "g1") NIL NIL NIL))
+1 ok fetch 1 body.peek[2]
+* 1 fetch (body[2] {{{
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: Mary Smith <mary@example.net>
+Subject: inner
+
+Inner body.
+
+}}})
+
+2 ok fetch 1 body
+* 1 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1)("MESSAGE" "GLOBAL" NIL NIL NIL "7BIT" 106 ("Sun, 6 Feb 1994 10:00:00 +0100" "inner" (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) NIL NIL NIL NIL NIL) ("TEXT" "PLAIN" $ NIL NIL "7BIT" 13 1) 5) "MIXED"))
+2 ok fetch 1 bodystructure
+* 1 fetch (bodystructure (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1 $? NIL NIL NIL NIL)("MESSAGE" "GLOBAL" NIL NIL NIL "7BIT" 106 ("Sun, 6 Feb 1994 10:00:00 +0100" "inner" (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) NIL NIL NIL NIL NIL) ("TEXT" "PLAIN" $ NIL NIL "7BIT" 13 1 $? NIL NIL NIL NIL) 5 $? NIL NIL NIL NIL) "MIXED" $? ("BOUNDARY" "g1") NIL NIL NIL))
+2 ok fetch 1 body.peek[2.header]
+* 1 fetch (body[2.header] {{{
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: Mary Smith <mary@example.net>
+Subject: inner
+
+
+}}})
+2 ok fetch 1 body.peek[2.1]
+* 1 fetch (body[2.1] {{{
+Inner body.
+
+}}})
+
+# The connections' views don't affect each other
+1 ok fetch 1 body
+* 1 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1)("MESSAGE" "GLOBAL" NIL NIL NIL "7BIT" 106) "MIXED"))
