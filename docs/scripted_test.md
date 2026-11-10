@@ -214,6 +214,16 @@ ok uid store $uid1,$uid2 flags \seen
   * 1 fetch (uid $ flags $)
   ```
 
+- **Optional Trailing Elements (`$?`)**:
+  Inside a list, `$?` makes the rest of the list optional: the input may
+  end at that point, but any elements that are present must still match.
+  This is useful for data that the server may omit, such as BODYSTRUCTURE
+  extension data. Example:
+  ```
+  ok fetch 1 bodystructure
+  * 1 fetch (bodystructure ("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 7 1 $? NIL NIL NIL NIL))
+  ```
+
 - **Bracket Skipping (`$]`)**:
   To skip untagged response tokens until encountering a closing bracket `]`, use `$]`. Example:
   ```

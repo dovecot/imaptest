@@ -541,8 +541,22 @@ test_imap_match_args(struct test_exec_context *ctx,
 	const struct imap_arg *listargs;
 	const char *mstr, *astr;
 	unsigned int subret, ret = 0;
+	bool rest_optional = FALSE;
 
 	for (; match->type != IMAP_ARG_EOL && max > 0; match++, args++, max--) {
+		if (match->type == IMAP_ARG_ATOM &&
+		    strcmp(imap_arg_as_astring(match), "$?") == 0) {
+			/* "$?" makes the rest of the list optional: the input
+			   may end here, but whatever follows must still
+			   match. */
+			rest_optional = TRUE;
+			match++;
+			if (match->type == IMAP_ARG_EOL)
+				break;
+		}
+		if (rest_optional && args->type == IMAP_ARG_EOL)
+			return UINT_MAX;
+
 		switch (match->type) {
 		case IMAP_ARG_NIL:
 			if (args->type != IMAP_ARG_NIL)
