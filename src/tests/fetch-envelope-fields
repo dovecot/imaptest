@@ -1,0 +1,43 @@
+messages: all
+
+# RFC 3501 / RFC 9051 FETCH ENVELOPE. The fields are: date, subject, from,
+# sender, reply-to, to, cc, bcc, in-reply-to, message-id. An address is
+# (display-name at-domain-list mailbox-name hostname).
+
+# All fields present
+ok fetch 1 envelope
+* 1 fetch (envelope ("Mon, 7 Feb 1994 21:52:25 -0800" "afternoon meeting" (("Fred Foobar" NIL "foobar" "example.com")) (("Secretary" NIL "secretary" "example.com")) (("Replies" NIL "replies" "example.com")) (("Mooch" NIL "mooch" "example.org")(NIL NIL "other" "example.org")) (("Doe, John" NIL "john" "example.net")(NIL NIL "jane" "example.net")) ((NIL NIL "hidden" "example.com")) "<parent-1@example.com>" "<B27397-0100000@example.com>"))
+
+# Missing Date, Subject, In-Reply-To and Message-ID are NIL. Missing To, Cc
+# and Bcc are NIL. Missing Sender and Reply-To are set to the From value.
+ok fetch 2 envelope
+* 2 fetch (envelope (NIL NIL (("Fred Foobar" NIL "foobar" "example.com")) (("Fred Foobar" NIL "foobar" "example.com")) (("Fred Foobar" NIL "foobar" "example.com")) NIL NIL NIL NIL NIL))
+
+# Multiple From addresses and group syntax. A group start has NIL hostname
+# and the group name in the mailbox name field; the group end has both NIL.
+ok fetch 3 envelope
+* 3 fetch (envelope ("Mon, 7 Feb 1994 21:52:25 -0800" "groups and multiple authors" (("Fred Foobar" NIL "foobar" "example.com")("Mary Smith" NIL "mary" "example.com")) (("Fred Foobar" NIL "foobar" "example.com")) (("Fred Foobar" NIL "foobar" "example.com")("Mary Smith" NIL "mary" "example.com")) ((NIL NIL "Group One" NIL)(NIL NIL "one" "example.org")(NIL NIL "two" "example.org")(NIL NIL NIL NIL)(NIL NIL "Group Two" NIL)(NIL NIL NIL NIL)) ((NIL NIL "undisclosed-recipients" NIL)(NIL NIL NIL NIL)) NIL NIL NIL))
+
+# Header field names are case-insensitive. RFC 3501 and RFC 9051 don't
+# specify whether RFC 2047 encoded-words are returned as-is or re-encoded,
+# so they aren't tested here.
+ok fetch 4 envelope
+* 4 fetch (envelope ("Mon, 7 Feb 1994 21:52:25 -0800" "header names in any case" (("Fred Foobar" NIL "foobar" "example.com")) (("Fred Foobar" NIL "foobar" "example.com")) (("Fred" NIL "fred" "example.com")) ((NIL NIL "mooch" "example.org")) NIL NIL NIL "<B27397-0100004@example.com>"))
+
+# No From header: Sender and Reply-To default to the (NIL) From value.
+ok fetch 5 envelope
+* 5 fetch (envelope ("Mon, 7 Feb 1994 21:52:25 -0800" "draft without From" NIL NIL NIL ((NIL NIL "mooch" "example.org")) NIL NIL NIL NIL))
+
+# Present but empty To, Cc and Bcc are NIL. Present but empty Sender and
+# Reply-To are set to the From value.
+ok fetch 6 envelope
+* 6 fetch (envelope ("Mon, 7 Feb 1994 21:52:25 -0800" "empty address headers" (("Fred Foobar" NIL "foobar" "example.com")) (("Fred Foobar" NIL "foobar" "example.com")) (("Fred Foobar" NIL "foobar" "example.com")) NIL NIL NIL NIL NIL))
+
+# ENVELOPE is the same when fetched with other items and via the ALL and
+# FULL macros.
+ok fetch 1 (uid envelope rfc822.size)
+* 1 fetch (uid $uid1 envelope ("Mon, 7 Feb 1994 21:52:25 -0800" "afternoon meeting" (("Fred Foobar" NIL "foobar" "example.com")) (("Secretary" NIL "secretary" "example.com")) (("Replies" NIL "replies" "example.com")) (("Mooch" NIL "mooch" "example.org")(NIL NIL "other" "example.org")) (("Doe, John" NIL "john" "example.net")(NIL NIL "jane" "example.net")) ((NIL NIL "hidden" "example.com")) "<parent-1@example.com>" "<B27397-0100000@example.com>") rfc822.size 459)
+ok fetch 2 all
+* 2 fetch (flags $ internaldate $ rfc822.size 65 envelope (NIL NIL (("Fred Foobar" NIL "foobar" "example.com")) (("Fred Foobar" NIL "foobar" "example.com")) (("Fred Foobar" NIL "foobar" "example.com")) NIL NIL NIL NIL NIL))
+ok fetch 2 full
+* 2 fetch (flags $ internaldate $ rfc822.size 65 envelope (NIL NIL (("Fred Foobar" NIL "foobar" "example.com")) (("Fred Foobar" NIL "foobar" "example.com")) (("Fred Foobar" NIL "foobar" "example.com")) NIL NIL NIL NIL NIL) body ("TEXT" "PLAIN" $ NIL NIL "7BIT" 23 2))
