@@ -5,5 +5,6 @@ RUN chmod +x /usr/local/bin/imaptest
 FROM debian:13-slim AS final
 RUN apt update && apt install -y libpcre2-32-0 && apt clean all
 COPY --link --from=base /usr/local/bin/imaptest /usr/local/bin/imaptest
+COPY build/tests /usr/local/share/imaptest/tests
 USER mail
 ENTRYPOINT ["/usr/local/bin/imaptest"]
