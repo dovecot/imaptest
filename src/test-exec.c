@@ -558,8 +558,9 @@ test_imap_match_args(struct test_exec_context *ctx,
 			}
 
 			if (strcmp(imap_arg_as_astring(match), "$") == 0 &&
-			    imap_arg_get_list(args, &listargs)) {
-				/* "$" skips over a list */
+			    (imap_arg_get_list(args, &listargs) ||
+			     args->type == IMAP_ARG_NIL)) {
+				/* "$" skips over a list or NIL */
 				break;
 			}
 			if (strcmp(imap_arg_as_astring(match), "$]") == 0) {

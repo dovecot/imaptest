@@ -208,7 +208,7 @@ ok uid store $uid1,$uid2 flags \seen
   If you need a literal `$` character in a command or response match without treating it as a variable lookup, escape it by writing `$$`.
 
 - **Wildcard Matching (`$`)**:
-  To match any single IMAP argument or list structure without storing it in a variable, use `$`. Example:
+  To match any single IMAP argument, list structure or NIL without storing it in a variable, use `$`. Example:
   ```
   ok fetch 1 (uid flags)
   * 1 fetch (uid $ flags $)
