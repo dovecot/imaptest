@@ -279,7 +279,8 @@ There are also predefined runtime variables provided by the test execution envir
 
 ## Directives
 
-`$!directives` can be used to alter list matching by placing them at the beginning of a list:
+`$!directives` can be used to alter list matching by placing them at the beginning of a list.
+In an untagged reply they can also be placed in the middle of the reply (outside any list), in which case they apply to the rest of the reply:
 
 | Directive       | Description                                                                                                                           |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -314,6 +315,12 @@ is fully expanded as:
 
 So the FLAGS won't have `$!unordered` or `$!ignored=\recent`, but the parent FETCH list will have the default `$!unordered=2`.
 :::
+
+Directives in the middle of an untagged reply are useful for replies whose items aren't inside a list, such as ESEARCH where the return data items may be in any order:
+
+```
+* ESEARCH (TAG $tag) $!unordered=2 $!noextra MIN 1 MAX 3 COUNT 2
+```
 
 ## Comments
 

@@ -556,6 +556,15 @@ test_imap_match_args(struct test_exec_context *ctx,
 		}
 		if (rest_optional && args->type == IMAP_ARG_EOL)
 			return UINT_MAX;
+		if (match->type == IMAP_ARG_ATOM &&
+		    str_begins_with(imap_arg_as_astring(match), "$!")) {
+			/* Directives in the middle of an untagged reply: match
+			   the rest of the reply as if it was a list with these
+			   directives. The parser allows this only at the top
+			   level. */
+			subret = test_imap_match_list(ctx, match, args);
+			return subret == UINT_MAX ? UINT_MAX : ret + subret;
+		}
 
 		switch (match->type) {
 		case IMAP_ARG_NIL:
