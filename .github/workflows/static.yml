@@ -130,6 +130,7 @@ jobs:
             password = swordfish
           }
           mail_utf8_extensions = yes
+          imap4rev2_enable = yes
           log_path = /tmp/dovecot.log
           EOF
       - name: Test imaptest

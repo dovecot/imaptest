@@ -1,0 +1,47 @@
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <fred@example.com>
+Subject: base64-encoded message/global
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="g1"
+
+--g1
+Content-Type: text/plain; charset=us-ascii
+
+See below.
+
+--g1
+Content-Type: message/global
+Content-Transfer-Encoding: base64
+
+RGF0ZTogU3VuLCA2IEZlYiAxOTk0IDEwOjAwOjAwICswMTAwDQpGcm9tOiBKw7xyZ2VuIE3DvGxs
+ZXIgPGrDvHJnZW5AZXhhbXBsZS5kZT4NClN1YmplY3Q6IELDvGNoZXINCk1lc3NhZ2UtSUQ6IDxn
+bG9iYWwtZW5jQGV4YW1wbGUuZGU+DQoNCklubmVyIGJvZHkuDQo=
+
+--g1--
+
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <fred@example.com>
+Subject: quoted-printable-encoded message/global
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="g1"
+
+--g1
+Content-Type: text/plain; charset=us-ascii
+
+See below.
+
+--g1
+Content-Type: message/global
+Content-Transfer-Encoding: quoted-printable
+
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: J=C3=BCrgen M=C3=BCller <j=C3=BCrgen@example.de>
+Subject: B=C3=BCcher
+Message-ID: <global-enc@example.de>
+
+Inner body.
+
+--g1--
+

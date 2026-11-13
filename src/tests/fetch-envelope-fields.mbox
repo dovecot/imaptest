@@ -1,0 +1,58 @@
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Sender: Secretary <secretary@example.com>
+Reply-To: Replies <replies@example.com>
+To: Mooch <mooch@example.org>, other@example.org
+Cc: "Doe, John" <john@example.net>, <jane@example.net>
+Bcc: hidden@example.com
+Subject: afternoon meeting
+Message-ID: <B27397-0100000@example.com>
+In-Reply-To: <parent-1@example.com>
+
+Hello Joe, do you think we can meet at 3:30 tomorrow?
+
+From user@domain  Fri Feb 22 17:06:23 2008
+From: Fred Foobar <foobar@example.com>
+
+Only a From header.
+
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>, Mary Smith <mary@example.com>
+Sender: Fred Foobar <foobar@example.com>
+To: Group One: one@example.org, two@example.org;, Group Two:;
+Cc: undisclosed-recipients:;
+Subject: groups and multiple authors
+
+Group syntax.
+
+From user@domain  Fri Feb 22 17:06:23 2008
+DATE: Mon, 7 Feb 1994 21:52:25 -0800
+FROM: Fred Foobar <foobar@example.com>
+to: mooch@example.org
+SUBJECT: header names in any case
+message-id: <B27397-0100004@example.com>
+reply-TO: Fred <fred@example.com>
+
+Header field names are case-insensitive.
+
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+Subject: draft without From
+To: mooch@example.org
+
+No From header, so From, Sender and Reply-To are all NIL.
+
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+To:
+Cc:
+Bcc:
+Sender:
+Reply-To:
+Subject: empty address headers
+
+Empty address headers.
+

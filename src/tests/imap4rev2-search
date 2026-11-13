@@ -1,0 +1,82 @@
+capabilities: IMAP4rev2
+state: appended
+messages: all
+
+# RFC 9051 6.4.4: SEARCH returns an ESEARCH response with the command tag.
+# Without result options ALL is assumed. MIN, MAX and ALL are omitted when
+# nothing matches, but the ESEARCH response is still sent. The order of
+# message numbers in ALL isn't specified, so only single-message ALL results
+# are matched. The return data items may be in any order (RFC 9051 7.3.4).
+
+ok enable IMAP4rev2
+ok select $mailbox
+ok fetch 1:4 uid
+* 1 fetch (uid $uid1)
+* 2 fetch (uid $uid2)
+* 3 fetch (uid $uid3)
+* 4 fetch (uid $uid4)
+
+ok search subject banana
+* esearch (tag $tag) all 2
+ok search return () subject banana
+* esearch (tag $tag) all 2
+ok search return (all) subject banana
+* esearch (tag $tag) all 2
+
+ok search return (min) subject apple
+* esearch (tag $tag) min 1
+ok search return (max) subject apple
+* esearch (tag $tag) max 3
+ok search return (count) subject apple
+* esearch (tag $tag) count 2
+ok search return (min max count) subject apple
+* esearch (tag $tag) $!unordered=2 $!noextra min 1 max 3 count 2
+
+# Content-Transfer-Encoding is decoded before comparing
+ok search return (all) body watermelon
+* esearch (tag $tag) all 4
+
+# No matches
+ok search subject nonexistent
+* esearch (tag $tag)
+! esearch (tag $tag) all $
+ok search return (min max all) subject nonexistent
+* esearch (tag $tag)
+ok search return (count) subject nonexistent
+* esearch (tag $tag) count 0
+
+# UID SEARCH returns UIDs
+ok uid search return (all) subject banana
+* esearch (tag $tag) uid all $uid2
+ok uid search return (min max count) subject apple
+* esearch (tag $tag) uid $!unordered=2 $!noextra min $uid1 max $uid3 count 2
+
+# SAVE without other options returns no ESEARCH response. The saved result
+# can be used with "$".
+ok search return (save) subject banana
+! esearch (tag $tag)
+! esearch (tag $tag) all $
+ok fetch $$ uid
+* 2 fetch (uid $uid2)
+ok uid search return (save) subject cherry
+ok search return (all) $$
+* esearch (tag $tag) all 4
+# SAVE with MIN and/or MAX (but without ALL or COUNT) saves only the
+# MIN/MAX result.
+ok search return (save min) subject apple
+* esearch (tag $tag) min 1
+ok fetch $$ uid
+* 1 fetch (uid $uid1)
+! 3 fetch (uid $uid3)
+ok search return (save min max) subject apple
+* esearch (tag $tag) $!unordered=2 $!noextra min 1 max 3
+ok fetch $$ uid
+* 1 fetch (uid $uid1)
+* 3 fetch (uid $uid3)
+! 2 fetch (uid $uid2)
+
+# Unknown result options are rejected with BAD
+bad search return (x-imaptest-unknown) all
+
+# Unsupported charsets are rejected with NO, not BAD
+no search charset x-imaptest-unknown-charset subject apple

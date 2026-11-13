@@ -1,0 +1,146 @@
+capabilities: IMAP4rev2
+state: created
+
+# RFC 9051: after ENABLE IMAP4rev2, message headers may contain UTF-8
+# (RFC 6532), which is returned as-is in ENVELOPE and BODY[...]. A
+# message/global part has the same structure as message/rfc822: the basic
+# fields followed by the envelope, the body structure and the number of
+# lines of the encapsulated message.
+#
+# BODYSTRUCTURE extension data is optional, so it's matched after "$?".
+# Parameters of a part without Content-Type depend on the server's defaults,
+# so they're matched with "$".
+
+ok enable IMAP4rev2
+# The messages contain 8-bit headers, so append them only after IMAP4rev2
+# is enabled.
+ok append
+ok append
+ok append
+ok append
+ok select $mailbox
+
+#
+# 1) UTF-8 in Subject, display names, local-parts and domains
+#
+ok fetch 1 envelope
+* 1 fetch (envelope ("Mon, 7 Feb 1994 21:52:25 -0800" "Grüße aus Köln" (("Fréd Foobar" NIL "fréd" "exämple.com")) (("Fréd Foobar" NIL "fréd" "exämple.com")) (("Fréd Foobar" NIL "fréd" "exämple.com")) (("Märy, Smith" NIL "mary" "example.net")) NIL NIL NIL "<utf8-1@example.com>"))
+ok fetch 1 (body bodystructure rfc822.size)
+* 1 fetch (body ("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "7BIT" 15 2) bodystructure ("TEXT" "PLAIN" ("CHARSET" "utf-8") NIL NIL "7BIT" 15 2 $? NIL NIL NIL NIL) rfc822.size 257)
+ok fetch 1 body.peek[header.fields (from subject)]
+* 1 fetch (body[header.fields (from subject)] {{{
+From: Fréd Foobar <fréd@exämple.com>
+Subject: Grüße aus Köln
+
+
+}}})
+
+#
+# 2) message/global part inside multipart/mixed
+#
+ok fetch 2 body
+* 2 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1)("MESSAGE" "GLOBAL" NIL NIL NIL "8BIT" 156 ("Sun, 6 Feb 1994 10:00:00 +0100" "Bücher" (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) NIL NIL NIL NIL "<global-1@example.de>") ("TEXT" "PLAIN" $ NIL NIL "7BIT" 19 1) 6) "MIXED"))
+ok fetch 2 bodystructure
+* 2 fetch (bodystructure (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1 $? NIL NIL NIL NIL)("MESSAGE" "GLOBAL" NIL NIL NIL "8BIT" 156 ("Sun, 6 Feb 1994 10:00:00 +0100" "Bücher" (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) NIL NIL NIL NIL "<global-1@example.de>") ("TEXT" "PLAIN" $ NIL NIL "7BIT" 19 1 $? NIL NIL NIL NIL) 6 $? NIL NIL NIL NIL) "MIXED" $? ("BOUNDARY" "g1") NIL NIL NIL))
+ok fetch 2 body.peek[2]
+* 2 fetch (body[2] {{{
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: Jürgen Müller <jürgen@example.de>
+Subject: Bücher
+Message-ID: <global-1@example.de>
+
+Inner ASCII body.
+
+}}})
+ok fetch 2 body.peek[2.mime]
+* 2 fetch (body[2.mime] {{{
+Content-Type: message/global
+Content-Transfer-Encoding: 8bit
+
+
+}}})
+ok fetch 2 body.peek[2.header]
+* 2 fetch (body[2.header] {{{
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: Jürgen Müller <jürgen@example.de>
+Subject: Bücher
+Message-ID: <global-1@example.de>
+
+
+}}})
+ok fetch 2 body.peek[2.header.fields (subject)]
+* 2 fetch (body[2.header.fields (subject)] {{{
+Subject: Bücher
+
+
+}}})
+ok fetch 2 body.peek[2.text]
+* 2 fetch (body[2.text] {{{
+Inner ASCII body.
+
+}}})
+ok fetch 2 body.peek[2.1]
+* 2 fetch (body[2.1] {{{
+Inner ASCII body.
+
+}}})
+
+#
+# 3) message/global containing a multipart message
+#
+ok fetch 3 body
+* 3 fetch (body (("MESSAGE" "GLOBAL" NIL NIL NIL "8BIT" 256 (NIL "Café" (("Zoë" NIL "zoe" "example.org")) (("Zoë" NIL "zoe" "example.org")) (("Zoë" NIL "zoe" "example.org")) NIL NIL NIL NIL NIL) (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 8 1)("TEXT" "HTML" ("CHARSET" "us-ascii") NIL NIL "7BIT" 14 1) "ALTERNATIVE") 16) "MIXED"))
+ok fetch 3 bodystructure
+* 3 fetch (bodystructure (("MESSAGE" "GLOBAL" NIL NIL NIL "8BIT" 256 (NIL "Café" (("Zoë" NIL "zoe" "example.org")) (("Zoë" NIL "zoe" "example.org")) (("Zoë" NIL "zoe" "example.org")) NIL NIL NIL NIL NIL) (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 8 1 $? NIL NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "us-ascii") NIL NIL "7BIT" 14 1 $? NIL NIL NIL NIL) "ALTERNATIVE" $? ("BOUNDARY" "g3") NIL NIL NIL) 16 $? NIL NIL NIL NIL) "MIXED" $? ("BOUNDARY" "g2") NIL NIL NIL))
+ok fetch 3 body.peek[1.header.fields (from subject)]
+* 3 fetch (body[1.header.fields (from subject)] {{{
+From: Zoë <zoe@example.org>
+Subject: Café
+
+
+}}})
+ok fetch 3 body.peek[1.text]
+* 3 fetch (body[1.text] {{{
+--g3
+Content-Type: text/plain; charset=us-ascii
+
+Plain.
+
+--g3
+Content-Type: text/html; charset=us-ascii
+
+<p>HTML.</p>
+
+--g3--
+
+}}})
+ok fetch 3 body.peek[1.1]
+* 3 fetch (body[1.1] {{{
+Plain.
+
+}}})
+ok fetch 3 body.peek[1.2.mime]
+* 3 fetch (body[1.2.mime] {{{
+Content-Type: text/html; charset=us-ascii
+
+
+}}})
+ok fetch 3 body.peek[1.2]
+* 3 fetch (body[1.2] {{{
+<p>HTML.</p>
+
+}}})
+
+#
+# 4) SEARCH: strings are UTF-8 when CHARSET isn't given, and encoded-words
+#    in headers are decoded before comparing.
+#
+ok search return (all) subject "Grüße"
+* esearch (tag $tag) all 1
+ok search return (count min max) subject "Köln"
+* esearch (tag $tag) $!unordered=2 $!noextra min 1 max 4 count 2
+ok search return (all) from "fréd"
+* esearch (tag $tag) all 1
+# CHARSET UTF-8 is redundant, but permitted for compatibility.
+ok search return (count min max) charset utf-8 subject "Köln"
+* esearch (tag $tag) $!unordered=2 $!noextra min 1 max 4 count 2

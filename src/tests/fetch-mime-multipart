@@ -1,0 +1,196 @@
+messages: all
+
+# RFC 3501 / RFC 9051 FETCH BODY, BODYSTRUCTURE and BODY[section] for
+# multipart messages.
+#
+# BODYSTRUCTURE extension data is optional, so it's matched after "$?".
+# The order of body parameters isn't specified, so multi-parameter lists are
+# matched unordered.
+
+#
+# 1) multipart/mixed: text + base64 attachment, with preamble and epilogue
+#
+ok fetch 1 body
+* 1 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 25 1)("IMAGE" "PNG" ("NAME" "dot.png") "<dot@example.com>" NIL "BASE64" 96) "MIXED"))
+ok fetch 1 bodystructure
+* 1 fetch (bodystructure (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 25 1 $? NIL NIL NIL NIL)("IMAGE" "PNG" ("NAME" "dot.png") "<dot@example.com>" NIL "BASE64" 96 $? NIL ("ATTACHMENT" ("FILENAME" "dot.png")) NIL NIL) "MIXED" $? ("BOUNDARY" "outer-boundary") NIL NIL NIL))
+
+ok fetch 1 body.peek[header]
+* 1 fetch (body[header] {{{
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Subject: text with an attachment
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="outer-boundary"
+
+
+}}})
+
+# TEXT of a multipart message includes the preamble, the boundaries and the
+# epilogue.
+ok fetch 1 body.peek[text]
+* 1 fetch (body[text] {{{
+This is the preamble.
+
+--outer-boundary
+Content-Type: text/plain; charset=us-ascii
+
+See the attached image.
+
+--outer-boundary
+Content-Type: image/png; name="dot.png"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="dot.png"
+Content-ID: <dot@example.com>
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVQI12P4DwABAQEAG7buVgAA
+AABJRU5ErkJggg==
+
+--outer-boundary--
+This is the epilogue.
+
+
+}}})
+
+# The CRLF preceding a boundary belongs to the boundary, not to the part.
+ok fetch 1 body.peek[1]
+* 1 fetch (body[1] {{{
+See the attached image.
+
+}}})
+ok fetch 1 body.peek[1.mime]
+* 1 fetch (body[1.mime] {{{
+Content-Type: text/plain; charset=us-ascii
+
+
+}}})
+ok fetch 1 body.peek[2]
+* 1 fetch (body[2] {{{
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVQI12P4DwABAQEAG7buVgAA
+AABJRU5ErkJggg==
+
+}}})
+ok fetch 1 body.peek[2.mime]
+* 1 fetch (body[2.mime] {{{
+Content-Type: image/png; name="dot.png"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="dot.png"
+Content-ID: <dot@example.com>
+
+
+}}})
+ok fetch 1 body.peek[2]<4.8>
+* 1 fetch (body[2]<4> "Rw0KGgoA")
+
+# Multiple sections in the same FETCH
+ok fetch 1 (body.peek[1] body.peek[2.mime])
+* 1 fetch (body[1] {{{
+See the attached image.
+
+}}} body[2.mime] {{{
+Content-Type: image/png; name="dot.png"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="dot.png"
+Content-ID: <dot@example.com>
+
+
+}}})
+
+#
+# 2) multipart/alternative nested inside multipart/mixed
+#
+ok fetch 2 body
+* 2 fetch (body ((("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 21 1)("TEXT" "HTML" ("CHARSET" "us-ascii") NIL NIL "QUOTED-PRINTABLE" 22 1) "ALTERNATIVE")("APPLICATION" "PDF" ("NAME" "doc.pdf") NIL NIL "BASE64" 14) "MIXED"))
+ok fetch 2 bodystructure
+* 2 fetch (bodystructure ((("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 21 1 $? NIL NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "us-ascii") NIL NIL "QUOTED-PRINTABLE" 22 1 $? NIL NIL NIL NIL) "ALTERNATIVE" $? ("BOUNDARY" "b2") NIL NIL NIL)("APPLICATION" "PDF" ("NAME" "doc.pdf") NIL NIL "BASE64" 14 $? NIL ("ATTACHMENT" ("FILENAME" "doc.pdf")) NIL NIL) "MIXED" $? ("BOUNDARY" "b1") NIL NIL NIL))
+
+# A multipart part's content is its body without its MIME header
+ok fetch 2 body.peek[1]
+* 2 fetch (body[1] {{{
+--b2
+Content-Type: text/plain; charset=us-ascii
+
+Plain text version.
+
+--b2
+Content-Type: text/html; charset=us-ascii
+Content-Transfer-Encoding: quoted-printable
+
+<p>HTML version.</p>
+
+--b2--
+
+}}})
+ok fetch 2 body.peek[1.mime]
+* 2 fetch (body[1.mime] {{{
+Content-Type: multipart/alternative; boundary=b2
+
+
+}}})
+ok fetch 2 body.peek[1.1]
+* 2 fetch (body[1.1] {{{
+Plain text version.
+
+}}})
+ok fetch 2 body.peek[1.2]
+* 2 fetch (body[1.2] {{{
+<p>HTML version.</p>
+
+}}})
+ok fetch 2 body.peek[1.2.mime]
+* 2 fetch (body[1.2.mime] {{{
+Content-Type: text/html; charset=us-ascii
+Content-Transfer-Encoding: quoted-printable
+
+
+}}})
+ok fetch 2 body.peek[2]
+* 2 fetch (body[2] {{{
+JVBERi0xLjQK
+
+}}})
+
+#
+# 3) multipart/related, and a part without Content-Type defaults to
+#    text/plain
+#
+ok fetch 3 body
+* 3 fetch (body (("TEXT" "HTML" ("CHARSET" "us-ascii") NIL NIL "7BIT" 34 1)("IMAGE" "GIF" NIL "<img1@example.com>" NIL "BASE64" 22)("TEXT" "PLAIN" $ NIL NIL "7BIT" 44 1) "RELATED"))
+ok fetch 3 bodystructure
+* 3 fetch (bodystructure (("TEXT" "HTML" ("CHARSET" "us-ascii") NIL NIL "7BIT" 34 1 $? NIL NIL NIL NIL)("IMAGE" "GIF" NIL "<img1@example.com>" NIL "BASE64" 22 $? NIL NIL NIL NIL)("TEXT" "PLAIN" $ NIL NIL "7BIT" 44 1 $? NIL NIL NIL NIL) "RELATED" $? ($!unordered=2 $!noextra "TYPE" "text/html" "BOUNDARY" "rel") NIL NIL NIL))
+ok fetch 3 body.peek[3]
+* 3 fetch (body[3] {{{
+A part without Content-Type is text/plain.
+
+}}})
+ok fetch 3 body.peek[2]
+* 3 fetch (body[2] {{{
+R0lGODlhAQABAAAAACw=
+
+}}})
+
+#
+# 4) multipart/signed with a folded Content-Type header
+#
+ok fetch 4 body
+* 4 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 14 1)("APPLICATION" "PGP-SIGNATURE" ("NAME" "signature.asc") NIL "OpenPGP digital signature" "7BIT" 66) "SIGNED"))
+ok fetch 4 bodystructure
+* 4 fetch (bodystructure (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 14 1 $? NIL NIL NIL NIL)("APPLICATION" "PGP-SIGNATURE" ("NAME" "signature.asc") NIL "OpenPGP digital signature" "7BIT" 66 $? NIL NIL NIL NIL) "SIGNED" $? ($!unordered=2 $!noextra "PROTOCOL" "application/pgp-signature" "MICALG" "pgp-sha256" "BOUNDARY" "sig") NIL NIL NIL))
+# Signature verification needs the exact MIME header and content of part 1
+ok fetch 4 (body.peek[1.mime] body.peek[1])
+* 4 fetch (body[1.mime] {{{
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+
+}}} body[1] {{{
+Signed text.
+
+}}})
+ok fetch 4 body.peek[2]
+* 4 fetch (body[2] {{{
+-----BEGIN PGP SIGNATURE-----
+AAAA
+-----END PGP SIGNATURE-----
+
+}}})
