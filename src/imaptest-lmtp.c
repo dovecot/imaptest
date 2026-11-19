@@ -124,11 +124,8 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 		return;
 	}
 
-	if (lmtp_client == NULL) {
-		i_zero(&lmtp_set);
-		lmtp_set.my_hostname = "localhost";
-		lmtp_client = smtp_client_init(&lmtp_set);
-	}
+	if (lmtp_client == NULL)
+		lmtp_client = smtp_client_init(NULL);
 
 	d = i_new(struct imaptest_lmtp_delivery, 1);
 	DLLIST_PREPEND(&lmtp_deliveries, d);
@@ -143,9 +140,11 @@ void imaptest_lmtp_send(unsigned int port, unsigned int lmtp_max_parallel_count,
 	if (++conf.ip_idx == conf.ips_count)
 		conf.ip_idx = 0;
 
-	d->lmtp_conn = smtp_client_connection_create(lmtp_client,
+	i_zero(&lmtp_set);
+	lmtp_set.hostname = "localhost";
+	d->lmtp_conn = smtp_client_connection_create(lmtp_client, NULL,
 		SMTP_PROTOCOL_LMTP, net_ip2addr(ip), port,
-		SMTP_CLIENT_SSL_MODE_NONE, NULL);
+		SMTP_CLIENT_SSL_MODE_NONE, NULL, &lmtp_set);
 	smtp_client_connection_connect(d->lmtp_conn, NULL, NULL);
 
 	d->lmtp_trans = smtp_client_transaction_create(d->lmtp_conn,
