@@ -13,6 +13,7 @@
 
 struct settings conf;
 bool profile_running = FALSE;
+struct dsasl_client *sasl_client;
 
 /* Mock net_connect_ip to return a real (but unconnected) socket.
    This allows using real i_stream_create_fd() etc. without real network.
