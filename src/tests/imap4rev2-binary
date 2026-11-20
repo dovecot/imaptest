@@ -1,0 +1,52 @@
+capabilities: IMAP4rev2
+state: appended
+messages: all
+
+# RFC 9051 6.4.5: BINARY[] returns the section after removing its
+# Content-Transfer-Encoding, and BINARY.SIZE the decoded size. If the
+# encoding is unknown, NO [UNKNOWN-CTE] is returned.
+
+ok enable IMAP4rev2
+ok select $mailbox
+
+ok fetch 1 (binary.peek[1] binary.size[1])
+* 1 fetch (binary[1] {{{
+Plain 7bit text.
+
+}}} binary.size[1] 18)
+
+ok fetch 1 (binary.peek[2] binary.size[2])
+* 1 fetch (binary[2] {{{
+Base64 encoded text.
+Second line.
+
+}}} binary.size[2] 36)
+
+ok fetch 1 (binary.peek[3] binary.size[3])
+* 1 fetch (binary[3] {{{
+Quoted-printable café with a soft line break.
+
+}}} binary.size[3] 48)
+
+# Partial BINARY fetches refer to the decoded data
+ok fetch 1 binary.peek[2]<7.7>
+* 1 fetch (binary[2]<7> "encoded")
+
+ok fetch 1 binary.size[4]
+* 1 fetch (binary.size[4] 16)
+
+# BINARY.PEEK doesn't set \Seen
+ok fetch 1:2 flags
+* 1 fetch (flags ())
+* 2 fetch (flags ())
+
+# Unknown encoding in one part doesn't affect fetching the other parts
+fetch 2 binary.peek[2]
+no [unknown-cte]
+fetch 2 binary.size[2]
+no [unknown-cte]
+ok fetch 2 (binary.peek[1] binary.size[1])
+* 2 fetch (binary[1] {{{
+Plain 7bit text.
+
+}}} binary.size[1] 18)

@@ -1,0 +1,38 @@
+capabilities: IMAP4rev2
+state: appended
+messages: all
+
+# RFC 9051 6.3.11: STATUS DELETED returns the number of messages with the
+# \Deleted flag and STATUS SIZE the total of the messages' RFC822.SIZEs.
+
+ok enable IMAP4rev2
+ok select $mailbox
+ok fetch 1:3 (uid rfc822.size)
+* 1 fetch (uid $uid1 rfc822.size 114)
+* 2 fetch (uid $uid2 rfc822.size 113)
+* 3 fetch (uid $uid3 rfc822.size 116)
+ok store 1 +flags.silent (\seen \deleted)
+ok store 3 +flags.silent (\deleted)
+ok unselect
+
+ok status $mailbox (messages uidnext uidvalidity unseen deleted size)
+* status $mailbox (messages 3 uidnext $uidnext uidvalidity $uidvalidity unseen 2 deleted 2 size 343)
+
+# UNSELECT doesn't expunge the \Deleted messages
+ok examine $mailbox
+* 3 exists
+ok fetch 1:3 (uid flags)
+* 1 fetch (uid $uid1 flags (\seen \deleted))
+* 2 fetch (uid $uid2 flags ())
+* 3 fetch (uid $uid3 flags (\deleted))
+ok close
+ok status $mailbox (deleted size)
+* status $mailbox (deleted 2 size 343)
+
+# UID EXPUNGE expunges only the listed \Deleted messages
+ok select $mailbox
+ok uid expunge $uid3
+* 3 expunge
+ok unselect
+ok status $mailbox (messages deleted size)
+* status $mailbox (messages 2 deleted 1 size 227)

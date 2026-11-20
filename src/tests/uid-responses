@@ -1,0 +1,33 @@
+messages: 3
+
+# RFC 3501 6.4.8 / RFC 9051 6.4.9: FETCH responses caused by a UID command
+# include UID, even when it wasn't requested.
+
+ok fetch 1:3 uid
+* 1 fetch (uid $uid1)
+* 2 fetch (uid $uid2)
+* 3 fetch (uid $uid3)
+
+ok uid fetch $uid1:$uid3 flags
+* 1 fetch (uid $uid1 flags ())
+* 2 fetch (uid $uid2 flags ())
+* 3 fetch (uid $uid3 flags ())
+
+ok uid fetch $uid2 rfc822.size
+* 2 fetch (uid $uid2 rfc822.size $)
+
+ok uid store $uid2 +flags (\flagged)
+* 2 fetch (uid $uid2 flags (\flagged))
+
+ok uid fetch $uid3 body.peek[header.fields (subject)]
+* 3 fetch (uid $uid3 body[header.fields (subject)] $)
+
+# A UID range ending in "*" includes the last message
+ok uid fetch $uid3:* flags
+* 3 fetch (uid $uid3 flags ())
+
+# Nonexistent UIDs are ignored
+ok uid fetch 4294967295 flags
+! 1 fetch $
+! 2 fetch $
+! 3 fetch $

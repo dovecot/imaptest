@@ -1,0 +1,48 @@
+capabilities: IMAP4rev2
+connections: 2
+state: auth
+
+# RFC 9051 5.1: IMAP4rev2 mailbox names are UTF-8. A server advertising both
+# IMAP4rev1 and IMAP4rev2 must use the modified UTF-7 names (Appendix A.1)
+# for IMAP4rev1 clients, and mustn't send UTF-8 to them.
+#
+# Connection 1 has IMAP4rev2 enabled, connection 2 is IMAP4rev1.
+
+1 ok enable IMAP4rev2
+
+1 ok create "${mailbox}-Pää"
+1 ok list "" "${mailbox}-P*"
+* list $ $ "${mailbox}-Pää"
+2 ok list "" "${mailbox}-P*"
+* list $ $ "${mailbox}-P&AOQA5A-"
+! list $ $ "${mailbox}-Pää"
+
+2 ok create "${mailbox}-&ZeVnLIqe-"
+1 ok list "" "${mailbox}-*"
+* list $ $ "${mailbox}-Pää"
+* list $ $ "${mailbox}-日本語"
+2 ok list "" "${mailbox}-*"
+* list $ $ "${mailbox}-P&AOQA5A-"
+* list $ $ "${mailbox}-&ZeVnLIqe-"
+
+1 ok status "${mailbox}-日本語" (messages)
+* status "${mailbox}-日本語" (messages 0)
+2 ok status "${mailbox}-&ZeVnLIqe-" (messages)
+* status "${mailbox}-&ZeVnLIqe-" (messages 0)
+
+1 ok select "${mailbox}-Pää"
+* 0 exists
+* list $ $ "${mailbox}-Pää"
+1 ok close
+
+1 ok rename "${mailbox}-Pää" "${mailbox}-Grüße"
+2 ok list "" "${mailbox}-*"
+* list $ $ "${mailbox}-Gr&APwA3w-e"
+* list $ $ "${mailbox}-&ZeVnLIqe-"
+! list $ $ "${mailbox}-P&AOQA5A-"
+
+1 ok delete "${mailbox}-Grüße"
+1 ok delete "${mailbox}-日本語"
+2 ok list "" "${mailbox}-*"
+! list $ $ "${mailbox}-Gr&APwA3w-e"
+! list $ $ "${mailbox}-&ZeVnLIqe-"

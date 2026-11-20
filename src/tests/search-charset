@@ -1,0 +1,11 @@
+messages: 1
+
+# RFC 3501 6.4.4 / RFC 9051 6.4.4: An unsupported CHARSET is a NO, not BAD.
+# US-ASCII must be supported. UTF-8 is required only by IMAP4rev2, so it's
+# tested in imap4rev2-fetch-utf8.
+
+search charset x-imaptest-unknown-charset subject hello
+no
+
+ok search charset us-ascii all
+* search 1

@@ -1,0 +1,53 @@
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Subject: binary fetches
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="bin"
+
+--bin
+Content-Type: text/plain; charset=us-ascii
+
+Plain 7bit text.
+
+--bin
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: base64
+
+QmFzZTY0IGVuY29kZWQgdGV4dC4NClNlY29uZCBsaW5lLg0K
+
+--bin
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Quoted-printable caf=C3=A9 with a soft=
+ line break.
+
+--bin
+Content-Type: application/octet-stream
+Content-Transfer-Encoding: base64
+
+AAECAwQFBgcICQoLDA0ODw==
+
+--bin--
+
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Subject: unknown encoding
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="bin"
+
+--bin
+Content-Type: text/plain; charset=us-ascii
+
+Plain 7bit text.
+
+--bin
+Content-Type: application/x-foo
+Content-Transfer-Encoding: x-imaptest-unknown
+
+Unknown encoding.
+
+--bin--
+

@@ -1,0 +1,27 @@
+connections: 2
+messages: 2
+
+# RFC 3501 / RFC 9051 EXAMINE: the mailbox is read-only and no changes to
+# its permanent state are permitted. Fetching BODY[] doesn't set \Seen, and
+# CLOSE doesn't expunge anything.
+
+1 ok store 2 flags (\deleted)
+1 ok fetch 1:2 uid
+* 1 fetch (uid $uid1)
+* 2 fetch (uid $uid2)
+
+2 examine $mailbox
+* 2 exists
+2 ok [read-only]
+2 ok fetch 1 body[text]
+! 1 fetch (flags (\seen))
+2 ok fetch 1 flags
+! 1 fetch (flags (\seen))
+2 ok close
+
+1 ok noop
+! $1 expunge
+! $2 expunge
+1 ok fetch 1:2 (uid flags)
+* 1 fetch (uid $uid1 flags ())
+* 2 fetch (uid $uid2 flags (\deleted))

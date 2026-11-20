@@ -1,0 +1,100 @@
+capabilities: IMAP4rev1 IMAP4rev2
+connections: 2
+state: appended
+messages: all
+
+# RFC 6532 3.5 allows a Content-Transfer-Encoding for message/global. In
+# IMAP4rev2 (RFC 9051) a MESSAGE/GLOBAL part can't be returned as a basic
+# body part (body-type-basic ABNF), so it has the envelope and the body
+# structure of the encapsulated (decoded) message. The body size is the
+# encoded size. RFC 9051 doesn't specify whether the line count is of the
+# encoded or the decoded message, or whether the HEADER/TEXT/n sections
+# of an encoded message/global are decoded, so those aren't tested.
+#
+# In IMAP4rev1 (RFC 3501) message/global is a basic body part.
+#
+# Connection 1 is IMAP4rev1, connection 2 has IMAP4rev2 enabled. A server
+# advertising only IMAP4rev2 responds using IMAP4rev2 rules from the start
+# (RFC 9051 7.2.2), so IMAP4rev1 must be advertised as well.
+
+2 ok enable IMAP4rev2
+1 ok select $mailbox
+2 ok select $mailbox
+
+#
+# 1) base64-encoded message/global
+#
+1 ok fetch 1 body
+* 1 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1)("MESSAGE" "GLOBAL" NIL NIL NIL "BASE64" 210) "MIXED"))
+1 ok fetch 1 bodystructure
+* 1 fetch (bodystructure (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1 $? NIL NIL NIL NIL)("MESSAGE" "GLOBAL" NIL NIL NIL "BASE64" 210 $? NIL NIL NIL NIL) "MIXED" $? ("BOUNDARY" "g1") NIL NIL NIL))
+
+2 ok fetch 1 body
+* 1 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1)("MESSAGE" "GLOBAL" NIL NIL NIL "BASE64" 210 ("Sun, 6 Feb 1994 10:00:00 +0100" "Bücher" (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) NIL NIL NIL NIL "<global-enc@example.de>") ("TEXT" "PLAIN" $ NIL NIL "7BIT" 13 1) $) "MIXED"))
+2 ok fetch 1 bodystructure
+* 1 fetch (bodystructure (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1 $? NIL NIL NIL NIL)("MESSAGE" "GLOBAL" NIL NIL NIL "BASE64" 210 ("Sun, 6 Feb 1994 10:00:00 +0100" "Bücher" (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) NIL NIL NIL NIL "<global-enc@example.de>") ("TEXT" "PLAIN" $ NIL NIL "7BIT" 13 1 $? NIL NIL NIL NIL) $ $? NIL NIL NIL NIL) "MIXED" $? ("BOUNDARY" "g1") NIL NIL NIL))
+
+# BODY[] returns the part in its transfer encoding
+1 ok fetch 1 body.peek[2]
+* 1 fetch (body[2] {{{
+RGF0ZTogU3VuLCA2IEZlYiAxOTk0IDEwOjAwOjAwICswMTAwDQpGcm9tOiBKw7xyZ2VuIE3DvGxs
+ZXIgPGrDvHJnZW5AZXhhbXBsZS5kZT4NClN1YmplY3Q6IELDvGNoZXINCk1lc3NhZ2UtSUQ6IDxn
+bG9iYWwtZW5jQGV4YW1wbGUuZGU+DQoNCklubmVyIGJvZHkuDQo=
+
+}}})
+2 ok fetch 1 body.peek[2]
+* 1 fetch (body[2] {{{
+RGF0ZTogU3VuLCA2IEZlYiAxOTk0IDEwOjAwOjAwICswMTAwDQpGcm9tOiBKw7xyZ2VuIE3DvGxs
+ZXIgPGrDvHJnZW5AZXhhbXBsZS5kZT4NClN1YmplY3Q6IELDvGNoZXINCk1lc3NhZ2UtSUQ6IDxn
+bG9iYWwtZW5jQGV4YW1wbGUuZGU+DQoNCklubmVyIGJvZHkuDQo=
+
+}}})
+2 ok fetch 1 body.peek[2.mime]
+* 1 fetch (body[2.mime] {{{
+Content-Type: message/global
+Content-Transfer-Encoding: base64
+
+
+}}})
+
+#
+# 2) quoted-printable-encoded message/global
+#
+1 ok fetch 2 body
+* 2 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1)("MESSAGE" "GLOBAL" NIL NIL NIL "QUOTED-PRINTABLE" 168) "MIXED"))
+1 ok fetch 2 bodystructure
+* 2 fetch (bodystructure (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1 $? NIL NIL NIL NIL)("MESSAGE" "GLOBAL" NIL NIL NIL "QUOTED-PRINTABLE" 168 $? NIL NIL NIL NIL) "MIXED" $? ("BOUNDARY" "g1") NIL NIL NIL))
+
+2 ok fetch 2 body
+* 2 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1)("MESSAGE" "GLOBAL" NIL NIL NIL "QUOTED-PRINTABLE" 168 ("Sun, 6 Feb 1994 10:00:00 +0100" "Bücher" (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) NIL NIL NIL NIL "<global-enc@example.de>") ("TEXT" "PLAIN" $ NIL NIL "7BIT" 13 1) $) "MIXED"))
+2 ok fetch 2 bodystructure
+* 2 fetch (bodystructure (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 12 1 $? NIL NIL NIL NIL)("MESSAGE" "GLOBAL" NIL NIL NIL "QUOTED-PRINTABLE" 168 ("Sun, 6 Feb 1994 10:00:00 +0100" "Bücher" (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) (("Jürgen Müller" NIL "jürgen" "example.de")) NIL NIL NIL NIL "<global-enc@example.de>") ("TEXT" "PLAIN" $ NIL NIL "7BIT" 13 1 $? NIL NIL NIL NIL) $ $? NIL NIL NIL NIL) "MIXED" $? ("BOUNDARY" "g1") NIL NIL NIL))
+
+# BODY[] returns the part in its transfer encoding
+1 ok fetch 2 body.peek[2]
+* 2 fetch (body[2] {{{
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: J=C3=BCrgen M=C3=BCller <j=C3=BCrgen@example.de>
+Subject: B=C3=BCcher
+Message-ID: <global-enc@example.de>
+
+Inner body.
+
+}}})
+2 ok fetch 2 body.peek[2]
+* 2 fetch (body[2] {{{
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: J=C3=BCrgen M=C3=BCller <j=C3=BCrgen@example.de>
+Subject: B=C3=BCcher
+Message-ID: <global-enc@example.de>
+
+Inner body.
+
+}}})
+2 ok fetch 2 body.peek[2.mime]
+* 2 fetch (body[2.mime] {{{
+Content-Type: message/global
+Content-Transfer-Encoding: quoted-printable
+
+
+}}})

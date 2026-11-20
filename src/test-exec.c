@@ -541,8 +541,31 @@ test_imap_match_args(struct test_exec_context *ctx,
 	const struct imap_arg *listargs;
 	const char *mstr, *astr;
 	unsigned int subret, ret = 0;
+	bool rest_optional = FALSE;
 
 	for (; match->type != IMAP_ARG_EOL && max > 0; match++, args++, max--) {
+		if (match->type == IMAP_ARG_ATOM &&
+		    strcmp(imap_arg_as_astring(match), "$?") == 0) {
+			/* "$?" makes the rest of the list optional: the input
+			   may end here, but whatever follows must still
+			   match. */
+			rest_optional = TRUE;
+			match++;
+			if (match->type == IMAP_ARG_EOL)
+				break;
+		}
+		if (rest_optional && args->type == IMAP_ARG_EOL)
+			return UINT_MAX;
+		if (match->type == IMAP_ARG_ATOM &&
+		    str_begins_with(imap_arg_as_astring(match), "$!")) {
+			/* Directives in the middle of an untagged reply: match
+			   the rest of the reply as if it was a list with these
+			   directives. The parser allows this only at the top
+			   level. */
+			subret = test_imap_match_list(ctx, match, args);
+			return subret == UINT_MAX ? UINT_MAX : ret + subret;
+		}
+
 		switch (match->type) {
 		case IMAP_ARG_NIL:
 			if (args->type != IMAP_ARG_NIL)
@@ -558,8 +581,9 @@ test_imap_match_args(struct test_exec_context *ctx,
 			}
 
 			if (strcmp(imap_arg_as_astring(match), "$") == 0 &&
-			    imap_arg_get_list(args, &listargs)) {
-				/* "$" skips over a list */
+			    (imap_arg_get_list(args, &listargs) ||
+			     args->type == IMAP_ARG_NIL)) {
+				/* "$" skips over a list or NIL */
 				break;
 			}
 			if (strcmp(imap_arg_as_astring(match), "$]") == 0) {

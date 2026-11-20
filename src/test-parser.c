@@ -315,6 +315,44 @@ static void test_add_default_directives(struct list_directives_context *ctx,
 	}
 }
 
+static bool arg_is_directive(const struct imap_arg *arg)
+{
+	const char *str;
+
+	return imap_arg_get_atom(arg, &str) && strncmp(str, "$!", 2) == 0;
+}
+
+static bool
+test_parse_untagged_rest_directives(struct list_directives_context *parent,
+				    const struct imap_arg *args,
+				    const char **error_r)
+{
+	struct list_directives_context ctx;
+	unsigned int i;
+
+	i_zero(&ctx);
+	ctx.parser = parent->parser;
+	ctx.chain_count = 1;
+	if (!list_parse_directives(&ctx, args, error_r))
+		return FALSE;
+
+	while (arg_is_directive(args))
+		args++;
+	for (i = 0; args[i].type != IMAP_ARG_EOL; i++) {
+		if (arg_is_directive(&args[i])) {
+			*error_r = "Directives must be placed together";
+			return FALSE;
+		}
+	}
+	if (i % ctx.chain_count != 0) {
+		*error_r = t_strdup_printf("Invalid argument count after "
+					   "directives, chain size=%u",
+					   ctx.chain_count);
+		return FALSE;
+	}
+	return TRUE;
+}
+
 static bool
 test_parse_untagged_handle_directives(struct list_directives_context *ctx,
 				      ARRAY_TYPE(imap_arg_list) *args_arr,
@@ -343,8 +381,18 @@ test_parse_untagged_handle_directives(struct list_directives_context *ctx,
 			break;
 		directive_count++;
 	}
-	for (; args[i].type != IMAP_ARG_EOL; i++) ;
-	if ((i-directive_count) % ctx->chain_count != 0) {
+	for (; args[i].type != IMAP_ARG_EOL; i++) {
+		if (ctx->parent == NULL && arg_is_directive(&args[i])) {
+			/* directives in the middle of the untagged reply
+			   apply to the rest of the reply */
+			if (!test_parse_untagged_rest_directives(ctx, &args[i],
+								 error_r))
+				return FALSE;
+			break;
+		}
+	}
+	if (args[i].type == IMAP_ARG_EOL &&
+	    (i-directive_count) % ctx->chain_count != 0) {
 		*error_r = t_strdup_printf("Invalid list argument count, "
 					   "chain size=%u", ctx->chain_count);
 		return FALSE;

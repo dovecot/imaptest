@@ -1,0 +1,46 @@
+state: auth
+
+# RFC 3501 / RFC 9051 error cases for mailbox commands
+
+ok list "" ""
+* list $ $sep $
+
+ok create ${mailbox}
+no create ${mailbox}
+no create INBOX
+no delete ${mailbox}nonexistent
+no rename ${mailbox}nonexistent ${mailbox}2
+no select ${mailbox}nonexistent
+no examine ${mailbox}nonexistent
+no status ${mailbox}nonexistent (messages)
+
+ok create ${mailbox}2
+no rename ${mailbox}2 ${mailbox}
+
+# COPY and APPEND to a nonexistent mailbox fail with TRYCREATE and don't
+# create it.
+ok append ${mailbox}
+ok select ${mailbox}
+copy 1 ${mailbox}nonexistent
+no [trycreate]
+append ${mailbox}nonexistent
+no [trycreate]
+ok list "" ${mailbox}nonexistent
+! list $ $ ${mailbox}nonexistent
+ok close
+
+# RENAME moves the messages and the inferior hierarchical names
+ok create ${mailbox}${sep}child
+ok rename ${mailbox} ${mailbox}3
+ok list "" ${mailbox}3*
+* list $ $sep ${mailbox}3
+* list $ $sep ${mailbox}3${sep}child
+ok list "" ${mailbox}${sep}*
+! list $ $sep ${mailbox}${sep}child
+ok status ${mailbox}3 (messages)
+* status ${mailbox}3 (messages 1)
+
+ok delete ${mailbox}3${sep}child
+ok delete ${mailbox}3
+ok delete ${mailbox}2
+no delete ${mailbox}2

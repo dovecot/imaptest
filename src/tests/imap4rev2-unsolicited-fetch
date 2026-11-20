@@ -1,0 +1,26 @@
+capabilities: IMAP4rev2
+connections: 2
+state: appended
+messages: 2
+
+# RFC 9051 7.5.2: If the server sends unsolicited FETCH responses, they must
+# include UID. Flag updates from other sessions aren't required to be sent,
+# so only check that FETCH responses without UID aren't sent.
+
+1 ok enable IMAP4rev2
+2 ok enable IMAP4rev2
+1 ok select $mailbox
+2 ok select $mailbox
+1 ok fetch 1:2 uid
+* 1 fetch (uid $uid1)
+* 2 fetch (uid $uid2)
+
+2 ok store 1 flags (\flagged)
+1 ok noop
+! 1 fetch ($!unordered=2 $!noextra flags $)
+? 1 fetch (uid $uid1 flags (\flagged))
+
+2 ok store 2 +flags ($$imaptest-keyword)
+1 ok noop
+! 2 fetch ($!unordered=2 $!noextra flags $)
+? 2 fetch (uid $uid2 flags ($$imaptest-keyword))

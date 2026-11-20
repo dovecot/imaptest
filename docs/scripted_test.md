@@ -208,10 +208,20 @@ ok uid store $uid1,$uid2 flags \seen
   If you need a literal `$` character in a command or response match without treating it as a variable lookup, escape it by writing `$$`.
 
 - **Wildcard Matching (`$`)**:
-  To match any single IMAP argument or list structure without storing it in a variable, use `$`. Example:
+  To match any single IMAP argument, list structure or NIL without storing it in a variable, use `$`. Example:
   ```
   ok fetch 1 (uid flags)
   * 1 fetch (uid $ flags $)
+  ```
+
+- **Optional Trailing Elements (`$?`)**:
+  Inside a list, `$?` makes the rest of the list optional: the input may
+  end at that point, but any elements that are present must still match.
+  This is useful for data that the server may omit, such as BODYSTRUCTURE
+  extension data. Example:
+  ```
+  ok fetch 1 bodystructure
+  * 1 fetch (bodystructure ("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 7 1 $? NIL NIL NIL NIL))
   ```
 
 - **Bracket Skipping (`$]`)**:
@@ -269,7 +279,8 @@ There are also predefined runtime variables provided by the test execution envir
 
 ## Directives
 
-`$!directives` can be used to alter list matching by placing them at the beginning of a list:
+`$!directives` can be used to alter list matching by placing them at the beginning of a list.
+In an untagged reply they can also be placed in the middle of the reply (outside any list), in which case they apply to the rest of the reply:
 
 | Directive       | Description                                                                                                                           |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -304,6 +315,12 @@ is fully expanded as:
 
 So the FLAGS won't have `$!unordered` or `$!ignored=\recent`, but the parent FETCH list will have the default `$!unordered=2`.
 :::
+
+Directives in the middle of an untagged reply are useful for replies whose items aren't inside a list, such as ESEARCH where the return data items may be in any order:
+
+```
+* ESEARCH (TAG $tag) $!unordered=2 $!noextra MIN 1 MAX 3 COUNT 2
+```
 
 ## Comments
 

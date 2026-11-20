@@ -96,6 +96,7 @@ EXTRA_DIST = \
 	tests/search-date \
 	tests/search-date.mbox \
 	tests/search-flags \
+	tests/search-flags-recent \
 	tests/search-header \
 	tests/search-header.mbox \
 	tests/broken/search-intdate \

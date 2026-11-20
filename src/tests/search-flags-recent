@@ -1,0 +1,17 @@
+capabilities: IMAP4rev1
+messages: 5
+
+# NEW, OLD and RECENT search keys use the \Recent flag. They exist in
+# IMAP4rev1 (RFC 3501 6.4.4), but were removed in IMAP4rev2 (RFC 9051
+# Appendix E). All the messages are recent in this session.
+
+ok store 2 flags (\seen)
+
+ok search new
+* search 1 3 4 5
+
+ok search old
+* search
+
+ok search recent
+* search 1 2 3 4 5

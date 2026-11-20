@@ -1,0 +1,63 @@
+capabilities: IMAP4rev2
+state: created
+
+# RFC 9051: APPEND returns APPENDUID, COPY and MOVE return COPYUID (6.3.12,
+# 6.4.7, 6.4.8). MOVE sends the COPYUID in an untagged OK before the
+# EXPUNGEs. A nonexistent destination isn't created, and NO [TRYCREATE] is
+# returned.
+
+ok enable IMAP4rev2
+"" delete ${mailbox}2
+ok create ${mailbox}2
+
+append $mailbox
+ok [appenduid $uidvalidity $uid1]
+append $mailbox (\flagged)
+ok [appenduid $uidvalidity $uid2]
+append $mailbox
+ok [appenduid $uidvalidity $uid3]
+append $mailbox
+ok [appenduid $uidvalidity $uid4]
+
+ok select $mailbox
+* ok [uidvalidity $uidvalidity]
+* 4 exists
+
+copy 1 ${mailbox}2
+ok [copyuid $uidvalidity2 $uid1 $dest1]
+
+move 2 ${mailbox}2
+!ordered
+* ok [copyuid $uidvalidity2 $uid2 $dest2]
+* 2 expunge
+ok
+
+uid move $uid4 ${mailbox}2
+!ordered
+* ok [copyuid $uidvalidity2 $uid4 $dest4]
+* 3 expunge
+ok
+
+ok fetch 1:* uid
+* 1 fetch (uid $uid1)
+* 2 fetch (uid $uid3)
+
+copy 1 ${mailbox}nonexistent
+no [trycreate]
+move 1 ${mailbox}nonexistent
+no [trycreate]
+append ${mailbox}nonexistent
+no [trycreate]
+ok list "" ${mailbox}nonexistent
+! list $ $ ${mailbox}nonexistent
+
+# The moved message keeps its flags and \Deleted isn't set
+ok examine ${mailbox}2
+* ok [uidvalidity $uidvalidity2]
+* 3 exists
+ok uid fetch $dest1,$dest2,$dest4 (uid flags)
+* 1 fetch (uid $dest1 flags ())
+* 2 fetch (uid $dest2 flags (\flagged))
+* 3 fetch (uid $dest4 flags ())
+ok close
+"" delete ${mailbox}2

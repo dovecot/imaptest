@@ -1,0 +1,225 @@
+messages: all
+
+# RFC 3501 / RFC 9051 FETCH BODY, BODYSTRUCTURE and BODY[section] for
+# messages containing message/rfc822 parts. A message/rfc822 part has the
+# basic fields followed by the envelope, the body structure and the number
+# of lines of the encapsulated message.
+#
+# BODYSTRUCTURE extension data is optional, so it's matched after "$?".
+# Parameters of a part without Content-Type depend on the server's defaults,
+# so they're matched with "$".
+
+#
+# 1) Forwarded multipart/alternative message inside multipart/mixed
+#
+ok fetch 1 body
+* 1 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 31 1)("MESSAGE" "RFC822" NIL NIL "forwarded" "7BIT" 395 ("Sun, 6 Feb 1994 10:00:00 +0100" "original" (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) (("Fred Foobar" NIL "foobar" "example.com")) NIL NIL NIL "<orig@example.net>") (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 16 1)("TEXT" "HTML" ("CHARSET" "us-ascii") NIL NIL "7BIT" 23 1) "ALTERNATIVE") 19) "MIXED"))
+ok fetch 1 bodystructure
+* 1 fetch (bodystructure (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 31 1 $? NIL NIL NIL NIL)("MESSAGE" "RFC822" NIL NIL "forwarded" "7BIT" 395 ("Sun, 6 Feb 1994 10:00:00 +0100" "original" (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) (("Fred Foobar" NIL "foobar" "example.com")) NIL NIL NIL "<orig@example.net>") (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 16 1 $? NIL NIL NIL NIL)("TEXT" "HTML" ("CHARSET" "us-ascii") NIL NIL "7BIT" 23 1 $? NIL NIL NIL NIL) "ALTERNATIVE" $? ("BOUNDARY" "alt") NIL NIL NIL) 19 $? NIL NIL NIL NIL) "MIXED" $? ("BOUNDARY" "fwd") NIL NIL NIL))
+
+# The message/rfc822 part's content is the whole encapsulated message
+ok fetch 1 body.peek[2]
+* 1 fetch (body[2] {{{
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: Mary Smith <mary@example.net>
+To: Fred Foobar <foobar@example.com>
+Subject: original
+Message-ID: <orig@example.net>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="alt"
+
+--alt
+Content-Type: text/plain; charset=us-ascii
+
+Original text.
+
+--alt
+Content-Type: text/html; charset=us-ascii
+
+<p>Original text.</p>
+
+--alt--
+
+}}})
+ok fetch 1 body.peek[2.mime]
+* 1 fetch (body[2.mime] {{{
+Content-Type: message/rfc822
+Content-Description: forwarded
+
+
+}}})
+ok fetch 1 body.peek[2.header]
+* 1 fetch (body[2.header] {{{
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: Mary Smith <mary@example.net>
+To: Fred Foobar <foobar@example.com>
+Subject: original
+Message-ID: <orig@example.net>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="alt"
+
+
+}}})
+ok fetch 1 body.peek[2.header.fields (subject message-id)]
+* 1 fetch (body[2.header.fields (subject message-id)] {{{
+Subject: original
+Message-ID: <orig@example.net>
+
+
+}}})
+ok fetch 1 body.peek[2.header.fields.not (date from to subject message-id)]
+* 1 fetch (body[2.header.fields.not (date from to subject message-id)] {{{
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="alt"
+
+
+}}})
+ok fetch 1 body.peek[2.text]
+* 1 fetch (body[2.text] {{{
+--alt
+Content-Type: text/plain; charset=us-ascii
+
+Original text.
+
+--alt
+Content-Type: text/html; charset=us-ascii
+
+<p>Original text.</p>
+
+--alt--
+
+}}})
+ok fetch 1 body.peek[2.1]
+* 1 fetch (body[2.1] {{{
+Original text.
+
+}}})
+ok fetch 1 body.peek[2.1.mime]
+* 1 fetch (body[2.1.mime] {{{
+Content-Type: text/plain; charset=us-ascii
+
+
+}}})
+ok fetch 1 body.peek[2.2]
+* 1 fetch (body[2.2] {{{
+<p>Original text.</p>
+
+}}})
+
+#
+# 2) message/rfc822 as the top-level content type
+#
+ok fetch 2 body
+* 2 fetch (body ("MESSAGE" "RFC822" NIL NIL NIL "7BIT" 135 ("Sun, 6 Feb 1994 10:00:00 +0100" "inner" (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) NIL NIL NIL NIL NIL) ("TEXT" "PLAIN" $ NIL NIL "7BIT" 42 3) 7))
+ok fetch 2 bodystructure
+* 2 fetch (bodystructure ("MESSAGE" "RFC822" NIL NIL NIL "7BIT" 135 ("Sun, 6 Feb 1994 10:00:00 +0100" "inner" (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) NIL NIL NIL NIL NIL) ("TEXT" "PLAIN" $ NIL NIL "7BIT" 42 3 $? NIL NIL NIL NIL) 7 $? NIL NIL NIL NIL))
+ok fetch 2 body.peek[1]
+* 2 fetch (body[1] {{{
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: Mary Smith <mary@example.net>
+Subject: inner
+
+Inner body line 1.
+Inner body line 2.
+
+
+}}})
+ok fetch 2 body.peek[1.header]
+* 2 fetch (body[1.header] {{{
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: Mary Smith <mary@example.net>
+Subject: inner
+
+
+}}})
+ok fetch 2 body.peek[1.text]
+* 2 fetch (body[1.text] {{{
+Inner body line 1.
+Inner body line 2.
+
+
+}}})
+# The encapsulated message isn't multipart, so its body is part 1.1
+ok fetch 2 body.peek[1.1]
+* 2 fetch (body[1.1] {{{
+Inner body line 1.
+Inner body line 2.
+
+
+}}})
+
+#
+# 3) message/rfc822 inside message/rfc822
+#
+ok fetch 3 body
+* 3 fetch (body (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 15 1)("MESSAGE" "RFC822" NIL NIL NIL "7BIT" 429 ("Sun, 6 Feb 1994 10:00:00 +0100" "level 2" (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) NIL NIL NIL NIL NIL) (("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 15 1)("MESSAGE" "RFC822" NIL NIL NIL "7BIT" 152 ("Sat, 5 Feb 1994 10:00:00 +0100" "level 3" (("John Doe" NIL "john" "example.org")) (("John Doe" NIL "john" "example.org")) (("John Doe" NIL "john" "example.org")) NIL NIL NIL NIL NIL) ("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 15 1) 6) "MIXED") 22) "MIXED"))
+ok fetch 3 body.peek[2.1]
+* 3 fetch (body[2.1] {{{
+Level 2 text.
+
+}}})
+ok fetch 3 body.peek[2.2]
+* 3 fetch (body[2.2] {{{
+Date: Sat, 5 Feb 1994 10:00:00 +0100
+From: John Doe <john@example.org>
+Subject: level 3
+Content-Type: text/plain; charset=us-ascii
+
+Level 3 text.
+
+}}})
+ok fetch 3 body.peek[2.2.mime]
+* 3 fetch (body[2.2.mime] {{{
+Content-Type: message/rfc822
+
+
+}}})
+ok fetch 3 body.peek[2.2.header.fields (subject)]
+* 3 fetch (body[2.2.header.fields (subject)] {{{
+Subject: level 3
+
+
+}}})
+ok fetch 3 body.peek[2.2.text]
+* 3 fetch (body[2.2.text] {{{
+Level 3 text.
+
+}}})
+ok fetch 3 body.peek[2.2.1]
+* 3 fetch (body[2.2.1] {{{
+Level 3 text.
+
+}}})
+
+#
+# 4) multipart/digest: parts without Content-Type are message/rfc822
+#
+ok fetch 4 body
+* 4 fetch (body (("MESSAGE" "RFC822" $ NIL NIL "7BIT" 78 (NIL "digest message 1" (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) NIL NIL NIL NIL NIL) ("TEXT" "PLAIN" $ NIL NIL "7BIT" 12 1) 4)("MESSAGE" "RFC822" $ NIL NIL "7BIT" 76 (NIL "digest message 2" (("John Doe" NIL "john" "example.org")) (("John Doe" NIL "john" "example.org")) (("John Doe" NIL "john" "example.org")) NIL NIL NIL NIL NIL) ("TEXT" "PLAIN" $ NIL NIL "7BIT" 12 1) 4)("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 34 1) "DIGEST"))
+ok fetch 4 bodystructure
+* 4 fetch (bodystructure (("MESSAGE" "RFC822" $ NIL NIL "7BIT" 78 (NIL "digest message 1" (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) (("Mary Smith" NIL "mary" "example.net")) NIL NIL NIL NIL NIL) ("TEXT" "PLAIN" $ NIL NIL "7BIT" 12 1 $? NIL NIL NIL NIL) 4 $? NIL NIL NIL NIL)("MESSAGE" "RFC822" $ NIL NIL "7BIT" 76 (NIL "digest message 2" (("John Doe" NIL "john" "example.org")) (("John Doe" NIL "john" "example.org")) (("John Doe" NIL "john" "example.org")) NIL NIL NIL NIL NIL) ("TEXT" "PLAIN" $ NIL NIL "7BIT" 12 1 $? NIL NIL NIL NIL) 4 $? NIL NIL NIL NIL)("TEXT" "PLAIN" ("CHARSET" "us-ascii") NIL NIL "7BIT" 34 1 $? NIL NIL NIL NIL) "DIGEST" $? ("BOUNDARY" "dig") NIL NIL NIL))
+ok fetch 4 body.peek[1]
+* 4 fetch (body[1] {{{
+From: Mary Smith <mary@example.net>
+Subject: digest message 1
+
+Message 1.
+
+}}})
+ok fetch 4 body.peek[2.header]
+* 4 fetch (body[2.header] {{{
+From: John Doe <john@example.org>
+Subject: digest message 2
+
+
+}}})
+ok fetch 4 body.peek[2.text]
+* 4 fetch (body[2.text] {{{
+Message 2.
+
+}}})
+ok fetch 4 body.peek[3]
+* 4 fetch (body[3] {{{
+Explicit text/plain in a digest.
+
+}}})

@@ -1,0 +1,107 @@
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Subject: text with an attachment
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="outer-boundary"
+
+This is the preamble.
+
+--outer-boundary
+Content-Type: text/plain; charset=us-ascii
+
+See the attached image.
+
+--outer-boundary
+Content-Type: image/png; name="dot.png"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="dot.png"
+Content-ID: <dot@example.com>
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVQI12P4DwABAQEAG7buVgAA
+AABJRU5ErkJggg==
+
+--outer-boundary--
+This is the epilogue.
+
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Subject: alternative inside mixed
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary=b1
+
+--b1
+Content-Type: multipart/alternative; boundary=b2
+
+--b2
+Content-Type: text/plain; charset=us-ascii
+
+Plain text version.
+
+--b2
+Content-Type: text/html; charset=us-ascii
+Content-Transfer-Encoding: quoted-printable
+
+<p>HTML version.</p>
+
+--b2--
+
+--b1
+Content-Type: application/pdf; name=doc.pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename=doc.pdf
+
+JVBERi0xLjQK
+
+--b1--
+
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Subject: related parts and a part without Content-Type
+MIME-Version: 1.0
+Content-Type: multipart/related; type="text/html"; boundary="rel"
+
+--rel
+Content-Type: text/html; charset=us-ascii
+
+<img src="cid:img1@example.com">
+
+--rel
+Content-Type: image/gif
+Content-Transfer-Encoding: base64
+Content-ID: <img1@example.com>
+
+R0lGODlhAQABAAAAACw=
+
+--rel
+
+A part without Content-Type is text/plain.
+
+--rel--
+
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Subject: signed message
+MIME-Version: 1.0
+Content-Type: multipart/signed; protocol="application/pgp-signature";
+ micalg=pgp-sha256; boundary="sig"
+
+--sig
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+Signed text.
+
+--sig
+Content-Type: application/pgp-signature; name="signature.asc"
+Content-Description: OpenPGP digital signature
+
+-----BEGIN PGP SIGNATURE-----
+AAAA
+-----END PGP SIGNATURE-----
+
+--sig--
+

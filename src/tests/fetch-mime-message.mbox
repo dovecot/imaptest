@@ -1,0 +1,120 @@
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Subject: forwarded message
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="fwd"
+
+--fwd
+Content-Type: text/plain; charset=us-ascii
+
+Forwarding the message below.
+
+--fwd
+Content-Type: message/rfc822
+Content-Description: forwarded
+
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: Mary Smith <mary@example.net>
+To: Fred Foobar <foobar@example.com>
+Subject: original
+Message-ID: <orig@example.net>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="alt"
+
+--alt
+Content-Type: text/plain; charset=us-ascii
+
+Original text.
+
+--alt
+Content-Type: text/html; charset=us-ascii
+
+<p>Original text.</p>
+
+--alt--
+
+--fwd--
+
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Subject: message/rfc822 as the top-level type
+MIME-Version: 1.0
+Content-Type: message/rfc822
+
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: Mary Smith <mary@example.net>
+Subject: inner
+
+Inner body line 1.
+Inner body line 2.
+
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Subject: nested forwards
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="l1"
+
+--l1
+Content-Type: text/plain; charset=us-ascii
+
+Level 1 text.
+
+--l1
+Content-Type: message/rfc822
+
+Date: Sun, 6 Feb 1994 10:00:00 +0100
+From: Mary Smith <mary@example.net>
+Subject: level 2
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="l2"
+
+--l2
+Content-Type: text/plain; charset=us-ascii
+
+Level 2 text.
+
+--l2
+Content-Type: message/rfc822
+
+Date: Sat, 5 Feb 1994 10:00:00 +0100
+From: John Doe <john@example.org>
+Subject: level 3
+Content-Type: text/plain; charset=us-ascii
+
+Level 3 text.
+
+--l2--
+
+--l1--
+
+From user@domain  Fri Feb 22 17:06:23 2008
+Date: Mon, 7 Feb 1994 21:52:25 -0800
+From: Fred Foobar <foobar@example.com>
+Subject: digest
+MIME-Version: 1.0
+Content-Type: multipart/digest; boundary="dig"
+
+--dig
+
+From: Mary Smith <mary@example.net>
+Subject: digest message 1
+
+Message 1.
+
+--dig
+
+From: John Doe <john@example.org>
+Subject: digest message 2
+
+Message 2.
+
+--dig
+Content-Type: text/plain; charset=us-ascii
+
+Explicit text/plain in a digest.
+
+--dig--
+
