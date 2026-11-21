@@ -34,7 +34,7 @@ See [below](#append-mbox) for how this is used.
 
 ### `mech`
 
- * Default: login
+* Default: login
 
 Authentication mechanism to use. This supports anything Dovecot's SASL library does,
 for example plain, digest-md5 or scram-sha-1. The pass parameter must match what
@@ -147,6 +147,12 @@ If set, enable QRESYNC IMAP extension.
 
 If set, enable the use of IMAP4rev2.
 
+### `quiet`
+
+* Default: no (`boolean` setting)
+
+If set, suppress all stdout statistics output (periodic stats, headers, timers, totals).
+Stderr errors and telemetry output remain unaffected.
 
 ### `random_msg_size`
 
@@ -167,6 +173,27 @@ Write rawlog.\* files for all connections containing their input and output.
 * Default: no (output to stdout)
 
 If set, results are output to the filename provided.
+
+### `exporter`
+
+* Default: <none>
+
+Specifies the exporter driver and its options in the format `driver:options`.
+
+Built-in drivers:
+
+| Driver | Options Format | Description |
+|--------|---------------|-------------|
+| `jsonl` | `[path=]/path/to/file` | Export structured event telemetry in JSON Lines format |
+
+Examples:
+
+```
+exporter=jsonl:path=/tmp/events.jsonl
+exporter=jsonl:/tmp/events.jsonl
+```
+
+See [Telemetry & Events](/telemetry).
 
 ### `secs`
 
@@ -271,5 +298,5 @@ Messages are sequentially appended from there. Once ImapTest reaches the last me
 Currently ImapTest's state tracking expects that Message-IDs are unique within the mbox, otherwise it gives bogus errors. If you really want to avoid changing the Message-IDs, use [`no_tracking`](#no-tracking) setting to disable state tracking.
 
 ::: tip
-You can get a test mbox file from https://www.dovecot.org/tmp/dovecot-crlf. It's a 10MB file containing messages from Dovecot mailing list with unique Message-ID headers.
+You can get a test mbox file from <https://www.dovecot.org/tmp/dovecot-crlf>. It's a 10MB file containing messages from Dovecot mailing list with unique Message-ID headers.
 :::

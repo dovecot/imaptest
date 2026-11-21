@@ -3,6 +3,7 @@
 
 #include "client-state.h"
 #include "user.h"
+#include "time-util.h"
 
 enum client_protocol {
 	CLIENT_PROTOCOL_IMAP = 0,
@@ -44,6 +45,7 @@ struct client {
 	enum login_state login_state;
 	enum client_state state;
 	time_t last_io;
+	struct timeval connect_time_tv;
 
 	bool delayed:1;
 	bool disconnected:1;

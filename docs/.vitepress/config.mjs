@@ -51,6 +51,7 @@ export default defineConfig({
         text: 'Operation',
         items: [
           { text: 'Configuration', link: '/configuration' },
+          { text: 'Telemetry', link: '/telemetry' },
           { text: 'Scripted Testing', link: '/scripted_test' },
           { text: 'States', link: '/states' },
           { text: 'Profile', link: '/profile' },
