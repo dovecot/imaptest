@@ -4,6 +4,10 @@
 #include "net.h"
 #include "iostream-ssl.h"
 
+#define IMAP_DEFAULT_PORT 143
+#define LMTP_DEFAULT_PORT 24
+#define POP3_DEFAULT_PORT 110
+
 /* host / port where to connect to */
 #define HOST "127.0.0.1"
 #define PORT 0

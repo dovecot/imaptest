@@ -67,6 +67,7 @@ struct profile_user {
 	uoff_t mail_write_size;
 };
 ARRAY_DEFINE_TYPE(profile_user, struct profile_user *);
+ARRAY_DEFINE_TYPE(ip_addr_array, struct ip_addr);
 
 struct profile {
 	pool_t pool;
@@ -74,13 +75,35 @@ struct profile {
 
 	ARRAY_TYPE(profile_user) users;
 	ARRAY_TYPE(profile_client) clients;
+
+	/* Per-protocol host overrides (NULL = use global conf.host) */
+	const char *imap_host;
+	const char *pop3_host;
+	const char *lmtp_host;
+
+	/* Per-protocol port overrides (0 = use conf.port, then protocol default) */
+	unsigned int imap_port;
+	unsigned int pop3_port;
+	/* Deprecated: use lmtp {} { port = ... } instead. Kept for backward
+	 * compatibility with existing profile configs. If both lmtp {} and the
+	 * root-level lmtp_port are present, the lmtp {} section takes priority. */
 	unsigned int lmtp_port;
+
+	ARRAY_TYPE(ip_addr_array) imap_ips;
+	ARRAY_TYPE(ip_addr_array) pop3_ips;
+	ARRAY_TYPE(ip_addr_array) lmtp_ips;
+	unsigned int imap_ip_idx;
+	unsigned int pop3_ip_idx;
+	unsigned int lmtp_ip_idx;
+
 	unsigned int lmtp_max_parallel_count;
 	unsigned int total_user_count;
 	unsigned int rampup_time;
 };
 
 struct profile *profile_parse(const char *path);
+bool profile_resolve_ip(const char *host,
+				ARRAY_TYPE(ip_addr_array) *ips);
 int imap_client_profile_send_more_commands(struct client *client);
 int imap_client_profile_handle_untagged(struct imap_client *client,
 					const struct imap_arg *args);
